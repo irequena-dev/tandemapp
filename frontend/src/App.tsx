@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import {
   OrganizationSwitcher,
   Show,
-  SignInButton,
-  SignUpButton,
   UserButton,
   useAuth,
   useUser,
 } from '@clerk/react'
+import { Logo } from './components/Logo'
+import { SignInPage } from './pages/SignInPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
@@ -23,20 +23,17 @@ function Header() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '1rem 1.5rem',
-        borderBottom: '1px solid #e5e7eb',
+        gap: '0.75rem',
+        padding: '0.75rem 1.5rem',
+        borderBottom: '1px solid var(--ds-border)',
       }}
     >
-      <strong style={{ fontSize: '1.25rem' }}>Tándem</strong>
+      <span style={{ color: 'var(--ds-primary)' }}>
+        <Logo size={26} withWordmark />
+      </span>
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-        <Show when="signed-out">
-          <SignInButton mode="modal" />
-          <SignUpButton mode="modal" />
-        </Show>
-        <Show when="signed-in">
-          <OrganizationSwitcher hidePersonal />
-          <UserButton />
-        </Show>
+        <OrganizationSwitcher hidePersonal />
+        <UserButton />
       </div>
     </header>
   )
@@ -95,14 +92,11 @@ function SignedInHome() {
 function App() {
   return (
     <>
-      <Header />
       <Show when="signed-out">
-        <main style={{ padding: '2rem 1.5rem' }}>
-          <h1>Tándem</h1>
-          <p>Inicia sesión o crea una cuenta para empezar.</p>
-        </main>
+        <SignInPage />
       </Show>
       <Show when="signed-in">
+        <Header />
         <SignedInHome />
       </Show>
     </>

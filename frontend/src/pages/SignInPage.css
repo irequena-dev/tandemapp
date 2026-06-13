@@ -1,0 +1,242 @@
+/* Login surface — see /DESIGN.md. Mobile-first single column; ≥960px splits
+   into a committed-indigo welcome panel + a neutral auth panel. */
+
+.auth {
+  min-height: 100svh;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+/* ---- Brand / welcome panel (desktop only) ---- */
+.auth__brand {
+  display: none;
+}
+
+.auth__brand-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-2xl);
+  width: 100%;
+  max-width: 27rem;
+}
+
+.auth__brand-logo {
+  color: #fff;
+}
+
+.auth__pitch-title {
+  font-size: clamp(1.75rem, 1.2rem + 1.8vw, 2.25rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.auth__pitch-sub {
+  margin-top: var(--ds-s-md);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 34ch;
+}
+
+.auth__features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-lg);
+}
+
+.auth__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-s-md);
+}
+
+.auth__feature-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-md);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.auth__feature-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.78);
+  padding-top: 2px;
+}
+
+.auth__feature-text strong {
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ---- Auth panel ---- */
+.auth__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-s-xl);
+  min-height: 100svh;
+  padding: max(var(--ds-s-2xl), env(safe-area-inset-top)) var(--ds-s-xl)
+    max(var(--ds-s-2xl), env(safe-area-inset-bottom));
+  background: var(--ds-bg);
+}
+
+.auth__card {
+  width: 100%;
+  max-width: 25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+  animation: auth-rise 0.5s var(--ds-ease) both;
+}
+
+.auth__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xs);
+}
+
+.auth__head-logo {
+  color: var(--ds-primary);
+  margin-bottom: var(--ds-s-sm);
+}
+
+.auth__title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.auth__subtitle {
+  color: var(--ds-muted);
+  font-size: 1rem;
+}
+
+.auth__widget {
+  width: 100%;
+}
+
+.auth__switch {
+  text-align: center;
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+}
+
+.auth__switch-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  margin: -2px -2px;
+  color: var(--ds-primary);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--ds-r-sm);
+  text-underline-offset: 2px;
+  transition: text-decoration-color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.auth__switch-btn:hover {
+  text-decoration: underline;
+}
+
+.auth__switch-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ds-focus-ring);
+}
+
+.auth__legal {
+  max-width: 25rem;
+  text-align: center;
+  color: var(--ds-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+@keyframes auth-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Desktop split ---- */
+@media (min-width: 960px) {
+  .auth {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+
+  .auth__brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--ds-s-3xl);
+    color: #fff;
+    background-color: #00579a;
+    background-image: radial-gradient(
+      130% 130% at 100% 0%,
+      rgba(255, 255, 255, 0.12),
+      rgba(255, 255, 255, 0) 55%
+    );
+  }
+
+  .auth__brand-inner > * {
+    animation: auth-rise 0.55s var(--ds-ease) both;
+  }
+  .auth__brand-inner > *:nth-child(2) {
+    animation-delay: 0.06s;
+  }
+  .auth__brand-inner > *:nth-child(3) {
+    animation-delay: 0.12s;
+  }
+
+  .auth__feature {
+    animation: auth-rise 0.5s var(--ds-ease) both;
+  }
+  .auth__feature:nth-child(1) {
+    animation-delay: 0.16s;
+  }
+  .auth__feature:nth-child(2) {
+    animation-delay: 0.22s;
+  }
+  .auth__feature:nth-child(3) {
+    animation-delay: 0.28s;
+  }
+  .auth__feature:nth-child(4) {
+    animation-delay: 0.34s;
+  }
+
+  .auth__panel {
+    min-height: 100svh;
+    padding: var(--ds-s-3xl);
+  }
+
+  .auth__head-logo {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth__card,
+  .auth__brand-inner > *,
+  .auth__feature {
+    animation: none;
+  }
+}

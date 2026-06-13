@@ -1,111 +1,160 @@
+/* Tándem — design tokens + base. Visual system: see /DESIGN.md (calm indigo,
+   Inter, flat-at-rest, light + dark at AA). Tokens here are the runtime source. */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Light theme (default) */
+  --ds-bg: #ffffff;
+  --ds-surface: #f5f7f9;
+  --ds-surface-2: #edf0f4;
+  --ds-border: #dbdee2;
+  --ds-ink: #1f2730;
+  --ds-muted: #5b646f;
+  --ds-primary: #00579a;
+  --ds-primary-hover: #00488a;
+  --ds-on-primary: #ffffff;
+  --ds-accent: #0f9293;
+  --ds-success: #348f4f;
+  --ds-success-bg: #e4f1e8;
+  --ds-success-ink: #256b3a;
+  --ds-warning: #d79628;
+  --ds-warning-bg: #fbedd3;
+  --ds-warning-ink: #8a5a10;
+  --ds-danger: #c53637;
+  --ds-focus-ring: rgba(0, 87, 154, 0.32);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Radii */
+  --ds-r-sm: 6px;
+  --ds-r-md: 10px;
+  --ds-r-lg: 14px;
+  --ds-r-pill: 999px;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* Spacing */
+  --ds-s-xs: 4px;
+  --ds-s-sm: 8px;
+  --ds-s-md: 12px;
+  --ds-s-lg: 16px;
+  --ds-s-xl: 24px;
+  --ds-s-2xl: 32px;
+  --ds-s-3xl: 48px;
 
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  /* Elevation (transient layers only — surfaces are flat at rest) */
+  --ds-shadow-floating: 0 8px 24px -8px rgba(15, 23, 32, 0.18);
+  --ds-shadow-toast: 0 4px 16px -4px rgba(15, 23, 32, 0.22);
+
+  /* Motion */
+  --ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ds-dur-fast: 120ms;
+  --ds-dur-base: 200ms;
+
+  /* Type */
+  --ds-font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI',
+    Roboto, sans-serif;
+
+  /* Z-index scale */
+  --ds-z-dropdown: 1000;
+  --ds-z-sticky: 1100;
+  --ds-z-backdrop: 1200;
+  --ds-z-modal: 1300;
+  --ds-z-toast: 1400;
+  --ds-z-tooltip: 1500;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+    --ds-bg: #0e1217;
+    --ds-surface: #161b21;
+    --ds-surface-2: #1e252c;
+    --ds-border: #2e343a;
+    --ds-ink: #ebeff2;
+    --ds-muted: #9299a1;
+    --ds-primary: #64a1ee;
+    --ds-primary-hover: #82b6f3;
+    --ds-on-primary: #0b1b2e;
+    --ds-accent: #41b2b2;
+    --ds-success: #5cc27a;
+    --ds-success-bg: #1b3324;
+    --ds-success-ink: #9fe0b3;
+    --ds-warning: #e3ab4f;
+    --ds-warning-bg: #3a2f17;
+    --ds-warning-ink: #f0cd8f;
+    --ds-danger: #ef8a8a;
+    --ds-focus-ring: rgba(100, 161, 238, 0.4);
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    --ds-shadow-floating: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
+    --ds-shadow-toast: 0 6px 20px -6px rgba(0, 0, 0, 0.65);
+
+    color-scheme: dark;
   }
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
+  min-height: 100svh;
+  background: var(--ds-bg);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-sans);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-synthesis: none;
+}
+
+#root {
+  min-height: 100svh;
+  isolation: isolate;
 }
 
 h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+h2,
+h3 {
+  margin: 0;
+  color: var(--ds-ink);
+  text-wrap: balance;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
 p {
   margin: 0;
+  text-wrap: pretty;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+a {
+  color: var(--ds-primary);
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+:where(button, [role='button']) {
+  font-family: inherit;
+}
+
+:where(input, button, textarea, select) {
+  font: inherit;
+}
+
+/* Tabular figures for domain numbers (Medidas, Tallas, doses, dates). */
+.ds-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

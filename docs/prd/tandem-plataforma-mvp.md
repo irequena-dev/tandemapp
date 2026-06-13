@@ -2,7 +2,7 @@
 
 > Índice raíz del producto. El detalle de cada parte vive en su **PRD de fase**; aquí solo quedan la visión, el mapa de fases y las decisiones **transversales** comunes a todas.
 >
-> Vocabulario: glosario en `CONTEXT.md`. Decisiones de calado en `docs/adr/`: ADR-0001 (token MCP por Miembro), ADR-0002 (backend sin NLP), ADR-0003 (Eventos recurrentes materializados).
+> Vocabulario: glosario en `CONTEXT.md`. Decisiones de calado en `docs/adr/`: ADR-0001 (token MCP por Miembro), ADR-0002 (backend sin NLP), ADR-0003 (Eventos recurrentes materializados), ADR-0004 (frontend con CSS + tokens y Radix headless; sin Tailwind).
 
 ## Problem Statement
 

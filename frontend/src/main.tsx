@@ -1,4 +1,6 @@
-import {ClerkProvider} from '@clerk/react';
+import '@fontsource-variable/inter'
+import { ClerkProvider } from '@clerk/react'
+import { esES } from '@clerk/localizations'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -12,7 +14,18 @@ if (!PUBLISHABLE_KEY) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+    <ClerkProvider
+      publishableKey={PUBLISHABLE_KEY}
+      afterSignOutUrl="/"
+      localization={esES}
+      appearance={{
+        variables: {
+          fontFamily: "'Inter Variable', 'Inter', system-ui, sans-serif",
+          borderRadius: '10px',
+          colorPrimary: '#00579a',
+        },
+      }}
+    >
       <App />
     </ClerkProvider>
   </StrictMode>,
