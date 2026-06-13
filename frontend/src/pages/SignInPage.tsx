@@ -78,7 +78,9 @@ function clerkAppearance(dark: boolean): ClerkAppearance {
       footer: { display: 'none' },
       socialButtonsBlockButton: {
         backgroundColor: t.surface,
-        borderColor: t.border,
+        border: 'none',
+        borderRadius: '999px',
+        boxShadow: `inset 0 0 0 1px ${t.border}`,
         color: t.ink,
         minHeight: '48px',
         '&:hover': {
