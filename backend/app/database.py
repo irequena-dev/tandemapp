@@ -13,8 +13,10 @@ from .config import get_settings
 
 @lru_cache
 def get_engine() -> AsyncEngine:
+    # Runtime conecta como el rol de aplicación (NOSUPERUSER): así RLS se aplica
+    # de verdad. Las migraciones (Alembic) usan la URL de owner por separado.
     return create_async_engine(
-        get_settings().database_url, future=True, pool_pre_ping=True
+        get_settings().app_database_url, future=True, pool_pre_ping=True
     )
 
 

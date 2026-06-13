@@ -5,9 +5,10 @@
   "packageManager": "pnpm@11.5.2",
   "scripts": {
     "db": "bash scripts/dev-db.sh",
+    "db:migrate": "cd backend && uv run alembic upgrade head",
     "dev:frontend": "pnpm -C frontend dev",
     "dev:backend": "cd backend && uv run uvicorn app.main:app --port 8000 --reload",
-    "dev": "pnpm db && concurrently -n frontend,backend -c cyan,magenta \"pnpm dev:frontend\" \"pnpm dev:backend\"",
+    "dev": "pnpm db && pnpm db:migrate && concurrently -n frontend,backend -c cyan,magenta \"pnpm dev:frontend\" \"pnpm dev:backend\"",
     "lint:frontend": "pnpm -C frontend lint",
     "lint:backend": "cd backend && uv run ruff check . && uv run ruff format --check .",
     "lint": "pnpm lint:frontend && pnpm lint:backend",

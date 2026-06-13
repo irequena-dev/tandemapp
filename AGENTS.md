@@ -19,7 +19,7 @@ The ubiquitous language is in Spanish (Familia, Miembro, Hijo, Medida, Talla, Í
 - Requirements: **pnpm**, **uv** and **Docker**.
 - Environment variables (`*.env.local` files, gitignored):
   - `frontend/.env.local`: `VITE_CLERK_PUBLISHABLE_KEY` and, optionally, `VITE_API_URL` (defaults to `http://localhost:8000`).
-  - `backend/.env.local`: `CLERK_SECRET_KEY` (via `clerk env pull`), `DATABASE_URL` (async, `postgresql+asyncpg://...`) and `FRONTEND_ORIGIN` (defaults to `http://localhost:5173`).
+  - `backend/.env.local`: `CLERK_SECRET_KEY` (via `clerk env pull`), `DATABASE_URL` (async, `postgresql+asyncpg://...`; the **owner/admin** connection used by Alembic migrations), `FRONTEND_ORIGIN` (defaults to `http://localhost:5173`) and optionally `APP_DB_PASSWORD` (defaults to `tandem_app`). The runtime connects as the **`tandem_app`** role (NOSUPERUSER), derived from `DATABASE_URL` + `APP_DB_PASSWORD`, so RLS actually applies.
 - Development Postgres runs in Docker (`tandem-dev-db`, port 5544), managed by `scripts/dev-db.sh` (idempotent). `pnpm dev` starts it automatically.
 - Do not read or print `*.env.local` files (they contain secrets). Fresh start: `pnpm install` (root) + `pnpm -C frontend install`.
 
@@ -33,6 +33,7 @@ Everything via **pnpm** from the root (never npm).
 | Frontend only                           | `pnpm dev:frontend`            |
 | Backend only                            | `pnpm dev:backend`             |
 | Start the dev DB                        | `pnpm db`                      |
+| Apply DB migrations (Alembic)           | `pnpm db:migrate`              |
 | Full lint (front + back)                | `pnpm lint`                    |
 | Frontend lint (eslint)                  | `pnpm lint:frontend`           |
 | Backend lint (ruff check + format)      | `pnpm lint:backend`            |
@@ -40,14 +41,15 @@ Everything via **pnpm** from the root (never npm).
 | Backend tests (pytest + testcontainers) | `pnpm test:backend`            |
 | Frontend typecheck                      | `pnpm -C frontend exec tsc -b` |
 
-`pnpm dev` brings up, in order: dev DB → frontend (Vite, `localhost:5173`) → backend (FastAPI, `localhost:8000`).
+`pnpm dev` brings up, in order: dev DB → DB migrations → frontend (Vite, `localhost:5173`) → backend (FastAPI, `localhost:8000`).
 
 ## Backend
 
 - **FastAPI + uv** (Python 3.12), **SQLModel** (SQLAlchemy + Pydantic) + **asyncpg** over **PostgreSQL**. Async end to end.
-- Structure under `app/`: `config.py`, `database.py`, `auth.py`, `api/` (routers). Exposes the **REST API** (PWA) and, later, the remote **MCP server**.
+- Structure under `app/`: `config.py`, `database.py`, `auth.py`, `tenancy.py` (isolation), `models.py` (SQLModel), `api/` (routers). Exposes the **REST API** (PWA) and, later, the remote **MCP server**.
 - **Auth**: verifies the Clerk JWT with the official `clerk-backend-api` SDK (`authenticate_request`, networkless via JWKS). Actions are attributed to the Miembro.
-- **Multi-tenancy**: every table carries `family_id`; isolation is **defense in depth** (app-layer filtering + **RLS** in Postgres via a `SET LOCAL` session variable per transaction). *(Implemented in issue 02; see PRD Phase 0.)*
+- **Migrations**: **Alembic** (async, URL injected from `Settings.database_url`). The initial migration creates `families`/`members`, enables RLS (`FORCE`) with per-`family_id` policies, and creates the `tandem_app` NOSUPERUSER role with DML grants + default privileges. Run via `pnpm db:migrate`.
+- **Multi-tenancy** (issue 02): every family-scoped table carries `family_id`; isolation is **defense in depth** (app-layer filtering + **RLS** as the net). The single entry point is `tenancy.family_session`: per transaction it materializes the Clerk identity into `families`/`members` and fixes `app.current_family_id` via `set_config(..., true)` (= `SET LOCAL`); RLS policies compare against it. **Critical**: the runtime connects as `tandem_app` (NOSUPERUSER) because a superuser/owner bypasses RLS even with `FORCE`. Never set the family variable ad hoc in handlers — always depend on `family_session`.
 - **ADR-0002**: the backend does **not** interpret natural language. Claude (the MCP client) picks the intent and extracts structured data; the backend validates (Pydantic) and persists.
 - **Lint/format**: `ruff` (configured in `pyproject.toml`; `B008` is ignored because `Depends()` in defaults is the idiomatic FastAPI pattern).
 - **Tests**: `pytest` with `asyncio_mode = auto`; **real ephemeral Postgres via testcontainers** (no SQLite, no mocks) and an in-process ASGI client. Requires Docker.

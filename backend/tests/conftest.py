@@ -15,9 +15,12 @@ def postgres() -> Iterator[PostgresContainer]:
 
 @pytest.fixture(scope="session", autouse=True)
 def configure_env(postgres: PostgresContainer) -> Iterator[None]:
+    # `database_url` es la conexión owner (la usan las migraciones); el runtime
+    # deriva de ella el rol `tandem_app` (NOSUPERUSER) para que RLS aplique.
     os.environ["DATABASE_URL"] = postgres.get_connection_url()
     os.environ.setdefault("CLERK_SECRET_KEY", "sk_test_dummy")
     os.environ["FRONTEND_ORIGIN"] = "http://localhost:5173"
+    os.environ["APP_DB_PASSWORD"] = "tandem_app_test_pw"
 
     from app.config import get_settings
     from app.database import get_engine, get_sessionmaker
@@ -25,13 +28,67 @@ def configure_env(postgres: PostgresContainer) -> Iterator[None]:
     get_settings.cache_clear()
     get_engine.cache_clear()
     get_sessionmaker.cache_clear()
+
+    # Crea el esquema, las políticas RLS y el rol de aplicación.
+    from alembic.config import Config
+
+    from alembic import command
+
+    command.upgrade(Config("alembic.ini"), "head")
     yield
 
 
 @pytest_asyncio.fixture
+async def app_session() -> AsyncIterator:
+    """Sesión conectada como el rol de aplicación (RLS efectiva), sin Familia.
+
+    Para tests de la costura de DB: el llamante controla `app.current_family_id`.
+    """
+    from app.database import get_sessionmaker
+
+    async with get_sessionmaker()() as session:
+        yield session
+
+
+@pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
+    """Cliente ASGI con la autenticación real de Clerk (para tests de rechazo)."""
     from app.main import app
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+def identity() -> dict:
+    """Claims de Clerk mutables que impersona el `auth_client`."""
+    return {}
+
+
+@pytest_asyncio.fixture
+async def auth_client(identity: dict) -> AsyncIterator[AsyncClient]:
+    """Cliente ASGI cuya autenticación de Clerk está sustituida.
+
+    Solo se simula la frontera externa (no podemos firmar JWTs reales de
+    Clerk); el resto del pipeline (materialización, SET LOCAL, RLS) es real.
+    Mutar `identity` cambia el Miembro/Familia activos entre peticiones;
+    vaciarlo simula una petición sin sesión válida (401).
+    """
+    from fastapi import HTTPException, status
+
+    from app.auth import require_auth
+    from app.main import app
+
+    def fake_require_auth() -> dict:
+        if not identity:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        return dict(identity)
+
+    app.dependency_overrides[require_auth] = fake_require_auth
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            yield c
+    finally:
+        app.dependency_overrides.clear()

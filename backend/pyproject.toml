@@ -5,6 +5,7 @@ description = "Backend de Tándem (API REST + servidor MCP)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.18.4",
     "asyncpg>=0.31.0",
     "clerk-backend-api>=6.0.1",
     "fastapi>=0.136.3",
@@ -23,6 +24,10 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Un solo event loop por sesión: el pool de conexiones asyncpg (cacheado en el
+# engine) se reutiliza entre tests sin cruzar loops.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 pythonpath = ["."]
 
