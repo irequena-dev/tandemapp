@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+# Antes de cada push: los linters de front y back deben pasar.
+pnpm lint

@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -9,5 +10,8 @@ export default defineConfig({
     // Si 5173 está ocupado, falla en vez de saltar a otro puerto
     // (evita romper el CORS del backend, que confía en este origen).
     strictPort: true,
+  },
+  test: {
+    environment: 'jsdom',
   },
 })
