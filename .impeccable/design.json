@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-14T00:00:00Z",
+  "title": "Design System: Tándem",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Trusted Indigo", "canonical": "oklch(0.45 0.13 250)", "dark": "oklch(0.70 0.13 255)", "tonalRamp": ["#000647", "#002665", "#004383", "#0c60a3", "#347ec4", "#5aa3ec", "#80caff", "#a3eeff"] },
+      "accent": { "role": "secondary", "displayName": "Calm Teal", "canonical": "oklch(0.60 0.10 195)", "dark": "oklch(0.70 0.10 195)", "tonalRamp": ["#001c1f", "#003638", "#005153", "#006e6f", "#008c8d", "#41b2b2", "#6cd9d8", "#91fdfd"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "oklch(0.27 0.02 250)", "dark": "oklch(0.95 0.006 250)", "tonalRamp": ["#0b121a", "#212a33", "#3b434d", "#555f69", "#727c86", "#95a0ab", "#bbc5d1", "#dee9f5"] },
+      "muted": { "role": "neutral", "displayName": "Muted", "canonical": "oklch(0.50 0.02 250)", "dark": "oklch(0.68 0.014 250)" },
+      "bg": { "role": "neutral", "displayName": "Background", "canonical": "oklch(1 0 0)", "dark": "oklch(0.18 0.012 250)" },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "oklch(0.975 0.004 250)", "dark": "oklch(0.22 0.014 250)" },
+      "surface-2": { "role": "neutral", "displayName": "Surface 2", "canonical": "oklch(0.955 0.006 250)", "dark": "oklch(0.26 0.016 250)" },
+      "border": { "role": "neutral", "displayName": "Border", "canonical": "oklch(0.90 0.006 250)", "dark": "oklch(0.32 0.014 250)" },
+      "success": { "role": "tertiary", "displayName": "Success", "canonical": "oklch(0.58 0.13 150)" },
+      "warning": { "role": "tertiary", "displayName": "Warning", "canonical": "oklch(0.72 0.14 75)" },
+      "danger": { "role": "tertiary", "displayName": "Danger", "canonical": "oklch(0.55 0.18 25)" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page title only; deliberately modest for an app." },
+      "headline": { "displayName": "Headline", "purpose": "Section and card headers; agenda day heading." },
+      "title": { "displayName": "Title", "purpose": "List-item titles, Hijo names, Pauta names." },
+      "body": { "displayName": "Body", "purpose": "Primary content; cap measure at 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Metadata, captions, pill text, field labels." }
+    },
+    "shadows": [
+      { "name": "floating", "value": "0 8px 24px -8px rgba(15, 23, 32, 0.18)", "purpose": "Bottom sheets, popovers, FAB. Soft, low, never harsh." },
+      { "name": "toast", "value": "0 4px 16px -4px rgba(15, 23, 32, 0.22)", "purpose": "Transient confirmations." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Default easing for state transitions; exponential ease-out, no bounce." },
+      { "name": "duration-fast", "value": "120ms", "purpose": "Press and toggle feedback." },
+      { "name": "duration-base", "value": "200ms", "purpose": "Navigation and list transitions." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "960px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single most important action on a surface.",
+      "html": "<button class=\"ds-btn-primary\">Añadir Ítem</button>",
+      "css": ".ds-btn-primary { min-height: 48px; padding: 12px 20px; background: #00579a; color: #ffffff; border: none; border-radius: 10px; font: 600 1rem/1 Inter, system-ui, sans-serif; cursor: pointer; transition: background 120ms cubic-bezier(0.22,1,0.36,1), transform 120ms cubic-bezier(0.22,1,0.36,1); } .ds-btn-primary:hover { background: #00488a; } .ds-btn-primary:active { transform: scale(0.98); } .ds-btn-primary:focus-visible { outline: 2px solid #00579a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet tonal button for secondary actions; calmer than an outline ghost.",
+      "html": "<button class=\"ds-btn-secondary\">Cancelar</button>",
+      "css": ".ds-btn-secondary { min-height: 48px; padding: 12px 20px; background: #edf0f4; color: #1f2730; border: none; border-radius: 10px; font: 600 1rem/1 Inter, system-ui, sans-serif; cursor: pointer; transition: background 120ms cubic-bezier(0.22,1,0.36,1); } .ds-btn-secondary:hover { background: #e2e6ec; } .ds-btn-secondary:focus-visible { outline: 2px solid #00579a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Comfortable single-line field; 48px min height for one-handed tapping.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Pañales talla 4\" />",
+      "css": ".ds-input { min-height: 48px; width: 100%; box-sizing: border-box; padding: 12px 14px; background: #ffffff; color: #1f2730; border: 1px solid #dbdee2; border-radius: 10px; font: 400 1rem/1.4 Inter, system-ui, sans-serif; transition: border-color 120ms cubic-bezier(0.22,1,0.36,1), box-shadow 120ms cubic-bezier(0.22,1,0.36,1); } .ds-input::placeholder { color: #5b646f; } .ds-input:focus { outline: none; border-color: #00579a; box-shadow: 0 0 0 2px rgba(0,87,154,0.25); }"
+    },
+    {
+      "name": "Status Pill (done)",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Domain-state pill; always pairs color with an icon or word, never color alone.",
+      "html": "<span class=\"ds-pill ds-pill-done\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg>Comprado</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font: 500 0.8125rem/1.3 Inter, system-ui, sans-serif; letter-spacing: 0.01em; } .ds-pill-done { background: #e4f1e8; color: #256b3a; }"
+    },
+    {
+      "name": "Status Pill (due)",
+      "kind": "chip",
+      "refersTo": "status-pill",
+      "description": "Approaching Administración or Evento; clock icon plus label.",
+      "html": "<span class=\"ds-pill ds-pill-due\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>En 2 h</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font: 500 0.8125rem/1.3 Inter, system-ui, sans-serif; letter-spacing: 0.01em; } .ds-pill-due { background: #fbedd3; color: #8a5a10; }"
+    },
+    {
+      "name": "List Item",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature row for shopping list / agenda / pautas; tappable, flat at rest, ≥44px.",
+      "html": "<div class=\"ds-row\"><span class=\"ds-row-check\" aria-hidden=\"true\"></span><div class=\"ds-row-text\"><span class=\"ds-row-title\">Ibuprofeno 100mg/5ml</span><span class=\"ds-row-meta\">Cada 8 h · próxima 18:30 · Leo</span></div><svg class=\"ds-row-chev\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 18 6-6-6-6\"/></svg></div>",
+      "css": ".ds-row { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; background: #ffffff; border-bottom: 1px solid #dbdee2; cursor: pointer; transition: background 120ms cubic-bezier(0.22,1,0.36,1); } .ds-row:hover { background: #f5f7f9; } .ds-row-check { width: 22px; height: 22px; flex: none; border: 2px solid #b6bcc4; border-radius: 999px; } .ds-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; } .ds-row-title { font: 600 1.0625rem/1.3 Inter, system-ui, sans-serif; color: #1f2730; } .ds-row-meta { font: 500 0.8125rem/1.3 Inter, system-ui, sans-serif; color: #5b646f; font-variant-numeric: tabular-nums; } .ds-row-chev { color: #b6bcc4; flex: none; }"
+    },
+    {
+      "name": "Bottom Tab Bar",
+      "kind": "nav",
+      "refersTo": "card",
+      "description": "Thumb-reachable primary navigation across the core surfaces.",
+      "html": "<nav class=\"ds-tabbar\"><a class=\"ds-tab ds-tab-active\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m3 10 9-7 9 7v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/></svg><span>Inicio</span></a><a class=\"ds-tab\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"9\" cy=\"20\" r=\"1\"/><circle cx=\"18\" cy=\"20\" r=\"1\"/><path d=\"M2 3h3l2.5 13h11\"/></svg><span>Compra</span></a><a class=\"ds-tab\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M3 21V8l9-5 9 5v13\"/><path d=\"M9 21v-6h6v6\"/></svg><span>Salud</span></a></nav>",
+      "css": ".ds-tabbar { display: flex; background: #ffffff; border-top: 1px solid #dbdee2; padding: 6px 4px; } .ds-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; min-height: 48px; color: #5b646f; text-decoration: none; font: 500 0.6875rem/1 Inter, system-ui, sans-serif; } .ds-tab-active { color: #00579a; } .ds-tab span { letter-spacing: 0.01em; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Shared Ledger on the Fridge Door",
+    "overview": "Tándem is the calm, trustworthy place where a Familia keeps the facts that would otherwise live in someone's overloaded head. The interface behaves like a well-kept note on the fridge — instantly readable at a glance, honest, never demanding. The system is built on restraint: quiet near-neutral surfaces, a single calm indigo for the brand and for what genuinely needs attention. It is adult and plain-spoken, about children but used by adults. The read path is optimized before the write path.",
+    "keyCharacteristics": [
+      "One calm indigo, spent sparingly; neutral surfaces carry the bulk.",
+      "Glanceable first: state is legible in ~3 seconds, one-handed, in sun or a dark room.",
+      "Adult and plain, never cute, never corporate.",
+      "Flat and quiet at rest; depth and motion only when something is genuinely transient.",
+      "Light and dark are equal first-class citizens."
+    ],
+    "rules": [
+      { "name": "The Quiet Indigo Rule", "body": "The primary indigo covers ≤10% of any screen. Surfaces stay neutral. If everything is colored, nothing reads as urgent — and urgency is the only thing color is allowed to signal.", "section": "colors" },
+      { "name": "The State-Is-Never-Color-Alone Rule", "body": "pending/comprado, activa/finalizada, due/overdue must always pair their color with an icon, label, or shape. Color is reinforcement, never the sole carrier.", "section": "colors" },
+      { "name": "The One Voice Rule", "body": "One family, full stop. Build hierarchy with weight (400/500/600) and size, never by introducing a second typeface.", "section": "typography" },
+      { "name": "The Tabular Numbers Rule", "body": "Every domain figure — height in cm, weight in kg, Talla label, dose, interval, date, time — renders with tabular-nums so columns align and numbers never jitter as they update.", "section": "typography" },
+      { "name": "The Flat-At-Rest Rule", "body": "A resting surface has no shadow — only a tonal step or a 1px border. Shadows appear only on summoned or moving layers (sheets, menus, FAB, drag).", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep the primary indigo to ≤10% of any screen; let neutral surfaces carry the bulk.",
+      "Do pair every state with an icon or word, never color alone.",
+      "Do use tabular-nums for every Medida, Talla, dose, interval, date, and time.",
+      "Do keep body text on ink (15:1), reserve muted for genuine secondary text only.",
+      "Do make every tap target ≥44px and reachable one-handed; primary actions live in thumb range.",
+      "Do keep surfaces flat at rest; reserve shadow for sheets, FAB, and toasts.",
+      "Do treat dark mode as a first-class design, verified at AA, not an inverted afterthought.",
+      "Do use the ubiquitous language in the UI (Familia, Hijo, Medida, Talla, Ítem de compra, Evento, Visita médica, Pauta, Administración)."
+    ],
+    "donts": [
+      "Don't build a generic SaaS dashboard: no navy/gray enterprise palette, no wall of hero-metric / KPI tiles.",
+      "Don't go childish or cutesy: no baby pastels, no cartoon mascots, no rounded-everything, no playful illustrations.",
+      "Don't make a cluttered productivity app: surface what matters now and let the rest recede.",
+      "Don't use a colored side-stripe (border-left > 1px) as a card/list accent.",
+      "Don't use gradient text or decorative glassmorphism.",
+      "Don't over-round: cards top out at 14px; full pills are for small chips only.",
+      "Don't pair a 1px border with a wide soft drop shadow on the same element.",
+      "Don't gate content visibility on a reveal animation, and always honor prefers-reduced-motion."
+    ]
+  }
+}
