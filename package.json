@@ -1,0 +1,15 @@
+{
+  "name": "tandem",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db": "bash scripts/dev-db.sh",
+    "dev:frontend": "pnpm -C frontend dev",
+    "dev:backend": "cd backend && uv run uvicorn app.main:app --port 8000 --reload",
+    "dev": "pnpm db && concurrently -n frontend,backend -c cyan,magenta \"pnpm dev:frontend\" \"pnpm dev:backend\"",
+    "test:backend": "cd backend && uv run pytest"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
