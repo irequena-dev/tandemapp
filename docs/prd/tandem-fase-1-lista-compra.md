@@ -1,6 +1,6 @@
 # Fase 1 — Lista de la compra
 
-> Parte del roadmap de [CaosCero](./caoscero-plataforma-mvp.md). Depende de la [Fase 0 — Cimientos](./caoscero-fase-0-cimientos.md).
+> Parte del roadmap de [Tándem](./tandem-plataforma-mvp.md). Depende de la [Fase 0 — Cimientos](./tandem-fase-0-cimientos.md).
 > Vocabulario: glosario de `CONTEXT.md`. Decisiones de calado: ADR-0002 (backend sin NLP).
 > Esta fase es el **tracer bullet** de extremo a extremo: fija el *prior art* de las costuras de dominio (REST, MCP, ruta de frontend) que imitan las fases siguientes.
 

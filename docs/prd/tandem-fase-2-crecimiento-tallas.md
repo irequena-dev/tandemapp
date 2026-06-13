@@ -1,6 +1,6 @@
 # Fase 2 — Crecimiento y tallas
 
-> Parte del roadmap de [CaosCero](./caoscero-plataforma-mvp.md). Depende de la [Fase 0 — Cimientos](./caoscero-fase-0-cimientos.md). Imita el *prior art* de la [Fase 1](./caoscero-fase-1-lista-compra.md).
+> Parte del roadmap de [Tándem](./tandem-plataforma-mvp.md). Depende de la [Fase 0 — Cimientos](./tandem-fase-0-cimientos.md). Imita el *prior art* de la [Fase 1](./tandem-fase-1-lista-compra.md).
 > Vocabulario: glosario de `CONTEXT.md`. Decisiones: ADR-0002 (backend sin NLP).
 
 ## Problem Statement

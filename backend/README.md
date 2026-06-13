@@ -1,4 +1,4 @@
-# CaosCero — Backend
+# Tándem — Backend
 
 API REST (para la PWA) y, más adelante, servidor MCP. FastAPI + SQLModel + PostgreSQL, gestionado con **uv** (Python 3.12).
 
@@ -8,13 +8,13 @@ API REST (para la PWA) y, más adelante, servidor MCP. FastAPI + SQLModel + Post
 
 ## Variables de entorno (`.env.local`, no versionado)
 - `CLERK_SECRET_KEY` — se obtiene con `clerk env pull`.
-- `DATABASE_URL` — cadena async, p. ej. `postgresql+asyncpg://caoscero:caoscero@localhost:5544/caoscero`.
+- `DATABASE_URL` — cadena async, p. ej. `postgresql+asyncpg://tandem:tandem@localhost:5544/tandem`.
 - `FRONTEND_ORIGIN` — origen de la PWA (por defecto `http://localhost:5173`); se usa para CORS y como authorized party de Clerk.
 
 ## Postgres de desarrollo (Docker)
 ```bash
-docker run -d --name caoscero-dev-db \
-  -e POSTGRES_USER=caoscero -e POSTGRES_PASSWORD=caoscero -e POSTGRES_DB=caoscero \
+docker run -d --name tandem-dev-db \
+  -e POSTGRES_USER=tandem -e POSTGRES_PASSWORD=tandem -e POSTGRES_DB=tandem \
   -p 5544:5432 postgres:17-alpine
 ```
 

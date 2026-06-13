@@ -1,4 +1,4 @@
-# CaosCero — Plataforma MVP (Índice / Roadmap)
+# Tándem — Plataforma MVP (Índice / Roadmap)
 
 > Índice raíz del producto. El detalle de cada parte vive en su **PRD de fase**; aquí solo quedan la visión, el mapa de fases y las decisiones **transversales** comunes a todas.
 >
@@ -18,11 +18,11 @@ Cada fase es una rebanada vertical (DB → backend REST/MCP → PWA) construida 
 
 | Fase | PRD | Resumen |
 |------|-----|---------|
-| 0 | [Cimientos](./caoscero-fase-0-cimientos.md) | Auth, multi-tenancy + RLS, Familia/Miembro, alta de Hijos, seguridad MCP, esqueleto PWA. Prerrequisito de todo. |
-| 1 | [Lista de la compra](./caoscero-fase-1-lista-compra.md) | Rebanada más sencilla; **tracer bullet** que fija el *prior art* de las costuras. |
-| 2 | [Crecimiento y tallas](./caoscero-fase-2-crecimiento-tallas.md) | Medidas y Tallas con histórico append-only. |
-| 3 | [Salud](./caoscero-fase-3-salud.md) | Visitas médicas, Pautas, Administraciones y cálculo de la siguiente toma. La de mayor valor manos-libres. |
-| 4 | [Agenda](./caoscero-fase-4-agenda.md) | Eventos, Tipos de Evento gestionados y Series recurrentes. |
+| 0 | [Cimientos](./tandem-fase-0-cimientos.md) | Auth, multi-tenancy + RLS, Familia/Miembro, alta de Hijos, seguridad MCP, esqueleto PWA. Prerrequisito de todo. |
+| 1 | [Lista de la compra](./tandem-fase-1-lista-compra.md) | Rebanada más sencilla; **tracer bullet** que fija el *prior art* de las costuras. |
+| 2 | [Crecimiento y tallas](./tandem-fase-2-crecimiento-tallas.md) | Medidas y Tallas con histórico append-only. |
+| 3 | [Salud](./tandem-fase-3-salud.md) | Visitas médicas, Pautas, Administraciones y cálculo de la siguiente toma. La de mayor valor manos-libres. |
+| 4 | [Agenda](./tandem-fase-4-agenda.md) | Eventos, Tipos de Evento gestionados y Series recurrentes. |
 
 **Orden recomendado**: Fase 0 → Fase 1 (fija patrones) → Fases 2/3/4 según prioridad (Salud aporta el mayor valor).
 

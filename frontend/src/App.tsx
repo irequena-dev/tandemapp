@@ -27,7 +27,7 @@ function Header() {
         borderBottom: '1px solid #e5e7eb',
       }}
     >
-      <strong style={{ fontSize: '1.25rem' }}>CaosCero</strong>
+      <strong style={{ fontSize: '1.25rem' }}>Tándem</strong>
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
         <Show when="signed-out">
           <SignInButton mode="modal" />
@@ -72,7 +72,7 @@ function SignedInHome() {
   return (
     <main style={{ padding: '2rem 1.5rem' }}>
       <h1>Hola{user?.firstName ? `, ${user.firstName}` : ''}</h1>
-      <p>Has iniciado sesión en CaosCero.</p>
+      <p>Has iniciado sesión en Tándem.</p>
 
       <h2 style={{ marginTop: '1.5rem' }}>Identidad (vía backend /whoami)</h2>
       {error && <p style={{ color: 'crimson' }}>Error: {error}</p>}
@@ -98,7 +98,7 @@ function App() {
       <Header />
       <Show when="signed-out">
         <main style={{ padding: '2rem 1.5rem' }}>
-          <h1>CaosCero</h1>
+          <h1>Tándem</h1>
           <p>Inicia sesión o crea una cuenta para empezar.</p>
         </main>
       </Show>

@@ -1,7 +1,7 @@
-# Especificación Técnica de Proyecto: CaosCero
+# Especificación Técnica de Proyecto: Tándem
 
 ## Resumen Ejecutivo de la Idea
-CaosCero (caoscero.es) es una plataforma web móvil (PWA) híbrida y multi-inquilino (multi-tenant) diseñada para eliminar la carga mental logística en la crianza de los hijos. Resuelve el problema de la falta de manos libres mediante un flujo asíncrono doble:
+Tándem (tandemapp.es) es una plataforma web móvil (PWA) híbrida y multi-inquilino (multi-tenant) diseñada para eliminar la carga mental logística en la crianza de los hijos. Resuelve el problema de la falta de manos libres mediante un flujo asíncrono doble:
 1. Entrada de datos (Manos libres): Interfaz por voz delegada en la aplicación móvil de Claude mediante un servidor MCP (Model Context Protocol) remoto. El usuario dicta texto libre, la IA clasifica la intención y escribe datos estructurados en la base de datos.
 2. Consulta e interacción (Visual y veloz): Una aplicación web en React (PWA) optimizada para móviles para consultar, tachar o validar datos en tiempo real (listas de la compra, métricas/tallas de ropa, pautas e historial médico) con coste cero de tokens y latencia inmediata.
 
@@ -26,7 +26,7 @@ El backend expone un endpoint MCP público para que lo invoquen los llm mediante
 
 ## Propuesta de scaffolding
 
-caoscero/
+tandem/
 ├── frontend/
 │   ├── public/
 │   │   └── manifest.json         # Configuración PWA

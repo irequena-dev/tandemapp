@@ -1,6 +1,6 @@
 ## Parent
 
-`docs/prd/caoscero-fase-0-cimientos.md`
+`docs/prd/tandem-fase-0-cimientos.md`
 
 ## What to build
 

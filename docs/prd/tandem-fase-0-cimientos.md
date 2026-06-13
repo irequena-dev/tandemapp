@@ -1,6 +1,6 @@
 # Fase 0 — Cimientos
 
-> Parte del roadmap de [CaosCero](./caoscero-plataforma-mvp.md). Prerrequisito de las Fases 1–4.
+> Parte del roadmap de [Tándem](./tandem-plataforma-mvp.md). Prerrequisito de las Fases 1–4.
 > Vocabulario: glosario de `CONTEXT.md`. Decisiones de calado: ADR-0001 (token MCP por Miembro), ADR-0002 (backend sin NLP).
 
 ## Problem Statement
@@ -20,10 +20,10 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 5. Como Miembro, quiero dar de alta a mis Hijos con su nombre y fecha de nacimiento, para poder asociarles datos en fases posteriores.
 6. Como Miembro, quiero editar o eliminar un Hijo desde la PWA, para corregir un nombre o una fecha equivocada.
 7. Como Miembro, quiero ver la edad de un Hijo derivada de su fecha de nacimiento, para tener contexto rápido.
-8. Como Miembro, quiero generar mi propio token MCP, para conectar mi app de Claude a CaosCero.
+8. Como Miembro, quiero generar mi propio token MCP, para conectar mi app de Claude a Tándem.
 9. Como Miembro, quiero revocar mi token MCP, para cortar el acceso si pierdo el dispositivo.
 10. Como Miembro, quiero que mis acciones queden atribuidas a mí, tanto en la PWA como por voz, para saber quién hizo qué.
-11. Como Miembro, quiero instalar CaosCero como app en el móvil, para abrirla rápido desde la pantalla de inicio.
+11. Como Miembro, quiero instalar Tándem como app en el móvil, para abrirla rápido desde la pantalla de inicio.
 12. Como Miembro, quiero que un nombre de Hijo mal entendido al dictar no cree un Hijo fantasma, sino que Claude me pida aclaración, para mantener los datos limpios.
 13. Como Miembro, quiero un dashboard de inicio (inicialmente vacío) donde las fases siguientes irán colocando sus resúmenes, para tener un punto de entrada único.
 

@@ -1,4 +1,4 @@
-# CaosCero
+# Tándem
 
 Plataforma multi-inquilino para reducir la carga mental logística en la crianza. Una familia dicta datos por voz (vía IA/MCP) y los consulta/valida en una PWA.
 

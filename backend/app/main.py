@@ -7,7 +7,7 @@ from .config import get_settings
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="CaosCero API")
+    app = FastAPI(title="Tándem API")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.frontend_origin],
