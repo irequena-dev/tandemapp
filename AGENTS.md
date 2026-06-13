@@ -9,6 +9,8 @@ Monorepo: **backend** FastAPI (`/backend`, Python 3.12 with uv) + **frontend** R
 - `docs/adr/` — architecture decisions (respect them).
 - `docs/prd/tandem-plataforma-mvp.md` — index/roadmap by phases; each phase has its own PRD.
 - `docs/issues/` — work sliced into vertical tracer bullets.
+- `PRODUCT.md` — strategic design context (register, users, brand personality, anti-references, principles, a11y). For any UI work.
+- `DESIGN.md` — visual system (calm indigo palette, Inter, restrained motion, light+dark at AA); tokens are normative. Sidecar: `.impeccable/design.json`.
 
 The ubiquitous language is in Spanish (Familia, Miembro, Hijo, Medida, Talla, Ítem de compra, Evento, Serie, Tipo de Evento, Visita médica, Pauta, Administración). Keep those terms in Spanish even in English prose. Display brand = **"Tándem"**; technical slug (code, dirs, DB) = **`tandem`**.
 
