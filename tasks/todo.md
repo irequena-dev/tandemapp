@@ -56,7 +56,9 @@ pero **no ejecutados localmente** (daemon Docker caído) → CI.
   (cliente fetch con token de Clerk + `ApiError`).
 - `features/children/`: `types.ts`, `age.ts` (`calculateAge`/`formatAge`, con tests), `api.ts`
   (hooks `useChildren`/`useCreateChild`/`useUpdateChild`/`useDeleteChild` con **optimistic updates**
-  + rollback como patrón base reutilizable), `ChildrenPage.tsx` (shell **sin estilar** para reestilar).
+  + rollback como patrón base reutilizable). UI modular sin estilar para reestilar:
+  `ChildrenPage.tsx` (contenedor/orquestación), `ChildForm.tsx` (form reutilizable alta+edición,
+  presentacional), `ChildList.tsx` (lista pura) y `ChildListItem.tsx` (fila + mutaciones).
 - Providers en `main.tsx` (QueryClientProvider + BrowserRouter) y ruta `/ajustes/hijos` en `App.tsx`
   (+ enlace en el Header).
 - Test seam: `test/server.ts` + `test/setup.ts` (MSW `setupServer`, `onUnhandledRequest: 'error'`,
