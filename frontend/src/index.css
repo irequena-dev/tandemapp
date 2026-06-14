@@ -148,6 +148,44 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+/* App shell — header nav. Quiet by default; indigo marks the active surface. */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+}
+
+.app-nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 var(--ds-s-md);
+  border-radius: var(--ds-r-md);
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.app-nav__link:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+
+.app-nav__link:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.app-nav__link.active {
+  color: var(--ds-primary);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--ds-primary) 10%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

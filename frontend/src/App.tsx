@@ -6,7 +6,7 @@ import {
   useAuth,
   useUser,
 } from '@clerk/react'
-import { Link, Route, Routes } from 'react-router'
+import { Link, NavLink, Route, Routes } from 'react-router'
 import { Logo } from './components/Logo'
 import { ChildrenPage } from './features/children/ChildrenPage'
 import { SignInPage } from './pages/SignInPage'
@@ -35,8 +35,10 @@ function Header() {
           <Logo size={26} withWordmark />
         </Link>
       </span>
-      <nav style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-        <Link to="/ajustes/hijos">Hijos</Link>
+      <nav className="app-nav">
+        <NavLink to="/ajustes/hijos" className="app-nav__link">
+          Hijos
+        </NavLink>
       </nav>
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
         <OrganizationSwitcher hidePersonal />
