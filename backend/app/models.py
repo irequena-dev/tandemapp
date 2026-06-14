@@ -1,3 +1,6 @@
+import uuid
+from datetime import date
+
 from sqlmodel import Field, SQLModel
 
 
@@ -25,3 +28,35 @@ class Member(SQLModel, table=True):
     id: str = Field(primary_key=True)
     family_id: str = Field(foreign_key="families.id", index=True)
     display_name: str | None = None
+
+
+class ChildBase(SQLModel):
+    """Datos de dominio de un Hijo que el Miembro dicta/edita en la PWA."""
+
+    name: str
+    birth_date: date
+
+
+class Child(ChildBase, table=True):
+    """Hijo: persona menor sujeto de los datos de crianza dentro de una Familia.
+
+    No es un usuario del sistema; tiene identidad propia y estable. La edad se
+    deriva de `birth_date` en la PWA (no se persiste). `family_id` lo fija el
+    backend desde el contexto autenticado; el cliente nunca lo envía.
+    """
+
+    __tablename__ = "children"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+
+
+class ChildCreate(ChildBase):
+    """Cuerpo del alta de un Hijo (sin `family_id`: lo impone el servidor)."""
+
+
+class ChildUpdate(SQLModel):
+    """Edición parcial de un Hijo: solo los campos presentes se actualizan."""
+
+    name: str | None = None
+    birth_date: date | None = None

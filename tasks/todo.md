@@ -1,47 +1,74 @@
-# Issue 02 — Aislamiento multi-inquilino (RLS)
+# Issue 03 — Gestión de Hijos (PWA, extremo a extremo)
 
-`docs/issues/tandem-fase-0-cimientos/02-aislamiento-rls.md`
+`docs/issues/tandem-fase-0-cimientos/03-gestion-hijos-pwa.md`
 
 ## Decisiones (confirmadas con el usuario)
 
-- **Esquema**: se introduce **Alembic** ahora (migraciones async wired a `app.config`).
-- **Rol de aplicación**: la migración crea un rol `tandem_app` **NOSUPERUSER** con grants DML; el runtime conecta como ese rol (clave: superusuario/owner **ignora RLS**, incluso con FORCE).
-- **Tabla de demostración**: el aislamiento en la costura de request se demuestra con **`members`** (read-only `GET /members`). La tabla `children` y su CRUD/UI quedan para la issue 03.
+- **Reparto de trabajo**: Devin hace **backend** + la **capa de datos del frontend** (TanStack Query, hooks, optimistic updates, MSW). El usuario hace la **parte visual** con `impeccable`.
+- **Frontend boundary**: capa de datos + **headless page shell** (componente sin estilar que cablea los hooks; el usuario lo reestiliza).
+- **Routing**: se añade **react-router** ahora; ruta `/ajustes/hijos`.
+- **Test seam frontend**: **hooks-level con MSW** (TanStack Query real, red mockeada en la frontera HTTP).
 
 ## Plan
 
-- [ ] `alembic` añadido; `alembic/env.py` async tomando la URL de `Settings.database_url` (admin/owner).
-- [ ] Modelos SQLModel `Family` y `Member` (PK de texto = id de Clerk; `members.family_id` → `families.id`).
-- [ ] Migración inicial: tablas + `ENABLE/FORCE ROW LEVEL SECURITY` + políticas `family_id = current_setting('app.current_family_id', true)` + rol `tandem_app` + grants + default privileges.
-- [ ] `Settings.app_database_url` derivada (mismo host/db, rol `tandem_app`); `database.get_engine()` runtime usa el rol app (RLS efectiva).
-- [ ] Dependencia centralizada `family_scoped_session`: abre transacción, `set_config('app.current_family_id', org_id, true)`, materializa `Family`/`Member`, hace `yield` de la sesión.
-- [ ] `GET /members` (acotado a la Familia) para ejercitar el aislamiento.
-- [ ] Tests (TDD, Postgres real):
-  - DB-seam: RLS deniega INSERT y oculta filas cuando la variable de Familia no está fijada.
-  - Request-seam: dos Familias; una no ve ni modifica los datos de la otra.
-  - Materialización: la identidad de Clerk se persiste en `families`/`members`.
-- [ ] Migraciones cableadas al flujo dev (`pnpm db:migrate`); AGENTS.md + README actualizados.
-- [ ] Verificación: `pnpm lint:backend` + `pnpm test:backend` en verde.
+### Backend
+- [ ] Modelo SQLModel `Child` (tabla `children`: `id` UUID, `family_id`, `name`, `birth_date`).
+- [ ] Migración `0002`: crea `children` + **su propia** política RLS `family_isolation` sobre `family_id` (grants DML heredados por default privileges).
+- [ ] Dependencia `current_family_id` (deriva de los claims) para fijar `family_id` en el alta sin que el handler toque la variable de sesión.
+- [ ] Router `children`: `POST /children`, `GET /children`, `PATCH /children/{id}`, `DELETE /children/{id}`, todo vía `family_session`.
+- [ ] Tests (Postgres real): CRUD por la costura REST; aislamiento (Familia B no ve ni modifica Hijos de A → 404/lista vacía).
+
+### Frontend (capa de datos + shell)
+- [ ] Instalar `@tanstack/react-query`, `react-router`, `msw`.
+- [ ] `QueryClient` base reutilizable (optimistic + refetch al enfocar) + providers en `main.tsx` + router.
+- [ ] Cliente API con token de Clerk + tipos `Child` + util de edad (con tests).
+- [ ] Hooks de Hijos con **optimistic updates** (patrón base reutilizable).
+- [ ] Setup de MSW + tests hooks-level del CRUD.
+- [ ] `ChildrenPage` headless + ruta `/ajustes/hijos` (para reestilar).
+
+### Verificación
+- [ ] `pnpm lint`, typecheck frontend, `pnpm test:frontend` en verde.
+- [ ] `pnpm test:backend` (requiere Docker; **bloqueado localmente**, daemon caído → confiar en CI / ejecución del usuario).
 
 ## Review
 
-Hecho y verificado (9 tests backend en verde, lint + format + typecheck OK):
+Hecho (backend + capa de datos frontend). Verificado: `pnpm lint` (front + back) y
+typecheck frontend en verde; **13 tests frontend** en verde. Tests backend escritos
+pero **no ejecutados localmente** (daemon Docker caído) → CI.
 
-- **Alembic** introducido (async, URL desde `Settings.database_url`). Migración inicial `0001`: tablas `families`/`members`, `ENABLE`+`FORCE ROW LEVEL SECURITY`, política `family_isolation` por `current_setting('app.current_family_id', true)`, rol `tandem_app` NOSUPERUSER + grants + default privileges. Verificada `upgrade`/`downgrade`/`re-upgrade` contra una DB estilo dev (owner `tandem`).
-- **Rol de aplicación** `tandem_app`: el runtime conecta como él (`Settings.app_database_url`) porque un superusuario/owner ignora RLS incluso con `FORCE`. Comprobado en vivo: insert sin variable de Familia → "violates row-level security policy"; con variable → OK.
-- **Inyección centralizada**: `app/tenancy.py::family_session` abre transacción, fija `app.current_family_id`, materializa la identidad de Clerk en `families`/`members` y hace `yield` de la sesión. Único punto; ningún handler la fija ad hoc.
-- **`GET /members`** acotado a la Familia (RLS) como costura de request.
-- **Tests**: request-seam (dos Familias aisladas), materialización persiste, 403 sin Familia, y DB-seam (RLS deniega SELECT/INSERT sin variable y bloquea escritura cruzada).
-- Migraciones cableadas a `pnpm dev` (`pnpm db:migrate`); AGENTS.md, README backend y **ADR-0005** actualizados.
+### Backend
+- Modelo `Child` (tabla `children`: `id` UUID, `family_id`, `name`, `birth_date`) en `app/models.py`,
+  con `ChildCreate`/`ChildUpdate`.
+- Migración `0002_children_rls`: crea `children`, índice por `family_id`, RLS + FORCE y política
+  propia `family_isolation` por `app.current_family_id`. Grants DML heredados de las default
+  privileges de la 0001 (mismo owner crea la tabla). Cadena `0001 -> 0002` verificada.
+- `tenancy.current_family_id`: nueva dependencia que da el `family_id` del contexto; `family_session`
+  ahora la reutiliza (sin duplicar el 403). El alta fija `family_id` desde ahí (cumple el WITH CHECK).
+- Router `app/api/children.py`: `POST/GET /children`, `PATCH/DELETE /children/{id}`, todo vía
+  `family_session`. La edición/baja cargan con `session.get`; RLS oculta Hijos de otra Familia → 404.
+- Tests (`tests/test_children.py`): CRUD por la costura REST, aislamiento entre Familias (B no ve ni
+  modifica → 404, A intacto) y 403 al crear sin Familia.
 
-### Mapeo a acceptance criteria
+### Frontend (capa de datos + shell headless)
+- Deps: `@tanstack/react-query`, `react-router`, `msw` (dev). pnpm v11 ya no lee `package.json#pnpm`:
+  config en `frontend/pnpm-workspace.yaml` (`allowBuilds: { msw: false }`) para no fallar en install.
+- `lib/queryClient.ts` (config base reutilizable: refetch al enfocar + staleTime), `lib/api.ts`
+  (cliente fetch con token de Clerk + `ApiError`).
+- `features/children/`: `types.ts`, `age.ts` (`calculateAge`/`formatAge`, con tests), `api.ts`
+  (hooks `useChildren`/`useCreateChild`/`useUpdateChild`/`useDeleteChild` con **optimistic updates**
+  + rollback como patrón base reutilizable), `ChildrenPage.tsx` (shell **sin estilar** para reestilar).
+- Providers en `main.tsx` (QueryClientProvider + BrowserRouter) y ruta `/ajustes/hijos` en `App.tsx`
+  (+ enlace en el Header).
+- Test seam: `test/server.ts` + `test/setup.ts` (MSW `setupServer`, `onUnhandledRequest: 'error'`,
+  polyfill de `matchMedia`); `features/children/api.test.tsx` (CRUD + optimista + rollback) y
+  `age.test.ts`.
 
-- Identidad de Clerk persistida en `families`/`members` → `tenancy._materialize` + test `test_materializes_clerk_identity`.
-- Variable de `family_id` por transacción desde el contexto autenticado → `family_session` (`set_config(..., true)`).
-- RLS activado; dos Familias aisladas en la costura de request → `test_members_isolated_between_families`.
-- Test de sesión de DB: RLS deniega sin variable → `test_rls_denies_select/insert_when_family_var_unset`.
-- Inyección de `family_id` centralizada → `family_session` (no repetida en handlers).
-
-### Notas para issue 03 (Hijos)
-
-- La tabla `children` aún no existe; al crearla en su migración debe añadir su **propia política RLS** (no se hereda) sobre `family_id`. Los grants DML los hereda vía `ALTER DEFAULT PRIVILEGES`.
+### Notas / handoff al usuario (parte visual)
+- **Boundary**: reestila `features/children/ChildrenPage.tsx` (lógica ya cableada) y, si quieres, el
+  enlace "Hijos" del Header en `App.tsx`. No toco más visuales.
+- **Smoke test ajeno tocado**: `src/App.test.tsx` estaba **rojo en main** (jsdom sin `matchMedia` +
+  mock de Clerk sin `SignIn`/`SignUp` + copy antiguo tras tu rediseño de `SignInPage`). Lo dejé verde:
+  añadí `SignIn`/`SignUp` al mock y apunté la aserción a "Comparte la carga mental de la crianza".
+  Si cambias ese copy, actualiza esa aserción.
+- **Backend tests**: ejecútalos con Docker arriba (`pnpm test:backend`) o confía en CI.
+- **Sin commit todavía**: como estás trabajando en paralelo en los visuales, no he hecho commit.

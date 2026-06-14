@@ -1,0 +1,6 @@
+# Config de pnpm v11 (ya no se lee el campo `pnpm` de package.json).
+# MSW solo trae un build script para el service worker del navegador; en los
+# tests usamos `msw/node`, así que lo marcamos como "no construir" (acknowledged)
+# para que `pnpm install` no falle con ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  msw: false

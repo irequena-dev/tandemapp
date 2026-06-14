@@ -6,7 +6,9 @@ import {
   useAuth,
   useUser,
 } from '@clerk/react'
+import { Link, Route, Routes } from 'react-router'
 import { Logo } from './components/Logo'
+import { ChildrenPage } from './features/children/ChildrenPage'
 import { SignInPage } from './pages/SignInPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -29,8 +31,13 @@ function Header() {
       }}
     >
       <span style={{ color: 'var(--ds-primary)' }}>
-        <Logo size={26} withWordmark />
+        <Link to="/">
+          <Logo size={26} withWordmark />
+        </Link>
       </span>
+      <nav style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <Link to="/ajustes/hijos">Hijos</Link>
+      </nav>
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
         <OrganizationSwitcher hidePersonal />
         <UserButton />
@@ -97,7 +104,10 @@ function App() {
       </Show>
       <Show when="signed-in">
         <Header />
-        <SignedInHome />
+        <Routes>
+          <Route index element={<SignedInHome />} />
+          <Route path="/ajustes/hijos" element={<ChildrenPage />} />
+        </Routes>
       </Show>
     </>
   )

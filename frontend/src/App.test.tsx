@@ -9,6 +9,8 @@ vi.mock('@clerk/react', () => ({
     when === 'signed-out' ? children : null,
   SignInButton: () => <button>Iniciar sesión</button>,
   SignUpButton: () => <button>Crear cuenta</button>,
+  SignIn: () => null,
+  SignUp: () => null,
   UserButton: () => null,
   OrganizationSwitcher: () => null,
   useUser: () => ({ user: null }),
@@ -20,6 +22,8 @@ import App from './App'
 describe('App', () => {
   it('muestra la pantalla de bienvenida cuando no hay sesión', () => {
     render(<App />)
-    expect(screen.getByText(/Inicia sesión o crea una cuenta/i)).toBeTruthy()
+    expect(
+      screen.getByText(/Comparte la carga mental de la crianza/i),
+    ).toBeTruthy()
   })
 })

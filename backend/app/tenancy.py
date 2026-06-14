@@ -71,12 +71,11 @@ async def _materialize(session: AsyncSession, claims: dict, family_id: str) -> N
     )
 
 
-async def family_session(
-    claims: dict = Depends(require_auth),
-) -> AsyncIterator[AsyncSession]:
-    """Sesión acotada a la Familia autenticada, con identidad materializada.
+def current_family_id(claims: dict = Depends(require_auth)) -> str:
+    """`family_id` (≡ `org_id`) de la Familia activa; 403 si no hay ninguna.
 
-    Lanza 403 si el Miembro no tiene una Familia (Organización) activa.
+    Lo usan los handlers que necesitan el `family_id` explícito (p. ej. fijarlo
+    al dar de alta una fila) sin tocar nunca la variable de sesión a mano.
     """
     family_id = family_id_from_claims(claims)
     if not family_id:
@@ -84,7 +83,17 @@ async def family_session(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El Miembro no tiene una Familia activa",
         )
+    return family_id
 
+
+async def family_session(
+    claims: dict = Depends(require_auth),
+    family_id: str = Depends(current_family_id),
+) -> AsyncIterator[AsyncSession]:
+    """Sesión acotada a la Familia autenticada, con identidad materializada.
+
+    Lanza 403 si el Miembro no tiene una Familia (Organización) activa.
+    """
     async with get_sessionmaker()() as session:
         async with session.begin():
             # Fijar la Familia ANTES de cualquier escritura: las políticas RLS
