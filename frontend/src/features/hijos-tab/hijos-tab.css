@@ -1,0 +1,321 @@
+/* Hijos tab — child cards with metrics + detail view.
+   See pantallas.md § Hijos. Reuses hijo-mono from children.css. */
+
+.hijos-tab {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--ds-s-xl) var(--ds-s-lg) var(--ds-s-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+}
+
+.hijos-tab__title {
+  font-family: var(--ds-font-display);
+  font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+/* ---------- Child cards ---------- */
+.hijos-tab__grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.hijo-card {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-lg);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.hijo-card:hover {
+  background: var(--ds-surface-2);
+}
+.hijo-card:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.hijo-card__avatar {
+  flex: none;
+}
+
+.hijo-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hijo-card__name {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+
+.hijo-card__age {
+  font-size: 0.875rem;
+  color: var(--ds-muted);
+}
+
+.hijo-card__metrics {
+  display: flex;
+  gap: var(--ds-s-md);
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.hijo-card__metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.hijo-card__metric-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+
+.hijo-card__metric-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--ds-muted);
+  text-transform: uppercase;
+}
+
+.hijo-card__chevron {
+  flex: none;
+  color: var(--ds-muted);
+}
+
+/* ---------- Detail page ---------- */
+.hijo-detail {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--ds-s-xl) var(--ds-s-lg) var(--ds-s-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+}
+
+.hijo-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  color: var(--ds-primary);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: var(--ds-s-xs) 0;
+}
+.hijo-detail__back:hover {
+  text-decoration: underline;
+}
+
+/* Summary card (compact) */
+.hijo-detail__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-lg);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.hijo-detail__summary-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.hijo-detail__summary-name {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.hijo-detail__summary-age {
+  font-size: 0.875rem;
+  color: var(--ds-muted);
+  margin-top: 2px;
+}
+
+.hijo-detail__summary-metrics {
+  display: flex;
+  gap: var(--ds-s-lg);
+  margin-top: var(--ds-s-sm);
+}
+
+/* ---------- Section ---------- */
+.hijo-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.hijo-detail__section-title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* Growth table */
+.hijo-detail__growth {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
+.growth-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  min-height: 52px;
+}
+
+.growth-row + .growth-row {
+  border-top: 1px solid var(--ds-border);
+}
+
+.growth-row__date {
+  flex: none;
+  width: 5.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+}
+
+.growth-row__value {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+
+.growth-row__type {
+  flex: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  padding: 4px 10px;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+}
+
+/* Visitas list */
+.hijo-detail__visitas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
+.visita-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ds-s-md) var(--ds-s-lg);
+}
+
+.visita-row + .visita-row {
+  border-top: 1px solid var(--ds-border);
+}
+
+.visita-row__head {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+}
+
+.visita-row__title {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.visita-row__date {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+}
+
+.visita-row__diagnosis {
+  font-size: 0.8125rem;
+  color: var(--ds-muted);
+  line-height: 1.4;
+}
+
+/* Empty states */
+.hijo-detail__empty {
+  padding: var(--ds-s-xl) var(--ds-s-lg);
+  text-align: center;
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+/* Tab empty */
+.hijos-tab__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-3xl) var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.hijos-tab__empty-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  color: var(--ds-primary);
+}
+
+.hijos-tab__empty-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.hijos-tab__empty-text {
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-width: 34ch;
+}
