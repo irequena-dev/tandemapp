@@ -24,16 +24,17 @@ Una lista de la compra única y compartida por Familia. Apunto artículos dictá
 8. Como Miembro, quiero añadir un ítem también desde la PWA, para apuntar cuando tengo la app delante.
 9. Como Miembro, quiero editar o borrar un ítem desde la PWA, para corregir un dictado equivocado.
 10. Como Miembro, quiero que lo que añada o tache mi pareja se refleje al volver a la app, para que la lista esté al día entre ambos.
-11. Como Miembro, quiero ver en el dashboard cuántos ítems quedan pendientes, para saber de un vistazo si hay compra que hacer.
+11. Como Miembro, quiero ver en "Hoy" (tarjeta de "Más cosas") cuántos ítems quedan pendientes, para saber de un vistazo si hay compra que hacer.
+12. Como Miembro, quiero ver quién marcó comprado un ítem, para coordinarme con el otro Miembro y no comprarlo por duplicado.
 
 ## Implementation Decisions
 
 ### Módulos
 - Backend: módulo de compra en REST y una herramienta MCP de alta. Reutiliza el contexto de Familia y RLS de la Fase 0.
-- Frontend: página "Lista de la compra" + widget de resumen en el dashboard.
+- Frontend: pantalla **Compra** (pestaña) + tarjeta de resumen "Compra" en el bloque "Más cosas" de **Hoy**.
 
 ### Esquema
-- `shopping_items`: `id`, `family_id`, `text` (texto libre), `status` (`pending` | `bought`), `created_by`, timestamps. **Lista única por Familia** (no hay entidad lista).
+- `shopping_items`: `id`, `family_id`, `text` (texto libre), `status` (`pending` | `bought`), `created_by`, **`bought_by`** y **`bought_at`** (quién y cuándo lo marcó comprado; se fijan al tachar y se limpian al deshacer), timestamps. **Lista única por Familia** (no hay entidad lista). El destinatario ("para Mateo") va **dentro de `text`**; no hay campo de nota aparte.
 
 ### Contratos
 - **REST**: listar ítems (con agrupación pendiente/comprado), crear, editar texto, tachar (pending→bought), deshacer (bought→pending), limpiar comprados, borrar. Todo acotado a la Familia.
@@ -41,11 +42,14 @@ Una lista de la compra única y compartida por Familia. Apunto artículos dictá
 
 ### Reglas
 - Marcar comprado **conserva** el ítem (no borra); deshacer y limpiar disponibles.
+- Al tachar se registra **quién lo compró** (`bought_by`/`bought_at`, Miembro del JWT); al deshacer se limpia esa atribución.
 - Se aceptan duplicados (inofensivos y corregibles); no hay deduplicación.
 
 ### Frontend
-- **Optimistic updates** en tachar/deshacer/añadir + refetch al enfocar (patrón base de la Fase 0). Acción de "deshacer" tras tachar.
-- Comprados agrupados/colapsados; pendientes arriba.
+- Pantalla **Compra** (ver [IA y pantallas](./tandem-ia-pantallas.md)): dos secciones **"Por comprar"** y **"Comprado"** (comprados agrupados/colapsados; pendientes arriba). Fila = checkbox + **texto libre** del Ítem + chip de estado; al tachar muestra **quién lo compró**.
+- **Contadores** de pendientes en el header de la sección.
+- **Optimistic updates** en tachar/deshacer/añadir + refetch al enfocar (patrón base de la Fase 0). Acción de "deshacer" tras tachar; **limpiar comprados**.
+- Aporte a **Hoy**: tarjeta "Compra" en el bloque "Más cosas" con el contador de pendientes ("X por comprar"; tono suave si no hay nada).
 
 ## Testing Decisions
 
@@ -65,4 +69,4 @@ Una lista de la compra única y compartida por Familia. Apunto artículos dictá
 ## Further Notes
 
 - Por ser el tracer bullet, conviene cuidar aquí la calidad de los tres tipos de costura: serán la referencia copiada por las demás fases.
-- El widget del dashboard (pendientes) es el primer "inquilino" del dashboard creado vacío en la Fase 0.
+- La tarjeta de "Más cosas" en **Hoy** (pendientes) es el primer "inquilino" del contenedor de inicio creado vacío en la Fase 0.

@@ -26,6 +26,8 @@ Cada fase es una rebanada vertical (DB → backend REST/MCP → PWA) construida 
 
 **Orden recomendado**: Fase 0 → Fase 1 (fija patrones) → Fases 2/3/4 según prioridad (Salud aporta el mayor valor).
 
+> **Artefacto transversal de UI**: la [IA y pantallas](./tandem-ia-pantallas.md) define la navegación (shell de 5 pestañas: Hoy, Compra, Eventos, Hijos, Pautas), la pantalla **Hoy** y el overlay **Ajustes**, que cruzan varias fases. Manda sobre la IA y el contenido de pantalla; cada PRD de fase rellena su parte.
+
 ## Decisiones transversales
 
 Comunes a todas las fases; cada PRD de fase las da por supuestas.
@@ -45,7 +47,8 @@ Comunes a todas las fases; cada PRD de fase las da por supuestas.
 - "Tiempo real" = **optimistic updates + refetch** (al enfocar / polling corto); sin WebSocket/push.
 - Zona horaria del **dispositivo** para mostrar/agrupar; timestamps en UTC.
 - **Correcciones**: todos los registros son editables/borrables desde la PWA (sin log de auditoría inmutable).
-- **Dashboard** de inicio al que cada fase aporta su widget (compra pendiente, talla actual, próxima toma, eventos de hoy).
+- Pantalla de inicio **Hoy** (héroe "Ahora" + timeline del día + "Más cosas") a la que cada fase aporta su parte (próxima toma, eventos de hoy, contador de compra, próxima cita). La talla actual se asoma en el card de Hijo. Detalle en [IA y pantallas](./tandem-ia-pantallas.md).
+- Navegación: **shell de 5 pestañas** (Hoy, Compra, Eventos, Hijos, Pautas) + overlay **Ajustes**. **Una Familia por Miembro** ⇒ sin `OrganizationSwitcher` en la UI.
 
 ### Contrato MCP (visión global)
 - Muchas herramientas tipadas y específicas por acción; escritura + **lecturas mínimas** para desambiguar.

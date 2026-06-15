@@ -22,13 +22,13 @@ Registro Medidas (altura, peso) y Tallas (ropa, calzado) dictándolas a Claude (
 7. Como Miembro, quiero que los tipos de Medida (altura, peso) y de Talla (ropa, calzado) sean un conjunto conocido, para que los datos no se fragmenten.
 8. Como Miembro, quiero registrar Medidas y Tallas también desde la PWA, para apuntar cuando tengo la app delante.
 9. Como Miembro, quiero corregir o borrar una Medida o Talla errónea desde la PWA, para arreglar un dato mal dictado (p. ej. una altura imposible).
-10. Como Miembro, quiero ver en el dashboard la talla actual de calzado/ropa de cada Hijo, para tenerla a mano al salir de compras.
+10. Como Miembro, quiero ver en el card de cada Hijo (pestaña Hijos) su talla actual de calzado/ropa, para tenerla a mano al salir de compras.
 
 ## Implementation Decisions
 
 ### Módulos
 - Backend: módulo de crecimiento/tallas en REST + herramientas MCP de alta. Reutiliza Familia/RLS (Fase 0) y patrón REST/MCP/frontend (Fase 1).
-- Frontend: página "Crecimiento y tallas" (por Hijo) + widget de talla actual en el dashboard.
+- Frontend: **no** hay pestaña propia; el crecimiento y las tallas viven dentro de **Hijos → HijoDetail** (ver [IA y pantallas](./tandem-ia-pantallas.md)). El valor actual (altura, peso, talla de calzado y ropa) se asoma en el **card de Hijo**.
 
 ### Esquema
 - `measurements`: `id`, `family_id`, `child_id`, `type` (`height` | `weight`), `value` (numérico), `unit`, `measured_at`, `recorded_by`. **Append-only**; el valor actual es el más reciente por tipo.
@@ -47,8 +47,8 @@ Registro Medidas (altura, peso) y Tallas (ropa, calzado) dictándolas a Claude (
 - "Actual" = registro más reciente (derivado por consulta, no almacenado aparte).
 
 ### Frontend
-- Vista de evolución (altura/peso en el tiempo) y valor actual destacado.
-- Talla actual de ropa/calzado bien visible para el caso "compra".
+- En **HijoDetail**, sección **Crecimiento**: vista de evolución (altura/peso en el tiempo) con el valor actual destacado, talla actual de ropa/calzado bien visible para el caso "compra", y alta/corrección de Medidas y Tallas desde la PWA.
+- En el **card de Hijo** (pestaña Hijos): altura, peso, talla de calzado y talla de ropa actuales, de un vistazo.
 
 ## Testing Decisions
 

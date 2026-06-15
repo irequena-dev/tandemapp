@@ -29,13 +29,13 @@ Una agenda por Familia donde apunto Eventos: cosas que ocurren o vencen en una f
 14. Como Miembro, quiero borrar de golpe las ocurrencias futuras de una Serie, para cancelar una actividad que ya no seguimos.
 15. Como Miembro, quiero editar o borrar un Evento suelto desde la PWA, para corregir un dictado o un cambio de planes.
 16. Como Miembro, quiero ver las horas y los "hoy" en la zona horaria de mi dispositivo, para que la agenda cuadre con mi reloj.
-17. Como Miembro, quiero ver en el dashboard los Eventos de hoy, para empezar el día con la foto completa.
+17. Como Miembro, quiero ver en "Hoy" (timeline) los Eventos de hoy, para empezar el día con la foto completa.
 
 ## Implementation Decisions
 
 ### Módulos
 - Backend: módulo de agenda en REST + herramientas MCP de alta (Eventos sueltos) y lectura mínima de tipos. Reutiliza Familia/RLS (Fase 0) y patrones (Fase 1).
-- Frontend: página "Agenda" (lista de próximos + filtros), gestión de Tipos de Evento y creación de Series en Ajustes/Agenda, y widget de "hoy" en el dashboard.
+- Frontend (ver [IA y pantallas](./tandem-ia-pantallas.md)): pestaña **Eventos** (lista de próximos + filtros). La **gestión de Tipos de Evento** y la **creación/borrado de Series** viven **dentro de la pestaña Eventos** (no en Ajustes). Aporte a **Hoy**: los Eventos de hoy en el timeline y la tarjeta "Próxima cita" (próximo Evento de tipo médico) en "Más cosas".
 
 ### Esquema
 - `events`: `id`, `family_id`, `child_id` (nullable, 0 o 1), `title`, `event_type_id`, `date`, `time` (nullable → día completo), `status` (`pending` | `done`), `series_id` (nullable), `created_by`.
@@ -58,8 +58,9 @@ Una agenda por Familia donde apunto Eventos: cosas que ocurren o vencen en una f
 - **Zona horaria del dispositivo** para mostrar/agrupar; timestamps en UTC.
 
 ### Frontend
-- Agenda como lista de próximos con estado (pendiente/hecho/atrasado), filtros por tipo y Hijo.
-- Alta de Serie con regla acotada y previsualización de ocurrencias generadas; acción "borrar futuras de esta serie".
+- Pestaña **Eventos** como lista de próximos con estado (pendiente/hecho/atrasado), filtros por tipo y Hijo, y crear/editar/borrar Evento + marcar hecho/deshacer (optimistic).
+- Dentro de Eventos: **gestión de Tipos de Evento** y **alta de Serie** con regla acotada y previsualización de ocurrencias generadas; acción "borrar futuras de esta serie".
+- **Hoy**: Eventos de hoy en el **timeline**; tarjeta **"Próxima cita"** (próximo Evento de tipo médico) en "Más cosas", que navega a Eventos.
 
 ## Testing Decisions
 
@@ -80,4 +81,4 @@ Una agenda por Familia donde apunto Eventos: cosas que ocurren o vencen en una f
 ## Further Notes
 
 - La regla "Series acotadas + materialización" (ADR-0003) es lo que mantiene simple esta fase: sin cron de generación y con "solo esta ocurrencia" trivial.
-- El dashboard de "hoy" combina Eventos con la próxima toma (Fase 3) si ambas fases están implementadas.
+- La pantalla **Hoy** combina Eventos con la próxima toma (Fase 3) en el timeline y el héroe "Ahora" si ambas fases están implementadas.

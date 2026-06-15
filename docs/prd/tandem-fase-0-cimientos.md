@@ -17,7 +17,7 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 2. Como Miembro, quiero pertenecer a una Familia, para que todo lo que veo y escribo quede dentro de ella.
 3. Como Miembro, quiero que ningún dato de otra Familia me sea jamás visible ni modificable, para confiar en la privacidad de mi hogar.
 4. Como Miembro, quiero invitar a otra persona (mi pareja, una abuela) a mi Familia, para compartir la gestión.
-5. Como Miembro, quiero dar de alta a mis Hijos con su nombre y fecha de nacimiento, para poder asociarles datos en fases posteriores.
+5. Como Miembro, quiero dar de alta a mis Hijos con su nombre, fecha de nacimiento y un color de avatar, para poder asociarles datos en fases posteriores y distinguirlos de un vistazo.
 6. Como Miembro, quiero editar o eliminar un Hijo desde la PWA, para corregir un nombre o una fecha equivocada.
 7. Como Miembro, quiero ver la edad de un Hijo derivada de su fecha de nacimiento, para tener contexto rápido.
 8. Como Miembro, quiero generar mi propio token MCP, para conectar mi app de Claude a Tándem.
@@ -25,7 +25,7 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 10. Como Miembro, quiero que mis acciones queden atribuidas a mí, tanto en la PWA como por voz, para saber quién hizo qué.
 11. Como Miembro, quiero instalar Tándem como app en el móvil, para abrirla rápido desde la pantalla de inicio.
 12. Como Miembro, quiero que un nombre de Hijo mal entendido al dictar no cree un Hijo fantasma, sino que Claude me pida aclaración, para mantener los datos limpios.
-13. Como Miembro, quiero un dashboard de inicio (inicialmente vacío) donde las fases siguientes irán colocando sus resúmenes, para tener un punto de entrada único.
+13. Como Miembro, quiero una pantalla de inicio "Hoy" (inicialmente como contenedor: héroe "Ahora", timeline del día y "Más cosas") donde las fases siguientes irán colocando sus resúmenes, para tener un punto de entrada único.
 
 ## Implementation Decisions
 
@@ -43,7 +43,7 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 ### Esquema (cimientos)
 - `families` (espejo de la org de Clerk).
 - `members` (espejo del usuario de Clerk; `family_id`). Es el nombre técnico del Miembro.
-- `children`: `id`, `family_id`, `name`, `birth_date`.
+- `children`: `id`, `family_id`, `name`, `birth_date`, `avatar_color` (paleta acotada del sistema de diseño; alimenta el avatar inicial + color, consistente en card de Hijos, HijoDetail y filas de Pautas).
 - `mcp_tokens`: `id`, `member_id`, hash del token, metadatos de revocación.
 - Todas las tablas (estas y las de fases siguientes) llevan `family_id` y políticas RLS.
 
@@ -54,10 +54,12 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 
 ### Frontend (esqueleto)
 - PWA instalable y responsive: `manifest.json`, service worker solo para caché de assets (no offline-first).
-- `ClerkProvider` + `QueryClientProvider`; routing y layout base; pantalla de Ajustes (Hijos, token MCP, miembros).
+- `ClerkProvider` + `QueryClientProvider`; routing y layout base.
+- **Shell** (ver [IA y pantallas](./tandem-ia-pantallas.md)): **header global** (logo + wordmark a la izquierda; icono de **Ajustes** a la derecha) y **barra de navegación inferior fija** con 5 pestañas (Hoy, Compra, Eventos, Hijos, Pautas). **Sin `OrganizationSwitcher`** (una Familia por Miembro); la cuenta (Clerk `UserButton`) vive dentro de Ajustes.
+- **Ajustes (overlay)**: Familia (nombre de la org), Miembros (roster + invitación por enlace), **Hijos** (roster editable de **identidad**: alta/baja/edición de nombre, fecha de nacimiento y **color de avatar**), **Token MCP** (generar/revocar), **Apariencia** (tema Sistema/Claro/Oscuro, por defecto Sistema) y **Cuenta**.
+- **Hoy**: pantalla de inicio que esta fase deja como **contenedor** (héroe "Ahora", timeline del día y bloque "Más cosas") al que cada fase añade su parte (próxima toma, Eventos de hoy, contador de compra, etc.). El detalle vive en [IA y pantallas](./tandem-ia-pantallas.md).
 - Configuración base de TanStack Query (optimistic updates + refetch al enfocar) reutilizable por las fases.
 - Zona horaria del dispositivo para fechas/horas; timestamps en UTC en backend.
-- Dashboard de inicio como contenedor vacío al que cada fase añade su widget.
 
 ## Testing Decisions
 

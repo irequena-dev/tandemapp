@@ -28,13 +28,13 @@ Registro las Visitas médicas con su diagnóstico para tener el historial, e ini
 12. Como Miembro, quiero corregir o borrar una Administración registrada por error, para que la siguiente toma vuelva a calcularse bien.
 13. Como Miembro, quiero registrar una Visita médica también desde la PWA, para apuntar con calma tras la consulta.
 14. Como Miembro, quiero que una Visita médica (pasado) y una cita futura (agenda) sean cosas distintas, para no confundir historial con planificación.
-15. Como Miembro, quiero ver en el dashboard la próxima toma pendiente de hoy, para no saltármela.
+15. Como Miembro, quiero ver en "Hoy" (héroe "Ahora" y timeline) la próxima toma pendiente, para no saltármela.
 
 ## Implementation Decisions
 
 ### Módulos
 - Backend: módulo de salud en REST + herramientas MCP (alta y cambios de estado clínicos). Reutiliza Familia/RLS (Fase 0) y patrones (Fase 1).
-- Frontend: página "Salud" (Pautas activas + historial de Visitas, por Hijo) + widget de próxima toma en el dashboard.
+- Frontend (ver [IA y pantallas](./tandem-ia-pantallas.md)): la Salud se **reparte** en dos sitios — pestaña **Pautas** (tratamientos activos/finalizados de toda la Familia, cross-Hijo) y sección **Visitas médicas** dentro de **Hijos → HijoDetail** (histórico por Hijo). La próxima toma alimenta el **héroe "Ahora"** y el **timeline** de Hoy.
 
 ### Esquema
 - `health_visits`: `id`, `family_id`, `child_id`, `visited_at`, `diagnosis`, metadatos médicos variables en columna **JSONB** (`notes`/`treatment`).
@@ -61,8 +61,9 @@ Registro las Visitas médicas con su diagnóstico para tener el historial, e ini
 - **Independiente de la Agenda (Fase 4)**: una cita futura es un Evento, no una Visita; sin conversión automática.
 
 ### Frontend
-- Tarjeta de Pauta activa con "siguiente toma", botón de marcar dosis (optimistic + deshacer), y "última: cuándo / quién".
-- Historial de Visitas consultable por Hijo.
+- **Pestaña Pautas** (cross-Familia): lista ordenada por urgencia (próxima toma); cada fila muestra **avatar + nombre del Hijo**. Cada Pauta expandible con **curso** (día X de Y, barra de progreso), **tomas del día** con estado (Dada / Próxima / Pendiente) y **quién** la dio, y botón **"Marcar toma"**. Acciones en la PWA: marcar toma (optimistic + deshacer), **iniciar** y **finalizar** Pauta. Las finalizadas aparecen **recesadas**.
+- **HijoDetail → Visitas médicas**: listado con **filtro por fecha**, **registrar** una Visita desde la PWA (US 13) y corregir/borrar; el **detalle** muestra diagnóstico y notas/tratamiento y **enlaza** con las Pautas que originó.
+- **Hoy**: la próxima toma (vencida/inminente) tiene prioridad en el **héroe "Ahora"** (con acción + deshacer); el **timeline** muestra la próxima toma por Pauta activa + las Administraciones ya dadas hoy. La tarjeta "Pautas" de "Más cosas" resume activas/finalizadas.
 
 ## Testing Decisions
 
