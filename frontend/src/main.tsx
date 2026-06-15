@@ -1,4 +1,5 @@
-import '@fontsource-variable/inter'
+import '@fontsource-variable/hanken-grotesk'
+import '@fontsource-variable/fraunces'
 import { ClerkProvider } from '@clerk/react'
 import { esES } from '@clerk/localizations'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -25,9 +26,10 @@ createRoot(document.getElementById('root')!).render(
       localization={esES}
       appearance={{
         variables: {
-          fontFamily: "'Inter Variable', 'Inter', system-ui, sans-serif",
-          borderRadius: '10px',
-          colorPrimary: '#00579a',
+          fontFamily:
+            "'Hanken Grotesk Variable', 'Hanken Grotesk', system-ui, sans-serif",
+          borderRadius: '12px',
+          colorPrimary: '#5c794f',
         },
       }}
     >

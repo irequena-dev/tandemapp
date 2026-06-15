@@ -22,30 +22,31 @@ function usePrefersDark(): boolean {
   return dark
 }
 
-const FONT = "'Inter Variable', 'Inter', system-ui, sans-serif"
+const FONT =
+  "'Hanken Grotesk Variable', 'Hanken Grotesk', system-ui, sans-serif"
 
 /** Clerk appearance themed to DESIGN.md, recomputed per color scheme. */
 function clerkAppearance(dark: boolean): ClerkAppearance {
   const t = dark
     ? {
-        ink: '#ebeff2',
-        muted: '#9299a1',
-        border: '#2e343a',
-        surface: '#1e252c',
-        input: '#0e1217',
-        primary: '#64a1ee',
-        onPrimary: '#0b1b2e',
-        danger: '#ef8a8a',
+        ink: '#ece5d8',
+        muted: '#a49a8d',
+        border: '#343029',
+        surface: '#201d17',
+        input: '#1b1814',
+        primary: '#93b382',
+        onPrimary: '#141310',
+        danger: '#e88c83',
       }
     : {
-        ink: '#1f2730',
-        muted: '#5b646f',
-        border: '#dbdee2',
-        surface: '#edf0f4',
-        input: '#ffffff',
-        primary: '#00579a',
+        ink: '#2a261f',
+        muted: '#6d645a',
+        border: '#e3d9c7',
+        surface: '#efe7d8',
+        input: '#fffaf3',
+        primary: '#5c794f',
         onPrimary: '#ffffff',
-        danger: '#c53637',
+        danger: '#b6443a',
       }
   return {
     variables: {
@@ -62,7 +63,7 @@ function clerkAppearance(dark: boolean): ClerkAppearance {
       colorRing: t.primary,
       fontFamily: FONT,
       fontSize: '0.9375rem',
-      borderRadius: '10px',
+      borderRadius: '12px',
     },
     elements: {
       rootBox: { width: '100%' },
@@ -156,7 +157,7 @@ export function SignInPage() {
         <div className="auth__brand-inner">
           <Logo size={32} withWordmark className="auth__brand-logo" />
           <div className="auth__pitch">
-            <h1 className="auth__pitch-title">
+            <h1 className="auth__pitch-title ds-display">
               Comparte la carga mental de la crianza.
             </h1>
             <p className="auth__pitch-sub">
@@ -196,7 +197,7 @@ export function SignInPage() {
         <div className="auth__card">
           <header className="auth__head">
             <Logo size={30} withWordmark className="auth__head-logo" />
-            <h2 className="auth__title">
+            <h2 className="auth__title ds-display">
               {isSignIn ? 'Hola de nuevo' : 'Crea tu familia en Tándem'}
             </h2>
             <p className="auth__subtitle">

@@ -8,7 +8,7 @@ type LogoProps = {
 
 /**
  * Tándem brand mark: two interlocking rings — a partnership, two carrying one
- * load together. Inherits `color` (use the indigo primary or white on the
+ * load together. Inherits `color` (use the sage primary or white on the
  * brand panel). Adult and geometric, never cute.
  */
 export function Logo({ size = 28, withWordmark = false, className }: LogoProps) {
@@ -32,8 +32,9 @@ export function Logo({ size = 28, withWordmark = false, className }: LogoProps) 
         <span
           aria-hidden="true"
           style={{
-            fontSize: '1.25rem',
-            fontWeight: 600,
+            fontFamily: 'var(--ds-font-display)',
+            fontSize: '1.3rem',
+            fontWeight: 500,
             letterSpacing: '-0.01em',
             color: 'currentColor',
           }}

@@ -81,7 +81,9 @@ function SignedInHome() {
 
   return (
     <main style={{ padding: '2rem 1.5rem' }}>
-      <h1>Hola{user?.firstName ? `, ${user.firstName}` : ''}</h1>
+      <h1 className="ds-display" style={{ fontSize: '1.75rem' }}>
+        Hola{user?.firstName ? `, ${user.firstName}` : ''}
+      </h1>
       <p>Has iniciado sesión en Tándem.</p>
 
       <h2 style={{ marginTop: '1.5rem' }}>Identidad (vía backend /whoami)</h2>

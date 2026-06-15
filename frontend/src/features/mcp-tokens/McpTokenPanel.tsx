@@ -133,7 +133,13 @@ const styles = {
     flexDirection: 'column',
     gap: '1.5rem',
   } as CSSProperties,
-  title: { fontSize: '1.5rem', fontWeight: 600, margin: 0 } as CSSProperties,
+  title: {
+    fontFamily: 'var(--ds-font-display)',
+    fontSize: '1.5rem',
+    fontWeight: 500,
+    letterSpacing: '-0.01em',
+    margin: 0,
+  } as CSSProperties,
   subtitle: {
     color: 'var(--ds-muted)',
     marginTop: '0.25rem',

@@ -1,5 +1,5 @@
 /* Gestión de Hijos — see /DESIGN.md. Calm, glanceable, list-first surface:
-   neutral surfaces carry the bulk, indigo only on the single primary action and
+   neutral surfaces carry the bulk, sage only on the single primary action and
    active/focus. Flat at rest, tonal layering, tabular ages, light + dark at AA,
    ≥44px targets, one-handed. Motion conveys state; reduced-motion via index.css. */
 
@@ -37,9 +37,10 @@
 }
 
 .hijos__title {
+  font-family: var(--ds-font-display);
   font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2rem);
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   line-height: 1.1;
 }
 
@@ -531,29 +532,31 @@
   font-size: 1.25rem;
 }
 
+/* Per-Hijo identity tints — warm-leaning ramp (clay, sage, ochre, terracotta,
+   olive, rosewood) that sits in the warm system, distinct from status color. */
 .hijo-mono[data-tone='0'] {
-  --mono-bg: oklch(0.93 0.045 250);
-  --mono-fg: oklch(0.4 0.1 250);
+  --mono-bg: oklch(0.91 0.045 50);
+  --mono-fg: oklch(0.45 0.11 45);
 }
 .hijo-mono[data-tone='1'] {
-  --mono-bg: oklch(0.93 0.045 195);
-  --mono-fg: oklch(0.4 0.08 195);
+  --mono-bg: oklch(0.91 0.045 135);
+  --mono-fg: oklch(0.44 0.09 140);
 }
 .hijo-mono[data-tone='2'] {
-  --mono-bg: oklch(0.93 0.045 330);
-  --mono-fg: oklch(0.42 0.1 330);
+  --mono-bg: oklch(0.92 0.05 85);
+  --mono-fg: oklch(0.46 0.1 75);
 }
 .hijo-mono[data-tone='3'] {
-  --mono-bg: oklch(0.93 0.05 145);
-  --mono-fg: oklch(0.4 0.09 145);
+  --mono-bg: oklch(0.91 0.05 30);
+  --mono-fg: oklch(0.46 0.12 28);
 }
 .hijo-mono[data-tone='4'] {
-  --mono-bg: oklch(0.93 0.05 75);
-  --mono-fg: oklch(0.42 0.09 75);
+  --mono-bg: oklch(0.91 0.045 110);
+  --mono-fg: oklch(0.44 0.09 115);
 }
 .hijo-mono[data-tone='5'] {
-  --mono-bg: oklch(0.93 0.045 25);
-  --mono-fg: oklch(0.45 0.1 25);
+  --mono-bg: oklch(0.9 0.045 10);
+  --mono-fg: oklch(0.47 0.11 12);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -562,28 +565,28 @@
   }
 
   .hijo-mono[data-tone='0'] {
-    --mono-bg: oklch(0.31 0.05 250);
-    --mono-fg: oklch(0.83 0.07 250);
+    --mono-bg: oklch(0.33 0.05 50);
+    --mono-fg: oklch(0.85 0.07 55);
   }
   .hijo-mono[data-tone='1'] {
-    --mono-bg: oklch(0.31 0.045 195);
-    --mono-fg: oklch(0.83 0.06 195);
+    --mono-bg: oklch(0.32 0.045 135);
+    --mono-fg: oklch(0.85 0.07 135);
   }
   .hijo-mono[data-tone='2'] {
-    --mono-bg: oklch(0.31 0.05 330);
-    --mono-fg: oklch(0.84 0.07 330);
+    --mono-bg: oklch(0.33 0.05 85);
+    --mono-fg: oklch(0.86 0.08 80);
   }
   .hijo-mono[data-tone='3'] {
-    --mono-bg: oklch(0.31 0.05 145);
-    --mono-fg: oklch(0.84 0.07 145);
+    --mono-bg: oklch(0.33 0.05 30);
+    --mono-fg: oklch(0.85 0.08 32);
   }
   .hijo-mono[data-tone='4'] {
-    --mono-bg: oklch(0.31 0.05 75);
-    --mono-fg: oklch(0.85 0.07 75);
+    --mono-bg: oklch(0.32 0.045 110);
+    --mono-fg: oklch(0.85 0.07 115);
   }
   .hijo-mono[data-tone='5'] {
-    --mono-bg: oklch(0.32 0.05 25);
-    --mono-fg: oklch(0.84 0.08 25);
+    --mono-bg: oklch(0.33 0.05 12);
+    --mono-fg: oklch(0.85 0.08 14);
   }
 }
 

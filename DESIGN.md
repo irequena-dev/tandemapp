@@ -1,55 +1,57 @@
-<!-- FOUNDATION: first-pass visual system, composed before UI exists. The color/type/spacing tokens are real and ready to build with. Component specs are synthesized from best practice — re-run `$impeccable document` once real screens are built to capture actual components and generate refined tokens. -->
+<!-- Warm sage system (DESIGN-V2). Color/type/spacing tokens are live in frontend/src/index.css — that file is the runtime source of truth; keep this doc in sync with it. -->
 ---
 name: Tándem
 description: Calm, glanceable PWA that shares the logistical mental load of parenting across a Familia.
 colors:
-  primary: "#00579a"
-  primary-hover: "#00488a"
-  accent: "#0f9293"
-  ink: "#1f2730"
-  muted: "#5b646f"
-  bg: "#ffffff"
-  surface: "#f5f7f9"
-  surface-2: "#edf0f4"
-  border: "#dbdee2"
-  success: "#348f4f"
-  warning: "#d79628"
-  danger: "#c53637"
+  primary: "#5c794f"
+  primary-hover: "#4d6742"
+  accent: "#5c794f"
+  attn: "#bb6234"
+  attn-solid: "#a9542b"
+  ink: "#2a261f"
+  muted: "#6d645a"
+  bg: "#ece6da"
+  surface: "#fffaf3"
+  surface-2: "#efe7d8"
+  border: "#e3d9c7"
+  success: "#4d6742"
+  warning: "#b07a23"
+  danger: "#b6443a"
 typography:
   display:
-    fontFamily: "Inter, system-ui, sans-serif"
-    fontSize: "clamp(1.75rem, 5vw, 2.25rem)"
-    fontWeight: 600
+    fontFamily: "Fraunces, Georgia, serif"
+    fontSize: "clamp(1.625rem, 1.3rem + 1.4vw, 2rem)"
+    fontWeight: 500
     lineHeight: 1.1
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.01em"
   headline:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontSize: "1.375rem"
     fontWeight: 600
     lineHeight: 1.2
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontSize: "1.0625rem"
     fontWeight: 600
     lineHeight: 1.3
     letterSpacing: "normal"
   body:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.55
     letterSpacing: "normal"
   label:
-    fontFamily: "Inter, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontSize: "0.8125rem"
     fontWeight: 500
     lineHeight: 1.3
     letterSpacing: "0.01em"
 rounded:
-  sm: "6px"
-  md: "10px"
-  lg: "14px"
+  sm: "8px"
+  md: "12px"
+  lg: "20px"
   pill: "999px"
 spacing:
   xs: "4px"
@@ -100,12 +102,13 @@ components:
 
 Tándem is the calm, trustworthy place where a Familia keeps the facts that would otherwise live in someone's overloaded head: what's left to buy, what **Talla** fits each **Hijo** now, when the next **Administración** is due and who gave it, what's on the agenda today. The interface behaves like a well-kept note on the fridge — instantly readable at a glance, honest, never demanding. A tired **Miembro** opens it one-handed, gets the answer or confirms the action in a few seconds, and closes it relieved.
 
-The system is built on restraint. Surfaces are quiet and near-neutral; a single calm indigo carries the brand and marks only the things that genuinely need attention. It is adult and plain-spoken — it is *about* children but used *by* adults, and it treats them as the capable people they are. Color, motion, and weight are spent deliberately, never as decoration. The read path is optimized before the write path.
+The system is built on restraint and warmth. The canvas is a warm greige field; cream-white cards lift off it, and a single grounded sage carries the brand and marks only the things that genuinely need a Miembro. A soft optical serif (Fraunces) gives the screen titles and wordmark a human, lived-in warmth, while a humanist sans (Hanken Grotesk) keeps every label, control, and number plain and legible. It is adult and plain-spoken — it is *about* children but used *by* adults, and it treats them as the capable people they are. Color, motion, and weight are spent deliberately, never as decoration. The read path is optimized before the write path.
 
 It explicitly rejects three things: the **cold corporate SaaS dashboard** (no navy/gray enterprise palette, no wall of KPI tiles), the **childish/cutesy "kids app"** (no baby pastels, no cartoon mascots, no rounded-everything), and the **cluttered productivity app** (no dense feature-stuffed surfaces that overwhelm). Calm is the product.
 
 **Key Characteristics:**
-- One calm indigo, spent sparingly; neutral surfaces carry the bulk.
+- Warm neutrals carry the bulk; one grounded sage, spent sparingly, marks what matters. A clay attention hue is reserved for "needs you now".
+- Fraunces (serif display) + Hanken Grotesk (humanist sans) — warmth from the title voice, legibility from the body voice.
 - Glanceable first: state is legible in ~3 seconds, one-handed, in sun or a dark room.
 - Adult and plain, never cute, never corporate.
 - Flat and quiet at rest; depth and motion only when something is genuinely transient.
@@ -113,54 +116,56 @@ It explicitly rejects three things: the **cold corporate SaaS dashboard** (no na
 
 ## 2. Colors
 
-A near-neutral cool-gray canvas with a single trustworthy indigo and a calm teal accent; semantic colors are reserved strictly for domain state.
+A warm, grounded palette. Warm neutrals (greige field, cream-white cards) — never corporate gray. A single grounded **sage** carries the brand, primary actions, and "handled" states. A single **clay attention** hue is used *only* for "needs you now". Hijo identity uses warm avatar tints, not status colors.
 
 ### Primary
-- **Trusted Indigo** (`#00579a` / `oklch(0.45 0.13 250)`): The brand. Primary actions, active navigation, links, selection. Carries white text (7.4:1). Used on ≤10% of any screen — its scarcity is what makes it read as "this matters." Hover deepens to **Indigo Deep** (`#00488a` / `oklch(0.40 0.13 250)`).
+- **Grounded Sage** (`#5c794f` / `oklch(0.55 0.07 138)`): The brand. Primary actions, active navigation, links, selection. Carries white text (4.88:1, AA). Used on ≤10% of any screen — its scarcity is what makes it read as "this matters." Hover deepens to **Sage Deep** (`#4d6742`, white text 6.3:1). There is no competing second accent: one brand hue, full stop.
 
-### Secondary
-- **Calm Teal** (`#0f9293` / `oklch(0.60 0.10 195)`): The accent — a second brand color, distinct from indigo in hue and lightness. Used for quiet emphasis, secondary links, and informational pills. Never competes with primary for the same action.
+### Attention
+- **Clay** (`#bb6234` / `oklch(0.58 0.12 47)`): reserved strictly for "needs you now" — a due **Administración**, an overdue **Ítem**. Used sparingly; never decoration. As a tint with dark **clay-ink** text (`#8a4521`) or as a solid fill that must darken to `#a9542b` so white text clears AA (raw `#bb6234` on white is only 4.28:1).
 
 ### Neutral
-- **Ink** (`#1f2730` / `oklch(0.27 0.02 250)`): Body and heading text. 15:1 on `bg` — the body color leans toward ink, never washed-out gray.
-- **Muted** (`#5b646f` / `oklch(0.50 0.02 250)`): Secondary text, metadata, captions. 6:1 on `bg` — still comfortably AA for normal text; never used for primary reading.
-- **Background** (`#ffffff` / `oklch(1 0 0)`): Pure white app canvas in light mode.
-- **Surface** (`#f5f7f9` / `oklch(0.975 0.004 250)`): Cards, grouped list sections, sheets — a faint cool lift off the canvas.
-- **Surface-2** (`#edf0f4` / `oklch(0.955 0.006 250)`): Inset fields, secondary buttons, neutral pills, pressed states.
-- **Border** (`#dbdee2` / `oklch(0.90 0.006 250)`): Hairline dividers and field strokes. 1px only.
+- **Ink** (`#2a261f`): Body and heading text. ~12:1 on `bg`, ~14.5:1 on `surface` — the body color leans toward ink, never washed-out gray.
+- **Muted** (`#6d645a`): Secondary text, metadata, captions. 4.67:1 on `bg`, 5.58:1 on `surface` — AA for normal text; never used for primary reading. Prefer placing muted text on `surface`, where it has more room.
+- **Background** (`#ece6da`): warm greige field — a deliberate mid-light surface, not near-white paper. Cards lift off it.
+- **Surface** (`#fffaf3`): cream-white cards, grouped list sections, sheets — the raised tier.
+- **Surface-2** (`#efe7d8`): inset fields, secondary buttons, neutral pills, skeletons, pressed states.
+- **Border** (`#e3d9c7`): hairline dividers and field strokes. 1px only.
 
 ### Semantic (domain state)
-- **Success / done** (`#348f4f`): comprado, hecho, Pauta finalizada cleanly.
-- **Warning / due-soon** (`#d79628`): an Administración or Evento approaching.
-- **Danger / overdue** (`#c53637`): overdue, error, destructive confirm.
+- **Success / done** (`#4d6742`): comprado, hecho, Pauta finalizada cleanly — the sage family.
+- **Warning / due-soon** (`#b07a23`): an Administración or Evento approaching.
+- **Danger / overdue** (`#b6443a`): overdue, error, destructive confirm.
 
 ### Dark mode
-Same hues, recomposed (canonical values in `.impeccable/design.json`):
-- **bg** `#0e1217`, **surface** `#161b21`, **surface-2** `#1e252c`, **border** `#2e343a`.
-- **ink** `#ebeff2` (16:1), **muted** `#9299a1` (6.5:1).
-- **primary** lightens to `#64a1ee` (`oklch(0.70 0.13 255)`); on dark mode the primary fill takes **dark** text (`bg` on primary = 7:1), not white.
-- **accent** `#41b2b2`.
+Warm and recomposed, not an inverted gray (canonical values in `frontend/src/index.css` / `.impeccable/design.json`):
+- **bg** `#1b1814` (warm near-black), **surface** `#25221c`, **surface-2** `#201d17`, **border** `#343029`.
+- **ink** `#ece5d8` (14:1), **muted** `#a49a8d` (6.4:1).
+- **primary** lightens to sage `#93b382`; on dark the primary fill takes **dark** text (`#141310` on primary = 8:1), not white.
+- **attn** `#dc8d56` (dark text on solid = 7:1).
 
 ### Named Rules
-**The Quiet Indigo Rule.** The primary indigo covers ≤10% of any screen. Surfaces stay neutral. If everything is colored, nothing reads as urgent — and urgency is the only thing color is allowed to signal.
+**The Quiet Sage Rule.** The primary sage covers ≤10% of any screen. Surfaces stay warm-neutral. If everything is colored, nothing reads as urgent — and urgency is the only thing color is allowed to signal.
 
 **The State-Is-Never-Color-Alone Rule.** pending/comprado, activa/finalizada, due/overdue must always pair their color with an icon, label, or shape. Color is reinforcement, never the sole carrier.
 
 ## 3. Typography
 
-**Display / Body / Label Font:** Inter (with `system-ui, sans-serif` fallback) — one family, used throughout.
+**Two voices, paired on a contrast axis:**
+- **Fraunces** (soft optical serif; `Georgia` fallback) — display warmth: the wordmark and screen titles (apply the `.ds-display` utility). Carries personality without shouting.
+- **Hanken Grotesk** (warm humanist sans; `system-ui` fallback) — everything else: section headers, card/item titles, body, labels, buttons, and all domain numbers. Chosen for small-size legibility on phones and true tabular figures.
 
-**Character:** A single neutral, humanist-leaning sans across the entire UI. Hierarchy comes from weight and size, not from a second typeface. Inter is chosen for its exceptional small-size legibility on phones and its true tabular figures — essential for **Medidas**, **Tallas**, doses, and dates that must read precisely. The pairing is calm and unfussy: no display flourish, no character that competes with the data.
+**Character:** The serif gives titles a human, lived-in warmth; the sans keeps the working UI plain and precise. This is a real pairing on a contrast axis (serif + humanist sans), never two lookalike sans. A display serif never appears in UI labels, buttons, or data.
 
 ### Hierarchy
-- **Display** (600, `clamp(1.75rem, 5vw, 2.25rem)`, lh 1.1, ls -0.02em): Page title only. Deliberately modest — this is an app, not a landing page.
-- **Headline** (600, 1.375rem, lh 1.2): Section and card headers, the day's heading in the agenda.
-- **Title** (600, 1.0625rem, lh 1.3): List-item titles, **Hijo** names, **Pauta** names.
-- **Body** (400, 1rem, lh 1.55): Primary content and descriptions. Cap measure at 65–75ch.
-- **Label** (500, 0.8125rem, lh 1.3, ls 0.01em): Metadata, captions, pill text, field labels.
+- **Display** (Fraunces, 500, `clamp(1.625rem, 1.3rem + 1.4vw, 2rem)`, lh 1.1, ls -0.01em): Screen titles and wordmark only. Deliberately modest — this is an app, not a landing page.
+- **Headline** (Hanken, 600, 1.375rem, lh 1.2): Section and card headers, the day's heading in the agenda.
+- **Title** (Hanken, 600, 1.0625rem, lh 1.3): List-item titles, **Hijo** names, **Pauta** names.
+- **Body** (Hanken, 400, 1rem, lh 1.55): Primary content and descriptions. Cap measure at 65–75ch.
+- **Label** (Hanken, 500, 0.8125rem, lh 1.3, ls 0.01em): Metadata, captions, pill text, field labels.
 
 ### Named Rules
-**The One Voice Rule.** One family, full stop. Build hierarchy with weight (400/500/600) and size, never by introducing a second typeface.
+**The Two-Voice Rule.** Fraunces for screen titles + wordmark; Hanken for the entire working UI. Never reach for the serif in a button, label, or data cell — and never introduce a third family.
 
 **The Tabular Numbers Rule.** Every domain figure — height in cm, weight in kg, **Talla** label, dose, interval, date, time — renders with `font-variant-numeric: tabular-nums` so columns align and numbers never jitter as they update.
 
@@ -169,8 +174,8 @@ Same hues, recomposed (canonical values in `.impeccable/design.json`):
 Flat by default, with tonal layering doing the work of separation: `bg` → `surface` → `surface-2` establish depth through value, not shadow. Shadows are reserved exclusively for genuinely transient or floating layers (bottom sheets, the FAB, toasts, an actively-dragged row) — never on resting cards or list items.
 
 ### Shadow Vocabulary
-- **Floating** (`box-shadow: 0 8px 24px -8px rgba(15, 23, 32, 0.18)`): Bottom sheets, popovers, FAB. Soft, low, never harsh.
-- **Toast** (`box-shadow: 0 4px 16px -4px rgba(15, 23, 32, 0.22)`): Transient confirmations.
+- **Floating** (`box-shadow: 0 8px 24px -8px rgba(43, 34, 22, 0.2)`): Bottom sheets, popovers, FAB. Soft, low, warm-tinted, never harsh.
+- **Toast** (`box-shadow: 0 4px 16px -4px rgba(43, 34, 22, 0.24)`): Transient confirmations.
 
 ### Named Rules
 **The Flat-At-Rest Rule.** A resting surface has no shadow — only a tonal step or a 1px border. If it casts a shadow, it must be something the user summoned (a sheet, a menu) or something in motion. A 2014-style soft drop shadow on a static card is forbidden.
@@ -178,7 +183,7 @@ Flat by default, with tonal layering doing the work of separation: `bg` → `sur
 ## 5. Components
 
 ### Buttons
-- **Shape:** Gently rounded (10px, `{rounded.md}`). Pills (`{rounded.pill}`) only for small status chips, never for primary actions.
+- **Shape:** Gently rounded (12px, `{rounded.md}`). Pills (`{rounded.pill}`) only for small status chips, never for primary actions.
 - **Primary:** `primary` fill, white text in light mode / dark text in dark mode, 12px×20px padding, **min height 48px**. Used for the single most important action on a surface.
 - **Secondary:** `surface-2` fill, `ink` text — a quiet tonal button for secondary actions. No outline-only ghost buttons as the default; tonal reads calmer.
 - **Hover / Focus:** Primary deepens to `primary-hover`; all interactive elements show a 2px `primary` focus ring at `:focus-visible` with a 2px offset. Press: subtle `scale(0.98)`, ≤120ms.
@@ -187,13 +192,13 @@ Flat by default, with tonal layering doing the work of separation: `bg` → `sur
 - **Style:** `surface-2` background, `ink` text, pill radius, 4px×10px, label type. State pills tint toward their semantic color at low chroma and **always carry an icon or word** (a check for comprado, a clock for due) — never color alone.
 
 ### Cards / Containers
-- **Corner Style:** 14px (`{rounded.lg}`).
-- **Background:** `surface` on `bg`; nested fields use `surface-2`. Never nest a card inside a card.
+- **Corner Style:** 20px (`{rounded.lg}`).
+- **Background:** `surface` (cream-white) on `bg` (greige); nested fields use `surface-2`. Never nest a card inside a card.
 - **Shadow Strategy:** None at rest (see Elevation). Separation via tonal step + optional 1px `border`.
 - **Internal Padding:** 16px (`{spacing.lg}`).
 
 ### Inputs / Fields
-- **Style:** `bg` fill, 1px `border`, 10px radius, **min height 48px**, comfortable 12–14px padding.
+- **Style:** `bg` fill, 1px `border`, 12px radius, **min height 48px**, comfortable 12–14px padding.
 - **Focus:** Border shifts to `primary` plus a soft 2px `primary` ring. No glow.
 - **Error:** Border and helper text in `danger`; the message is plain and tells the Miembro how to fix it.
 
@@ -207,10 +212,10 @@ Flat by default, with tonal layering doing the work of separation: `bg` → `sur
 ## 6. Do's and Don'ts
 
 ### Do:
-- **Do** keep the primary indigo to ≤10% of any screen; let neutral surfaces carry the bulk (The Quiet Indigo Rule).
+- **Do** keep the primary sage to ≤10% of any screen; let warm-neutral surfaces carry the bulk (The Quiet Sage Rule). Reserve clay strictly for "needs you now".
 - **Do** pair every state with an icon or word, never color alone (The State-Is-Never-Color-Alone Rule).
 - **Do** use `tabular-nums` for every Medida, Talla, dose, interval, date, and time.
-- **Do** keep body text on `ink` (15:1), reserve `muted` for genuine secondary text only.
+- **Do** keep body text on `ink` (~12:1+), reserve `muted` for genuine secondary text only; prefer `muted` on `surface` over `bg`.
 - **Do** make every tap target ≥44px and reachable one-handed; primary actions live in thumb range.
 - **Do** keep surfaces flat at rest; reserve shadow for sheets, FAB, and toasts.
 - **Do** treat dark mode as a first-class design, verified at AA, not an inverted afterthought.
@@ -222,6 +227,6 @@ Flat by default, with tonal layering doing the work of separation: `bg` → `sur
 - **Don't** make a cluttered productivity app: don't show everything at once — surface what matters now and let the rest recede.
 - **Don't** use a colored side-stripe (`border-left` > 1px) as a card/list accent.
 - **Don't** use gradient text (`background-clip: text`) or decorative glassmorphism.
-- **Don't** over-round: cards top out at 14px; full pills are for small chips only, never cards or primary buttons.
+- **Don't** over-round: cards top out at 20px (`{rounded.lg}`), controls at 12px; full pills are for small chips, avatars, and the like, never cards or primary buttons.
 - **Don't** pair a 1px border with a wide soft drop shadow on the same element; pick one.
 - **Don't** gate content visibility on a reveal animation, and always honor `prefers-reduced-motion`.

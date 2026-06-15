@@ -1,31 +1,39 @@
-/* Tándem — design tokens + base. Visual system: see /DESIGN.md (calm indigo,
-   Inter, flat-at-rest, light + dark at AA). Tokens here are the runtime source. */
+/* Tándem — design tokens + base. Visual system: see /DESIGN.md (warm sage,
+   Fraunces + Hanken Grotesk, flat-at-rest, light + dark at AA). Tokens here are
+   the runtime source. */
 
 :root {
-  /* Light theme (default) */
-  --ds-bg: #ffffff;
-  --ds-surface: #f5f7f9;
-  --ds-surface-2: #edf0f4;
-  --ds-border: #dbdee2;
-  --ds-ink: #1f2730;
-  --ds-muted: #5b646f;
-  --ds-primary: #00579a;
-  --ds-primary-hover: #00488a;
+  /* Light theme (default) — warm sage system */
+  --ds-bg: #ece6da; /* warm greige field. #faf7f1 (softer) / #f4efe5 (cream) to taste */
+  --ds-surface: #fffaf3; /* raised card — cream-white, pops above the field */
+  --ds-surface-2: #efe7d8; /* insets, skeletons, secondary button, monogram bg */
+  --ds-border: #e3d9c7;
+  --ds-ink: #2a261f; /* 12:1 on field, 14.5:1 on card */
+  --ds-muted: #6d645a; /* 4.67:1 on field, 5.58:1 on card */
+  --ds-primary: #5c794f; /* sage — brand + primary action (white text 4.88:1) */
+  --ds-primary-hover: #4d6742; /* white text 6.3:1 */
   --ds-on-primary: #ffffff;
-  --ds-accent: #0f9293;
-  --ds-success: #348f4f;
-  --ds-success-bg: #e4f1e8;
-  --ds-success-ink: #256b3a;
-  --ds-warning: #d79628;
-  --ds-warning-bg: #fbedd3;
-  --ds-warning-ink: #8a5a10;
-  --ds-danger: #c53637;
-  --ds-focus-ring: rgba(0, 87, 154, 0.32);
+  --ds-accent: #5c794f; /* one brand hue; no competing secondary */
+  --ds-success: #4d6742;
+  --ds-success-bg: #e2ead9;
+  --ds-success-ink: #38502d;
+  --ds-warning: #b07a23;
+  --ds-warning-bg: #f4e7cf;
+  --ds-warning-ink: #7a5212;
+  --ds-danger: #b6443a;
+  --ds-focus-ring: rgba(92, 121, 79, 0.4);
 
-  /* Radii */
-  --ds-r-sm: 6px;
-  --ds-r-md: 10px;
-  --ds-r-lg: 14px;
+  /* Attention hue (clay) — "needs you now", used sparingly. Solid is darkened
+     to #a9542b so white text clears AA (raw #bb6234 only hits 4.28:1). */
+  --ds-attn: #bb6234;
+  --ds-attn-solid: #a9542b;
+  --ds-attn-ink: #8a4521;
+  --ds-attn-bg: #f3e2d3;
+
+  /* Radii — warm: cards 20px, controls ~12px */
+  --ds-r-sm: 8px;
+  --ds-r-md: 12px;
+  --ds-r-lg: 20px;
   --ds-r-pill: 999px;
 
   /* Spacing */
@@ -38,17 +46,19 @@
   --ds-s-3xl: 48px;
 
   /* Elevation (transient layers only — surfaces are flat at rest) */
-  --ds-shadow-floating: 0 8px 24px -8px rgba(15, 23, 32, 0.18);
-  --ds-shadow-toast: 0 4px 16px -4px rgba(15, 23, 32, 0.22);
+  --ds-shadow-floating: 0 8px 24px -8px rgba(43, 34, 22, 0.2);
+  --ds-shadow-toast: 0 4px 16px -4px rgba(43, 34, 22, 0.24);
 
   /* Motion */
   --ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ds-dur-fast: 120ms;
   --ds-dur-base: 200ms;
 
-  /* Type */
-  --ds-font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI',
-    Roboto, sans-serif;
+  /* Type — Hanken Grotesk for UI/body, Fraunces for display */
+  --ds-font-sans: 'Hanken Grotesk Variable', 'Hanken Grotesk', system-ui,
+    -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --ds-font-display: 'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman',
+    serif;
 
   /* Z-index scale */
   --ds-z-dropdown: 1000;
@@ -63,24 +73,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --ds-bg: #0e1217;
-    --ds-surface: #161b21;
-    --ds-surface-2: #1e252c;
-    --ds-border: #2e343a;
-    --ds-ink: #ebeff2;
-    --ds-muted: #9299a1;
-    --ds-primary: #64a1ee;
-    --ds-primary-hover: #82b6f3;
-    --ds-on-primary: #0b1b2e;
-    --ds-accent: #41b2b2;
-    --ds-success: #5cc27a;
-    --ds-success-bg: #1b3324;
-    --ds-success-ink: #9fe0b3;
-    --ds-warning: #e3ab4f;
-    --ds-warning-bg: #3a2f17;
+    --ds-bg: #1b1814; /* warm near-black field */
+    --ds-surface: #25221c; /* raised card */
+    --ds-surface-2: #201d17; /* insets */
+    --ds-border: #343029;
+    --ds-ink: #ece5d8; /* warm off-white, 14:1 on field */
+    --ds-muted: #a49a8d; /* 6.4:1 on field */
+    --ds-primary: #93b382; /* light sage — dark text on top */
+    --ds-primary-hover: #a6c495;
+    --ds-on-primary: #141310;
+    --ds-accent: #93b382;
+    --ds-success: #93b382;
+    --ds-success-bg: #283324;
+    --ds-success-ink: #bcd6ab;
+    --ds-warning: #e0b061;
+    --ds-warning-bg: #352a18;
     --ds-warning-ink: #f0cd8f;
-    --ds-danger: #ef8a8a;
-    --ds-focus-ring: rgba(100, 161, 238, 0.4);
+    --ds-danger: #e88c83;
+    --ds-focus-ring: rgba(147, 179, 130, 0.45);
+
+    --ds-attn: #dc8d56;
+    --ds-attn-solid: #dc8d56;
+    --ds-attn-ink: #e6a878;
+    --ds-attn-bg: #38291d;
 
     --ds-shadow-floating: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
     --ds-shadow-toast: 0 6px 20px -6px rgba(0, 0, 0, 0.65);
@@ -124,6 +139,14 @@ h3 {
   margin: 0;
   color: var(--ds-ink);
   text-wrap: balance;
+}
+
+/* Screen titles & wordmark wear Fraunces (soft optical serif). Section headers,
+   labels, buttons and body stay in Hanken — never a display serif in UI chrome. */
+.ds-display {
+  font-family: var(--ds-font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 
 p {

@@ -1,5 +1,5 @@
 /* Login surface — see /DESIGN.md. Mobile-first single column; ≥960px splits
-   into a committed-indigo welcome panel + a neutral auth panel. */
+   into a committed deep-sage welcome panel + a neutral auth panel. */
 
 .auth {
   min-height: 100svh;
@@ -26,9 +26,9 @@
 
 .auth__pitch-title {
   font-size: clamp(1.75rem, 1.2rem + 1.8vw, 2.25rem);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.12;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   color: #fff;
 }
 
@@ -116,7 +116,7 @@
 
 .auth__title {
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.2;
 }
@@ -189,7 +189,7 @@
     justify-content: center;
     padding: var(--ds-s-3xl);
     color: #fff;
-    background-color: #00579a;
+    background-color: #3f5236;
     background-image: radial-gradient(
       130% 130% at 100% 0%,
       rgba(255, 255, 255, 0.12),
