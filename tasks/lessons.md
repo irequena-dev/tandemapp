@@ -16,3 +16,11 @@ No se puede bindear `SET LOCAL app.x = :v`. Usar `SELECT set_config('app.current
 ## Tests de aislamiento sin JWT real de Clerk
 
 No podemos firmar JWTs reales en test. Sustituir **solo** la frontera externa con `app.dependency_overrides[require_auth]` (un dict `identity` mutable) y dejar el resto del pipeline real (materialización, `SET LOCAL`, RLS) contra Postgres real. Mantener un `client` aparte SIN override para seguir testeando el rechazo real de Clerk.
+
+## Identities de test GLOBALLY únicas (no reutilizar user_id entre Familias)
+
+Todos los tests comparten **un** Postgres efímero por sesión de pytest. `family_session` hace upsert del Miembro con `ON CONFLICT (id) DO UPDATE SET family_id = EXCLUDED.family_id`. Si dos tests reutilizan el mismo `user_id` (p. ej. `user_a`) bajo Familias **distintas**, ese `UPDATE family_id` cruza Familias y RLS lo rechaza (`InsufficientPrivilegeError` en `members`) → test roto por orden/aislamiento, no por lógica. Regla: cada test usa identities únicas con prefijo propio (p. ej. `org_mcp_a`/`user_mcp_a`). Antes de añadir un test, `grep -rE '_as\(identity, "[a-z0-9_]+"' tests/` para evitar colisiones.
+
+## Subagentes en paralelo: su "full suite" puede ser ruido
+
+Cuando dos subagentes corren a la vez sobre el mismo árbol, cada uno lee los ficheros del otro a mitad de escritura y cada `pytest`/`ruff` que lanzan refleja un estado parcial. Reportes como "hay un F821 pre-existente en X.py" o "el suite falla en 1" suelen ser artefactos de esa carrera, no defectos reales. Regla: el hilo orquestador **re-ejecuta** `pytest` + `ruff` secuencialmente sobre el estado final antes de dar por buena una ronda. No fiarse de los conteos de los subagentes paralelos.
