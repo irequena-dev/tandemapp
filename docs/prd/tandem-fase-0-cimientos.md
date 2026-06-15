@@ -43,7 +43,7 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 ### Esquema (cimientos)
 - `families` (espejo de la org de Clerk).
 - `members` (espejo del usuario de Clerk; `family_id`). Es el nombre técnico del Miembro.
-- `children`: `id`, `family_id`, `name`, `birth_date`, `avatar_color` (paleta acotada del sistema de diseño; alimenta el avatar inicial + color, consistente en card de Hijos, HijoDetail y filas de Pautas).
+- `children`: `id`, `family_id`, `name`, `birth_date`, `avatar_color` (paleta acotada del sistema de diseño; alimenta el avatar inicial + color, consistente en card de Hijos, HijoDetail y filas de Pautas). **`avatar_color` es nullable y se añade de forma incremental** (migración posterior a la 0002; ver issue `08-color-avatar-hijo`), porque la gestión base de Hijos (issue 03) ya está entregada; los Hijos sin color usan un fallback determinista derivado de su `id`.
 - `mcp_tokens`: `id`, `member_id`, hash del token, metadatos de revocación.
 - Todas las tablas (estas y las de fases siguientes) llevan `family_id` y políticas RLS.
 
