@@ -1,76 +1,59 @@
-# Issue 03 — Gestión de Hijos (PWA, extremo a extremo)
+# Issue 04 — Ciclo de vida del token MCP por Miembro
 
-`docs/issues/tandem-fase-0-cimientos/03-gestion-hijos-pwa.md`
+`docs/issues/tandem-fase-0-cimientos/04-token-mcp-ciclo-vida.md` · bloqueada por 02 (RLS).
 
 ## Decisiones (confirmadas con el usuario)
 
-- **Reparto de trabajo**: Devin hace **backend** + la **capa de datos del frontend** (TanStack Query, hooks, optimistic updates, MSW). El usuario hace la **parte visual** con `impeccable`.
-- **Frontend boundary**: capa de datos + **headless page shell** (componente sin estilar que cablea los hooks; el usuario lo reestiliza).
-- **Routing**: se añade **react-router** ahora; ruta `/ajustes/hijos`.
-- **Test seam frontend**: **hooks-level con MSW** (TanStack Query real, red mockeada en la frontera HTTP).
+- **Alcance UI**: backend + capa de datos (hooks/tipos) + **shell funcional sin estilar** + tests MSW. El estilado lo hace el usuario (igual que en la 03).
+- **Política de tokens**: **múltiples tokens activos** por Miembro; revocación por `id` independiente. (Rotación = crear nuevo + revocar viejo.)
+- **Hashing**: SHA-256 del token de alta entropía (≥32 bytes); el valor en claro se devuelve una sola vez y nunca se persiste.
 
-## Plan
+## Plan (TDD vertical, un test → una impl → repetir)
 
 ### Backend
-- [ ] Modelo SQLModel `Child` (tabla `children`: `id` UUID, `family_id`, `name`, `birth_date`).
-- [ ] Migración `0002`: crea `children` + **su propia** política RLS `family_isolation` sobre `family_id` (grants DML heredados por default privileges).
-- [ ] Dependencia `current_family_id` (deriva de los claims) para fijar `family_id` en el alta sin que el handler toque la variable de sesión.
-- [ ] Router `children`: `POST /children`, `GET /children`, `PATCH /children/{id}`, `DELETE /children/{id}`, todo vía `family_session`.
-- [ ] Tests (Postgres real): CRUD por la costura REST; aislamiento (Familia B no ve ni modifica Hijos de A → 404/lista vacía).
+- [x] Migración `0003_mcp_tokens_rls`: tabla `mcp_tokens` (`id`, `member_id`, `family_id`, `token_hash`, `created_at`, `revoked_at`) + su propia política RLS `family_isolation`.
+- [x] `app/tokens.py`: `generate_token()` (≥32 bytes, prefijo `tdm_live_`) + `hash_token()` (sha256 hex).
+- [x] `tenancy.current_member_id`: dependencia que da el Miembro del contexto.
+- [x] Modelo `McpToken` + schemas `McpTokenCreated`/`McpTokenOut`.
+- [x] Router `app/api/mcp_tokens.py`: `POST/GET /mcp-tokens`, `DELETE /mcp-tokens/{id}` (soft revoke).
+- [x] Tests (Postgres real): generar (valor en claro + ≥32 bytes + solo hash en BD); listado sin secreto; revocar; aislamiento por Miembro en la misma Familia; aislamiento entre Familias (RLS); 403 sin Familia.
 
 ### Frontend (capa de datos + shell)
-- [ ] Instalar `@tanstack/react-query`, `react-router`, `msw`.
-- [ ] `QueryClient` base reutilizable (optimistic + refetch al enfocar) + providers en `main.tsx` + router.
-- [ ] Cliente API con token de Clerk + tipos `Child` + util de edad (con tests).
-- [ ] Hooks de Hijos con **optimistic updates** (patrón base reutilizable).
-- [ ] Setup de MSW + tests hooks-level del CRUD.
-- [ ] `ChildrenPage` headless + ruta `/ajustes/hijos` (para reestilar).
+- [x] `features/mcp-tokens/{types,api}.ts`: `useMcpTokens`, `useCreateMcpToken`, `useRevokeMcpToken` (optimista + rollback).
+- [x] `api.test.tsx` (MSW): listar, crear (devuelve token + reconcilia), revocar (optimista + rollback).
+- [x] `McpTokenPanel.tsx` (shell sin estilar) + ruta `/ajustes/token` + nav link.
 
-### Verificación
-- [ ] `pnpm lint`, typecheck frontend, `pnpm test:frontend` en verde.
-- [ ] `pnpm test:backend` (requiere Docker; **bloqueado localmente**, daemon caído → confiar en CI / ejecución del usuario).
+### Refactor (en verde)
+- [x] Revisado: `tokens.py` es módulo profundo; patrón optimista duplicado con children/api.ts se deja local (minimal impact).
+
+## Verificación
+
+- [x] `pnpm test:backend` → **18 passed** (12 previos + 6 nuevos). Cadena `0001→0002→0003` aplica limpia.
+- [x] `pnpm test:frontend` → **17 passed** (13 previos + 4 nuevos).
+- [x] `pnpm lint` (ruff + eslint) + `pnpm -C frontend exec tsc -b` → verde.
 
 ## Review
 
-Hecho (backend + capa de datos frontend). Verificado: `pnpm lint` (front + back) y
-typecheck frontend en verde; **13 tests frontend** en verde. Tests backend escritos
-pero **no ejecutados localmente** (daemon Docker caído) → CI.
+Hecho y verificado de extremo a extremo (TDD vertical). Criterios de aceptación cubiertos:
+tabla `mcp_tokens` con hash + metadatos de revocación; generar (valor en claro una vez, ≥32 bytes);
+almacenado solo como hash; revocar (soft, `revoked_at`); acotado a Familia (RLS) **y** Miembro (filtro app-layer,
+dimensión nueva frente a Hijos); costura REST (ASGI + Postgres real) + costura ruta/página (MSW).
 
 ### Backend
-- Modelo `Child` (tabla `children`: `id` UUID, `family_id`, `name`, `birth_date`) en `app/models.py`,
-  con `ChildCreate`/`ChildUpdate`.
-- Migración `0002_children_rls`: crea `children`, índice por `family_id`, RLS + FORCE y política
-  propia `family_isolation` por `app.current_family_id`. Grants DML heredados de las default
-  privileges de la 0001 (mismo owner crea la tabla). Cadena `0001 -> 0002` verificada.
-- `tenancy.current_family_id`: nueva dependencia que da el `family_id` del contexto; `family_session`
-  ahora la reutiliza (sin duplicar el 403). El alta fija `family_id` desde ahí (cumple el WITH CHECK).
-- Router `app/api/children.py`: `POST/GET /children`, `PATCH/DELETE /children/{id}`, todo vía
-  `family_session`. La edición/baja cargan con `session.get`; RLS oculta Hijos de otra Familia → 404.
-- Tests (`tests/test_children.py`): CRUD por la costura REST, aislamiento entre Familias (B no ve ni
-  modifica → 404, A intacto) y 403 al crear sin Familia.
+- `app/tokens.py`: `generate_token`/`hash_token` (sha256). Prefijo `tdm_live_`; `secrets.token_urlsafe(32)` (32 bytes entropía).
+- `tenancy.current_member_id` (= `claims["sub"]`); FastAPI cachea `require_auth` por petición.
+- `models.McpToken` + `McpTokenCreated` (lleva el valor en claro) / `McpTokenOut` (metadata solo). `created_at`/`revoked_at` como `DateTime(timezone=True)` (UTC).
+- Router: `POST` (genera + hashea + devuelve claro una vez), `GET` (filtra por `member_id`, `response_model` deja caer hash), `DELETE` (soft revoke; 404 si no existe o no es tuyo).
+- Tests: valor en claro una vez + ≥32 bytes + en BD solo hash; GET sin `token`/`token_hash`; revoke → `revoked_at`; per-Miembro en misma Familia (B no ve/revoca A, 404); RLS entre Familias (404); 403 sin Familia.
 
-### Frontend (capa de datos + shell headless)
-- Deps: `@tanstack/react-query`, `react-router`, `msw` (dev). pnpm v11 ya no lee `package.json#pnpm`:
-  config en `frontend/pnpm-workspace.yaml` (`allowBuilds: { msw: false }`) para no fallar en install.
-- `lib/queryClient.ts` (config base reutilizable: refetch al enfocar + staleTime), `lib/api.ts`
-  (cliente fetch con token de Clerk + `ApiError`).
-- `features/children/`: `types.ts`, `age.ts` (`calculateAge`/`formatAge`, con tests), `api.ts`
-  (hooks `useChildren`/`useCreateChild`/`useUpdateChild`/`useDeleteChild` con **optimistic updates**
-  + rollback como patrón base reutilizable). UI modular sin estilar para reestilar:
-  `ChildrenPage.tsx` (contenedor/orquestación), `ChildForm.tsx` (form reutilizable alta+edición,
-  presentacional), `ChildList.tsx` (lista pura) y `ChildListItem.tsx` (fila + mutaciones).
-- Providers en `main.tsx` (QueryClientProvider + BrowserRouter) y ruta `/ajustes/hijos` en `App.tsx`
-  (+ enlace en el Header).
-- Test seam: `test/server.ts` + `test/setup.ts` (MSW `setupServer`, `onUnhandledRequest: 'error'`,
-  polyfill de `matchMedia`); `features/children/api.test.tsx` (CRUD + optimista + rollback) y
-  `age.test.ts`.
+### Frontend
+- `features/mcp-tokens/{types,api}.ts`: hooks con optimistic update + rollback (mismo patrón que Hijos, claves propias).
+- `api.test.tsx` (MSW): 4 tests cubren listar, crear (token + reconciliación), revocar optimista y rollback.
+- `McpTokenPanel.tsx`: shell funcional en estilos inline sobre tokens `--ds` (autocontenido, sin acoplarse a `children.css`); muestra el token una vez con copiar + aviso; lista metadata + estado; revocación con confirmación inline.
+- Ruta `/ajustes/token` + enlace "Token MCP" en el nav.
 
-### Notas / handoff al usuario (parte visual)
-- **Boundary**: reestila `features/children/ChildrenPage.tsx` (lógica ya cableada) y, si quieres, el
-  enlace "Hijos" del Header en `App.tsx`. No toco más visuales.
-- **Smoke test ajeno tocado**: `src/App.test.tsx` estaba **rojo en main** (jsdom sin `matchMedia` +
-  mock de Clerk sin `SignIn`/`SignUp` + copy antiguo tras tu rediseño de `SignInPage`). Lo dejé verde:
-  añadí `SignIn`/`SignUp` al mock y apunté la aserción a "Comparte la carga mental de la crianza".
-  Si cambias ese copy, actualiza esa aserción.
-- **Backend tests**: ejecútalos con Docker arriba (`pnpm test:backend`) o confía en CI.
-- **Sin commit todavía**: como estás trabajando en paralelo en los visuales, no he hecho commit.
+### Fuera de alcance (issue 05 / futuro)
+- Lookup/uso del token para autenticar el servidor MCP (sin índice de hash, sin endpoint de verificación).
+- Rate limiting, expiración automática.
+- Estilado visual del panel (pase del usuario).
+- Deduplicar el helper optimista con `children/api.ts` (tocaría la feature Hijos).

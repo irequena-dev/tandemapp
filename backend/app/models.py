@@ -1,6 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 
+from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
 
@@ -60,3 +61,41 @@ class ChildUpdate(SQLModel):
 
     name: str | None = None
     birth_date: date | None = None
+
+
+class McpToken(SQLModel, table=True):
+    """Token MCP de un Miembro (ADR-0001); resuelve a su Miembro → Familia.
+
+    El valor en claro nunca se persiste: `token_hash` es su SHA-256. `revoked_at`
+    son los metadatos de revocación (nullable = activo). `family_id` lo fija el
+    backend desde el contexto (RLS); `member_id` lo acota al Miembro autenticado.
+    """
+
+    __tablename__ = "mcp_tokens"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    member_id: str = Field(foreign_key="members.id", index=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    token_hash: str
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    revoked_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+
+
+class McpTokenCreated(SQLModel):
+    """Respuesta del alta: el valor en claro (una sola vez) + metadata."""
+
+    id: uuid.UUID
+    token: str
+    created_at: datetime
+
+
+class McpTokenOut(SQLModel):
+    """Metadata de un token para el listado; nunca el valor en claro ni el hash."""
+
+    id: uuid.UUID
+    created_at: datetime
+    revoked_at: datetime | None

@@ -9,6 +9,7 @@ import {
 import { Link, NavLink, Route, Routes } from 'react-router'
 import { Logo } from './components/Logo'
 import { ChildrenPage } from './features/children/ChildrenPage'
+import { McpTokenPanel } from './features/mcp-tokens/McpTokenPanel'
 import { SignInPage } from './pages/SignInPage'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -38,6 +39,9 @@ function Header() {
       <nav className="app-nav">
         <NavLink to="/ajustes/hijos" className="app-nav__link">
           Hijos
+        </NavLink>
+        <NavLink to="/ajustes/token" className="app-nav__link">
+          Token MCP
         </NavLink>
       </nav>
       <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
@@ -109,6 +113,7 @@ function App() {
         <Routes>
           <Route index element={<SignedInHome />} />
           <Route path="/ajustes/hijos" element={<ChildrenPage />} />
+          <Route path="/ajustes/token" element={<McpTokenPanel />} />
         </Routes>
       </Show>
     </>

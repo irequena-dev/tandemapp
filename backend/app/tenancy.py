@@ -86,6 +86,16 @@ def current_family_id(claims: dict = Depends(require_auth)) -> str:
     return family_id
 
 
+def current_member_id(claims: dict = Depends(require_auth)) -> str:
+    """`user_id` de Clerk (≡ Miembro) del contexto autenticado.
+
+    Acota los recursos que son propiedad del Miembro (p. ej. sus tokens MCP):
+    RLS aísla por Familia, pero dentro de ella un Miembro solo gestiona lo suyo.
+    `require_auth` está cacheado por petición en FastAPI → sin doble verificación.
+    """
+    return claims["sub"]
+
+
 async def family_session(
     claims: dict = Depends(require_auth),
     family_id: str = Depends(current_family_id),
