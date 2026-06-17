@@ -1,15 +1,15 @@
-"""administrations: tabla de Administraciones con RLS por Familia
+"""administrations: tabla de Administraciones (dosis) con RLS por Familia
 
 Revision ID: 0010
 Revises: 0009
 Create Date: 2026-06-17
 
-Crea la tabla `administrations` (registro de dosis dadas por Pauta):
+Crea la tabla `administrations` (registro de dosis dadas de una Pauta):
 - `id` (UUID), `family_id`, `pauta_id`, `administered_at`, `administered_by`,
   `created_at`.
 - RLS + FORCE con política `family_isolation` por `app.current_family_id`.
-- Índice compuesto `(pauta_id, administered_at DESC)` para listado cronológico
-  y cálculo de `next_dose_at`.
+- Índice compuesto `(pauta_id, administered_at DESC)` para la guarda de
+  duplicado y el cálculo de siguiente toma.
 - Grants DML heredados del `ALTER DEFAULT PRIVILEGES` de la 0001.
 """
 
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0010"
-down_revision: str | None = "0009"
+revision: str = "0010a"
+down_revision: str | None = "0010"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

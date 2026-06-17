@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
+    DUPLICATE_GUARD_MINUTES,
     Administration,
     AdministrationCreate,
     AdministrationOut,
@@ -28,9 +29,6 @@ from ..models import (
 from ..tenancy import current_family_id, current_member_id, family_session
 
 router = APIRouter(tags=["administrations"])
-
-# Ventana de guarda de duplicado (en minutos). Configurable.
-DUPLICATE_GUARD_MINUTES = 15
 
 
 async def _get_owned_pauta(session: AsyncSession, pauta_id: uuid.UUID) -> Pauta:
