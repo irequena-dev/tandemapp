@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { CHILDREN, FAMILY } from '../../lib/mock-data'
+import { type FormEvent, useEffect, useState } from 'react'
+import { useMembers, useInvitations, useCreateInvitation, useRevokeInvitation } from '../members/api'
+import { CHILDREN } from '../../lib/mock-data'
 import './ajustes.css'
 import '../children/children.css'
 
@@ -23,8 +24,62 @@ function toneOf(name: string): number {
 
 type Theme = 'system' | 'light' | 'dark'
 
+function InviteForm({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState('')
+  const createInvitation = useCreateInvitation()
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    const trimmed = email.trim()
+    if (!trimmed) return
+    createInvitation.mutate(
+      { email_address: trimmed },
+      {
+        onSuccess: () => {
+          setEmail('')
+          onClose()
+        },
+      },
+    )
+  }
+
+  return (
+    <form className="invite-form" onSubmit={handleSubmit}>
+      <input
+        type="email"
+        className="invite-form__input"
+        placeholder="Email de la persona a invitar"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        autoFocus
+      />
+      <div className="invite-form__actions">
+        <button
+          type="submit"
+          className="btn btn--primary btn--sm"
+          disabled={createInvitation.isPending}
+        >
+          {createInvitation.isPending ? 'Enviando…' : 'Enviar'}
+        </button>
+        <button type="button" className="btn btn--secondary btn--sm" onClick={onClose}>
+          Cancelar
+        </button>
+      </div>
+      {createInvitation.isError && (
+        <p className="invite-form__error">No se pudo enviar la invitación.</p>
+      )}
+    </form>
+  )
+}
+
 export function AjustesOverlay({ onClose }: { onClose: () => void }) {
   const [theme, setTheme] = useState<Theme>('system')
+  const [showInviteForm, setShowInviteForm] = useState(false)
+
+  const { data: members = [] } = useMembers()
+  const { data: invitations = [] } = useInvitations()
+  const revokeInvitation = useRevokeInvitation()
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -52,7 +107,7 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
             <div className="ajustes-card">
               <div className="ajustes-row">
                 <div className="ajustes-row__text">
-                  <span className="ajustes-row__name">{FAMILY.name}</span>
+                  <span className="ajustes-row__name">Mi Familia</span>
                 </div>
               </div>
             </div>
@@ -62,21 +117,80 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
           <section className="ajustes-section">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
               <h3 className="ajustes-section__title">Miembros</h3>
-              <button type="button" className="btn btn--secondary btn--sm">Invitar</button>
+              {!showInviteForm && (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  onClick={() => setShowInviteForm(true)}
+                >
+                  Invitar
+                </button>
+              )}
             </div>
+
+            {showInviteForm && (
+              <InviteForm onClose={() => setShowInviteForm(false)} />
+            )}
+
             <div className="ajustes-card">
-              {FAMILY.members.map((m) => (
-                <div className="ajustes-row" key={m.id}>
-                  <span className="hijo-mono" data-tone={toneOf(m.name)} aria-hidden="true">
-                    {initialOf(m.name)}
-                  </span>
+              {members.map((m) => {
+                const name = m.display_name ?? m.id
+                return (
+                  <div className="ajustes-row" key={m.id}>
+                    <span className="hijo-mono" data-tone={toneOf(name)} aria-hidden="true">
+                      {initialOf(name)}
+                    </span>
+                    <div className="ajustes-row__text">
+                      <span className="ajustes-row__name">{name}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {members.length === 0 && (
+                <div className="ajustes-row">
                   <div className="ajustes-row__text">
-                    <span className="ajustes-row__name">{m.name}</span>
-                    <span className="ajustes-row__role">{m.role === 'admin' ? 'Administrador' : 'Miembro'}</span>
+                    <span className="ajustes-row__name" style={{ color: 'var(--ds-muted)' }}>
+                      Cargando miembros…
+                    </span>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
+
+            {/* Invitaciones pendientes */}
+            {invitations.length > 0 && (
+              <div className="ajustes-card" style={{ marginTop: 'var(--ds-s-sm)' }}>
+                <div className="ajustes-row" style={{ paddingBlock: 'var(--ds-s-sm)' }}>
+                  <span className="ajustes-row__role" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Invitaciones pendientes
+                  </span>
+                </div>
+                {invitations.map((inv) => (
+                  <div className="ajustes-row" key={inv.id}>
+                    <span className="hijo-mono" data-tone={toneOf(inv.email_address)} aria-hidden="true">
+                      ✉
+                    </span>
+                    <div className="ajustes-row__text">
+                      <span className="ajustes-row__name">{inv.email_address}</span>
+                      <span className="ajustes-row__role">Pendiente</span>
+                    </div>
+                    <div className="ajustes-row__actions">
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Revocar invitación a ${inv.email_address}`}
+                        title="Revocar"
+                        onClick={() => revokeInvitation.mutate(inv.id)}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6 6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Hijos */}

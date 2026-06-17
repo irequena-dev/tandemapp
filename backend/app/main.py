@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api import children, health, identity, mcp_tokens, members
+from .api import children, health, identity, invitations, mcp_tokens, members
 from .config import get_settings
 from .mcp.server import build_mcp_app
 
@@ -21,6 +21,7 @@ def create_app() -> FastAPI:
     app.include_router(identity.router)
     app.include_router(members.router)
     app.include_router(children.router)
+    app.include_router(invitations.router)
     app.include_router(mcp_tokens.router)
     # Servidor MCP remoto en `/mcp` (Streamable HTTP) con puerta Bearer (issue 05).
     app.mount("/mcp", mcp_asgi)
