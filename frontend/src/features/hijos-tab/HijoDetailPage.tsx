@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router'
 import { childById, medidasForChild, visitasForChild, type MockMedida } from '../../lib/mock-data'
 import { formatAge } from '../children/age'
+import { SizesSection } from '../sizes/SizesSection'
+import '../sizes/sizes.css'
 import './hijos-tab.css'
 import '../children/children.css'
 
@@ -187,6 +189,9 @@ export function HijoDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Tallas */}
+      {childId && <SizesSection childId={childId} />}
 
       {/* Crecimiento */}
       <section className="hijo-detail__section">
