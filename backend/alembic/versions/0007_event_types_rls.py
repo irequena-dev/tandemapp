@@ -1,7 +1,7 @@
 """event_types: Tipos de Evento con RLS por Familia y tipos base
 
-Revision ID: 0007b
-Revises: 0007a
+Revision ID: 0007c
+Revises: 0007b
 Create Date: 2026-06-17
 
 Crea la tabla `event_types` con `family_id` nullable (NULL = tipo base del
@@ -16,8 +16,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0007b"
-down_revision: str | None = "0007a"
+revision: str = "0007c"
+down_revision: str | None = "0007b"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

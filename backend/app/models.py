@@ -1,3 +1,4 @@
+import datetime as _dt
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
@@ -6,6 +7,10 @@ import sqlalchemy as sa
 from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
+
+# Aliases para evitar shadowing con nombres de columna en modelos SQLModel.
+dt_time = _dt.time
+dt_date = _dt.date
 
 # Paleta acotada de colores de avatar para Hijo. Las claves corresponden a los
 # tonos de identidad del sistema de diseño (data-tone 0–5 en el CSS).
@@ -137,6 +142,89 @@ class EventTypeUpdate(SQLModel):
     icon: str | None = None
 
 
+# ---------- Eventos ----------
+
+EventStatus = Literal["pending", "done"]
+
+
+class Event(SQLModel, table=True):
+    """Evento: algo que ocurre o vence en una fecha, perteneciente a la Familia.
+
+    `time` nullable → día completo. `status` es solo manual (`done`/`pending`);
+    `is_overdue` se calcula en lectura (no se persiste). `child_id` es 0 o 1 Hijo.
+    `series_id` es nullable (solo relleno si fue generado por una Serie).
+    """
+
+    __tablename__ = "events"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    title: str
+    date: date
+    time: dt_time | None = None
+    event_type_id: uuid.UUID = Field(foreign_key="event_types.id")
+    child_id: uuid.UUID | None = Field(default=None, foreign_key="children.id")
+    status: str = Field(default="pending")
+    series_id: uuid.UUID | None = Field(default=None)
+    created_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class EventCreate(SQLModel):
+    """Cuerpo del alta de un Evento (sin family_id/created_by: servidor)."""
+
+    title: str
+    date: date
+    time: dt_time | None = None
+    event_type_id: uuid.UUID
+    child_id: uuid.UUID | None = None
+
+
+class EventUpdate(SQLModel):
+    """Edición parcial de un Evento."""
+
+    title: str | None = None
+    date: dt_date | None = None
+    time: dt_time | None = None
+    event_type_id: uuid.UUID | None = None
+    child_id: uuid.UUID | None = None
+
+
+class ChildOut(SQLModel):
+    """Hijo expandido inline en la respuesta de Evento."""
+
+    id: uuid.UUID
+    family_id: str
+    name: str
+    birth_date: date
+    avatar_color: str | None = None
+
+
+class EventOut(SQLModel):
+    """Evento tal como lo devuelve la API, con tipo y Hijo expandidos."""
+
+    id: uuid.UUID
+    family_id: str
+    title: str
+    date: dt_date
+    time: dt_time | None
+    event_type_id: uuid.UUID
+    event_type: EventTypeOut
+    child_id: uuid.UUID | None
+    child: ChildOut | None
+    status: str
+    is_overdue: bool
+    series_id: uuid.UUID | None
+    created_by: str
+    created_at: datetime
+
+
 class ShoppingItem(SQLModel, table=True):
     """Ítem de compra: algo que hay que comprar, en la lista única de la Familia.
 
@@ -152,6 +240,10 @@ class ShoppingItem(SQLModel, table=True):
     text: str
     status: str = Field(default="pending")
     created_by: str = Field(foreign_key="members.id")
+    bought_by: str | None = Field(default=None, foreign_key="members.id")
+    bought_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     created_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
@@ -166,6 +258,12 @@ class ShoppingItemCreate(SQLModel):
     text: str
 
 
+class ShoppingItemUpdate(SQLModel):
+    """Edición parcial de un Ítem de compra: solo el texto libre."""
+
+    text: str
+
+
 class ShoppingItemOut(SQLModel):
     """Representación de un Ítem de compra para el frontend."""
 
@@ -174,6 +272,8 @@ class ShoppingItemOut(SQLModel):
     text: str
     status: str
     created_by: str
+    bought_by: str | None
+    bought_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
@@ -480,3 +580,45 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
+
+
+# ---------- Administraciones (dosis registradas) ----------
+
+# Ventana corta para la guarda de duplicado: si llega otra Administración de la
+# misma Pauta dentro de estos minutos, se ignora y se devuelve la existente.
+DUPLICATE_GUARD_MINUTES: int = 15
+
+
+class Administration(SQLModel, table=True):
+    """Administración: acto registrado de dar una dosis de una Pauta.
+
+    `administered_at` es cuándo se dio la dosis; `administered_by` es el Miembro
+    que la registró. `family_id` + RLS aíslan por Familia.
+    """
+
+    __tablename__ = "administrations"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    pauta_id: uuid.UUID = Field(foreign_key="pautas.id", index=True)
+    administered_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    administered_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class AdministrationOut(SQLModel):
+    """Administración tal como la devuelve la API."""
+
+    id: uuid.UUID
+    pauta_id: uuid.UUID
+    administered_at: datetime
+    administered_by: str
+    created_at: datetime

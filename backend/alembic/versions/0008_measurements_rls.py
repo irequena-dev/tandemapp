@@ -1,7 +1,7 @@
 """measurements: tabla de Medidas (altura, peso) con RLS por Familia
 
-Revision ID: 0008
-Revises: 0007c
+Revision ID: 0005
+Revises: 0004
 Create Date: 2026-06-17
 
 Crea la tabla `measurements` para el registro append-only de Medidas de un Hijo:
