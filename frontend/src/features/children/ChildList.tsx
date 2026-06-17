@@ -1,8 +1,8 @@
 import { ChildListItem } from './ChildListItem'
-import type { Child } from './types'
+import type { ChildWithMetrics } from './types'
 
 /** Lista presentacional de Hijos: filas agrupadas en una superficie tranquila. */
-export function ChildList({ items }: { items: Child[] }) {
+export function ChildList({ items }: { items: ChildWithMetrics[] }) {
   return (
     <ul className="hijos__list">
       {items.map((child) => (

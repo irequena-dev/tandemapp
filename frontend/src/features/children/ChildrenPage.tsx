@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useChildren, useCreateChild } from './api'
+import { useChildrenWithMetrics, useCreateChild } from './api'
 import { ChildForm } from './ChildForm'
 import { ChildList } from './ChildList'
 import './children.css'
@@ -64,7 +64,7 @@ function ChildListSkeleton() {
  * alta como acción deliberada (panel desplegable), no como ruido permanente.
  */
 export function ChildrenPage() {
-  const { data: children, isPending, isError, refetch } = useChildren()
+  const { data: children, isPending, isError, refetch } = useChildrenWithMetrics()
   const create = useCreateChild()
   const [adding, setAdding] = useState(false)
   // Cambiar la `key` tras un alta correcta remonta el formulario y lo limpia.
