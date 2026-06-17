@@ -1,3 +1,4 @@
+import datetime as _dt
 import uuid
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
@@ -6,6 +7,10 @@ import sqlalchemy as sa
 from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
+
+# Aliases para evitar shadowing con nombres de columna en modelos SQLModel.
+dt_time = _dt.time
+dt_date = _dt.date
 
 # Paleta acotada de colores de avatar para Hijo. Las claves corresponden a los
 # tonos de identidad del sistema de diseño (data-tone 0–5 en el CSS).
@@ -135,6 +140,89 @@ class EventTypeUpdate(SQLModel):
 
     name: str | None = None
     icon: str | None = None
+
+
+# ---------- Eventos ----------
+
+EventStatus = Literal["pending", "done"]
+
+
+class Event(SQLModel, table=True):
+    """Evento: algo que ocurre o vence en una fecha, perteneciente a la Familia.
+
+    `time` nullable → día completo. `status` es solo manual (`done`/`pending`);
+    `is_overdue` se calcula en lectura (no se persiste). `child_id` es 0 o 1 Hijo.
+    `series_id` es nullable (solo relleno si fue generado por una Serie).
+    """
+
+    __tablename__ = "events"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    title: str
+    date: date
+    time: dt_time | None = None
+    event_type_id: uuid.UUID = Field(foreign_key="event_types.id")
+    child_id: uuid.UUID | None = Field(default=None, foreign_key="children.id")
+    status: str = Field(default="pending")
+    series_id: uuid.UUID | None = Field(default=None)
+    created_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class EventCreate(SQLModel):
+    """Cuerpo del alta de un Evento (sin family_id/created_by: servidor)."""
+
+    title: str
+    date: date
+    time: dt_time | None = None
+    event_type_id: uuid.UUID
+    child_id: uuid.UUID | None = None
+
+
+class EventUpdate(SQLModel):
+    """Edición parcial de un Evento."""
+
+    title: str | None = None
+    date: dt_date | None = None
+    time: dt_time | None = None
+    event_type_id: uuid.UUID | None = None
+    child_id: uuid.UUID | None = None
+
+
+class ChildOut(SQLModel):
+    """Hijo expandido inline en la respuesta de Evento."""
+
+    id: uuid.UUID
+    family_id: str
+    name: str
+    birth_date: date
+    avatar_color: str | None = None
+
+
+class EventOut(SQLModel):
+    """Evento tal como lo devuelve la API, con tipo y Hijo expandidos."""
+
+    id: uuid.UUID
+    family_id: str
+    title: str
+    date: dt_date
+    time: dt_time | None
+    event_type_id: uuid.UUID
+    event_type: EventTypeOut
+    child_id: uuid.UUID | None
+    child: ChildOut | None
+    status: str
+    is_overdue: bool
+    series_id: uuid.UUID | None
+    created_by: str
+    created_at: datetime
 
 
 class ShoppingItem(SQLModel, table=True):

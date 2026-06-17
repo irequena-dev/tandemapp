@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import (
     children,
     event_types,
+    events,
     health,
     health_visits,
     identity,
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(health_visits.router)
     app.include_router(invitations.router)
     app.include_router(event_types.router)
+    app.include_router(events.router)
     app.include_router(mcp_tokens.router)
     app.include_router(pautas.router)
     app.include_router(shopping_items.router)
