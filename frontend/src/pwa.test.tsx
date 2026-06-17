@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import { server } from './test/server'
 
 vi.mock('@clerk/react', () => ({
   ClerkProvider: ({ children }: { children: ReactNode }) => children,
@@ -20,11 +23,27 @@ vi.mock('@clerk/react', () => ({
 
 import App from './App'
 
+const CALM_TODAY = {
+  hero: null,
+  timeline: [],
+  summary: {
+    shopping_pending_count: 0,
+    pautas_active_count: 0,
+    pautas_finished_count: 0,
+    next_medical_event: null,
+    children_status: 'up_to_date',
+  },
+}
+
 function renderApp(initialRoute = '/') {
+  server.use(http.get('http://localhost:8000/api/today', () => HttpResponse.json(CALM_TODAY)))
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <MemoryRouter initialEntries={[initialRoute]}>
-      <App />
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[initialRoute]}>
+        <App />
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
@@ -34,9 +53,9 @@ describe('Dashboard (Hoy)', () => {
     expect(screen.getByRole('heading', { name: /hoy/i, level: 1 })).toBeTruthy()
   })
 
-  it('muestra la sección héroe "Ahora"', () => {
+  it('muestra la sección héroe "Ahora"', async () => {
     renderApp('/')
-    expect(screen.getByRole('region', { name: /ahora/i })).toBeTruthy()
+    await screen.findByRole('region', { name: /ahora/i })
   })
 })
 
