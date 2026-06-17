@@ -5,6 +5,8 @@ import {
   useUpdateShoppingItem,
   useDeleteShoppingItem,
   useClearBoughtItems,
+  useBuyShoppingItem,
+  useUndoShoppingItem,
 } from './api'
 import type { ShoppingItem } from './types'
 import './compra.css'
@@ -144,6 +146,8 @@ export function CompraPage() {
   const updateItem = useUpdateShoppingItem()
   const deleteItem = useDeleteShoppingItem()
   const clearBought = useClearBoughtItems()
+  const buyItem = useBuyShoppingItem()
+  const undoItem = useUndoShoppingItem()
   const [newText, setNewText] = useState('')
   const [boughtOpen, setBoughtOpen] = useState(false)
 
@@ -207,7 +211,7 @@ export function CompraPage() {
               <ItemRow
                 key={item.id}
                 item={item}
-                onToggle={() => {}}
+                onToggle={() => buyItem.mutate(item.id)}
                 onEdit={(text) => updateItem.mutate({ id: item.id, text })}
                 onDelete={() => deleteItem.mutate(item.id)}
               />
@@ -243,7 +247,7 @@ export function CompraPage() {
                 <ItemRow
                   key={item.id}
                   item={item}
-                  onToggle={() => {}}
+                  onToggle={() => undoItem.mutate(item.id)}
                   onEdit={(text) => updateItem.mutate({ id: item.id, text })}
                   onDelete={() => deleteItem.mutate(item.id)}
                 />

@@ -5,6 +5,8 @@ export type ShoppingItem = {
   text: string
   status: 'pending' | 'bought'
   created_by: string
+  bought_by: string | null
+  bought_at: string | null
   created_at: string
   updated_at: string
 }

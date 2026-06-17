@@ -152,6 +152,10 @@ class ShoppingItem(SQLModel, table=True):
     text: str
     status: str = Field(default="pending")
     created_by: str = Field(foreign_key="members.id")
+    bought_by: str | None = Field(default=None, foreign_key="members.id")
+    bought_at: datetime | None = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     created_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False)
     )
@@ -180,6 +184,8 @@ class ShoppingItemOut(SQLModel):
     text: str
     status: str
     created_by: str
+    bought_by: str | None
+    bought_at: datetime | None
     created_at: datetime
     updated_at: datetime
 
