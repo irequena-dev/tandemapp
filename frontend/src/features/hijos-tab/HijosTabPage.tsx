@@ -80,10 +80,10 @@ export function HijosTabPage() {
                     <span className="hijo-card__metric-label">Calzado</span>
                   </span>
                 )}
-                {child.talla_ropa && (
+                {child.talla && (
                   <span className="hijo-card__metric">
-                    <span className="hijo-card__metric-value">{child.talla_ropa}</span>
-                    <span className="hijo-card__metric-label">Ropa</span>
+                    <span className="hijo-card__metric-value">{child.talla}</span>
+                    <span className="hijo-card__metric-label">Talla</span>
                   </span>
                 )}
               </div>

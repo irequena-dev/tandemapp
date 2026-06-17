@@ -176,6 +176,52 @@
   line-height: 1.2;
 }
 
+/* Growth chart */
+.growth-chart {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.growth-chart__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.growth-chart__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.growth-chart__range {
+  font-size: 0.75rem;
+  color: var(--ds-muted);
+}
+
+.growth-chart__svg {
+  width: 100%;
+  height: auto;
+  max-height: 140px;
+}
+
+.growth-chart__axis-label {
+  font-size: 9px;
+  fill: var(--ds-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.growth-chart__grid {
+  stroke: var(--ds-border);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
 /* Growth table */
 .hijo-detail__growth {
   list-style: none;

@@ -40,7 +40,7 @@ export type MockChild = {
   avatar_color: number
   height_cm: number | null
   weight_kg: number | null
-  talla_ropa: string | null
+  talla: string | null
   talla_calzado: string | null
 }
 
@@ -52,7 +52,7 @@ export const CHILDREN: MockChild[] = [
     avatar_color: 1,
     height_cm: 112,
     weight_kg: 20,
-    talla_ropa: '6',
+    talla: '5-6 años',
     talla_calzado: '29',
   },
   {
@@ -62,7 +62,7 @@ export const CHILDREN: MockChild[] = [
     avatar_color: 0,
     height_cm: 88,
     weight_kg: 12.5,
-    talla_ropa: '2',
+    talla: '24-36 meses',
     talla_calzado: '22',
   },
 ]
@@ -283,6 +283,8 @@ export const MEDIDAS: MockMedida[] = [
   { id: 'med-6', child_id: 'hijo-lucia', type: 'height', value: 88, unit: 'cm', recorded_at: '2026-05-01' },
   { id: 'med-7', child_id: 'hijo-lucia', type: 'height', value: 85, unit: 'cm', recorded_at: '2026-02-01' },
   { id: 'med-8', child_id: 'hijo-lucia', type: 'weight', value: 12.5, unit: 'kg', recorded_at: '2026-05-01' },
+  { id: 'med-9', child_id: 'hijo-lucia', type: 'weight', value: 11.8, unit: 'kg', recorded_at: '2026-02-01' },
+  { id: 'med-10', child_id: 'hijo-mateo', type: 'weight', value: 18, unit: 'kg', recorded_at: '2025-12-15' },
 ]
 
 /* ---------- Helpers ---------- */
