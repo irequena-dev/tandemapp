@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { HttpResponse, http } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
 import { PautasPage } from './PautasPage'
-import type { Pauta } from './types'
+import type { Administration, Pauta } from './types'
 
 vi.mock('@clerk/react', () => ({
   useAuth: () => ({ getToken: async () => 'test-token' }),
@@ -55,6 +56,8 @@ const samplePauta: Pauta = {
   created_by: 'member-1',
   created_at: '2026-06-12T08:00:00Z',
   day_number: 3,
+  next_dose_at: '2026-06-12T16:00:00Z',
+  todays_administrations: [],
 }
 
 describe('PautasPage (costura de ruta/página)', () => {
@@ -79,10 +82,73 @@ describe('PautasPage (costura de ruta/página)', () => {
   })
 
   it('muestra las Pautas finalizadas con estilo recesado', async () => {
-    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished' }
+    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
     renderPage([finished])
     await waitFor(() => {
       expect(screen.queryByText('Finalizada')).not.toBeNull()
     })
+  })
+
+  it('muestra tomas del día con "Dada por" y botón "Marcar toma"', async () => {
+    const admin: Administration = {
+      id: 'admin-1',
+      pauta_id: 'pauta-1',
+      administered_at: '2026-06-17T10:00:00Z',
+      administered_by: 'member-1',
+      member_name: 'Ana',
+      created_at: '2026-06-17T10:00:00Z',
+    }
+    const pautaWithAdmin: Pauta = {
+      ...samplePauta,
+      todays_administrations: [admin],
+    }
+
+    server.use(
+      http.post('http://localhost:8000/pautas/:pautaId/administrations', () =>
+        HttpResponse.json(admin, { status: 201 }),
+      ),
+    )
+
+    renderPage([pautaWithAdmin])
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    // Expand the card
+    const user = userEvent.setup()
+    const header = screen.getByRole('button', { expanded: false })
+    await user.click(header)
+
+    // Should show today's tomas section
+    await waitFor(() => {
+      expect(screen.queryByText('Tomas de hoy')).not.toBeNull()
+    })
+
+    // Should show "Dada por Ana"
+    expect(screen.queryByText(/Dada por Ana/)).not.toBeNull()
+
+    // Should show "Marcar toma" button
+    expect(screen.queryByText('Marcar toma')).not.toBeNull()
+
+    // Should show "Deshacer" button
+    expect(screen.queryByText('Deshacer')).not.toBeNull()
+  })
+
+  it('muestra siguiente toma desde next_dose_at del servidor', async () => {
+    renderPage([samplePauta])
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    const user = userEvent.setup()
+    const header = screen.getByRole('button', { expanded: false })
+    await user.click(header)
+
+    await waitFor(() => {
+      expect(screen.queryByText('Siguiente toma')).not.toBeNull()
+    })
+    expect(screen.queryByText(/Próxima/)).not.toBeNull()
   })
 })

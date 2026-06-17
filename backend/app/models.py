@@ -480,3 +480,57 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
+    next_dose_at: datetime | None = None
+    todays_administrations: list["AdministrationOut"] = Field(default_factory=list)
+
+
+# ---------- Administraciones (dosis registradas) ----------
+
+
+class Administration(SQLModel, table=True):
+    """Administración: acto registrado de dar una dosis de una Pauta.
+
+    `administered_at` es cuándo se dio y `administered_by` quién (Miembro).
+    La siguiente toma se calcula como la última Administración + `interval_hours`.
+    `family_id` + RLS aíslan por Familia.
+    """
+
+    __tablename__ = "administrations"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    pauta_id: uuid.UUID = Field(foreign_key="pautas.id", index=True)
+    administered_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    administered_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class AdministrationCreate(SQLModel):
+    """Cuerpo para registrar una Administración (administered_at opcional = now)."""
+
+    administered_at: datetime | None = None
+
+
+class AdministrationUpdate(SQLModel):
+    """Corrección parcial de una Administración."""
+
+    administered_at: datetime | None = None
+
+
+class AdministrationOut(SQLModel):
+    """Administración tal como la devuelve la API REST."""
+
+    id: uuid.UUID
+    pauta_id: uuid.UUID
+    administered_at: datetime
+    administered_by: str
+    member_name: str | None = None
+    created_at: datetime

@@ -6,7 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
-import type { Pauta, PautaInput } from './types'
+import type { Administration, Pauta, PautaInput } from './types'
 
 /** Claves de caché de Pautas. */
 export const pautasKeys = {
@@ -57,6 +57,7 @@ export function useCreatePauta() {
       }),
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
+      const now = new Date()
       const optimistic: Pauta = {
         id: `optimistic-${crypto.randomUUID()}`,
         family_id: 'optimistic',
@@ -65,15 +66,19 @@ export function useCreatePauta() {
         dose: input.dose,
         interval_hours: input.interval_hours,
         duration_days: input.duration_days,
-        started_at: new Date().toISOString(),
+        started_at: now.toISOString(),
         ends_at: new Date(
-          Date.now() + input.duration_days * 86_400_000,
+          now.getTime() + input.duration_days * 86_400_000,
         ).toISOString(),
         status: 'active',
         health_visit_id: input.health_visit_id ?? null,
         created_by: 'optimistic',
-        created_at: new Date().toISOString(),
+        created_at: now.toISOString(),
         day_number: 1,
+        next_dose_at: new Date(
+          now.getTime() + input.interval_hours * 3_600_000,
+        ).toISOString(),
+        todays_administrations: [],
       }
       qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) => [optimistic, ...old])
       return ctx
@@ -96,11 +101,91 @@ export function useFinishPauta() {
     onMutate: async (pautaId) => {
       const ctx = await beginOptimistic(qc)
       qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
-        old.map((p) => (p.id === pautaId ? { ...p, status: 'finished' } : p)),
+        old.map((p) =>
+          p.id === pautaId
+            ? { ...p, status: 'finished' as const, next_dose_at: null }
+            : p,
+        ),
       )
       return ctx
     },
     onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+/** Registra una Administración (marca toma) con optimistic update. */
+export function useCreateAdministration() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (pautaId: string) =>
+      apiFetch<Administration>(`/pautas/${pautaId}/administrations`, {
+        method: 'POST',
+        token: await getToken(),
+        body: {},
+      }),
+    onMutate: async (pautaId) => {
+      const ctx = await beginOptimistic(qc)
+      const now = new Date().toISOString()
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) => {
+          if (p.id !== pautaId) return p
+          const optimisticAdmin: Administration = {
+            id: `optimistic-${crypto.randomUUID()}`,
+            pauta_id: pautaId,
+            administered_at: now,
+            administered_by: 'optimistic',
+            member_name: null,
+            created_at: now,
+          }
+          return {
+            ...p,
+            next_dose_at: new Date(
+              Date.now() + p.interval_hours * 3_600_000,
+            ).toISOString(),
+            todays_administrations: [
+              ...p.todays_administrations,
+              optimisticAdmin,
+            ],
+          }
+        }),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+type DeleteAdminInput = { pautaId: string; adminId: string }
+
+/** Borra una Administración (deshacer toma) con optimistic update. */
+export function useDeleteAdministration() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ pautaId, adminId }: DeleteAdminInput) =>
+      apiFetch<void>(`/pautas/${pautaId}/administrations/${adminId}`, {
+        method: 'DELETE',
+        token: await getToken(),
+      }),
+    onMutate: async ({ pautaId, adminId }) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) => {
+          if (p.id !== pautaId) return p
+          return {
+            ...p,
+            todays_administrations: p.todays_administrations.filter(
+              (a) => a.id !== adminId,
+            ),
+          }
+        }),
+      )
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
     onSettled: () => settlePautas(qc),
   })
 }

@@ -8,20 +8,79 @@ Convenciones:
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from ..models import Pauta, PautaCreate, PautaOut
+from ..models import (
+    Administration,
+    AdministrationOut,
+    Member,
+    Pauta,
+    PautaCreate,
+    PautaOut,
+)
 from ..tenancy import current_family_id, current_member_id, family_session
 
 router = APIRouter(tags=["pautas"])
 
 
-def _to_out(pauta: Pauta) -> PautaOut:
-    """Convierte un modelo Pauta a PautaOut con campos calculados."""
+async def _to_out(pauta: Pauta, session: AsyncSession) -> PautaOut:
+    """Convierte un modelo Pauta a PautaOut con campos calculados.
+
+    Calcula `next_dose_at` (última Administración + interval) y
+    `todays_administrations` (Administraciones de hoy).
+    """
+    now = datetime.now(UTC)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Última Administración → next_dose_at
+    last_stmt = (
+        select(Administration)
+        .where(Administration.pauta_id == pauta.id)
+        .order_by(Administration.administered_at.desc())
+        .limit(1)
+    )
+    last_result = await session.execute(last_stmt)
+    last_admin = last_result.scalars().first()
+
+    next_dose_at: datetime | None = None
+    if pauta.status == "active":
+        if last_admin is not None:
+            next_dose_at = last_admin.administered_at + timedelta(
+                hours=pauta.interval_hours
+            )
+        else:
+            next_dose_at = pauta.started_at + timedelta(hours=pauta.interval_hours)
+
+    # Administraciones de hoy
+    today_stmt = (
+        select(Administration)
+        .where(
+            Administration.pauta_id == pauta.id,
+            Administration.administered_at >= today_start,
+        )
+        .order_by(Administration.administered_at.asc())
+    )
+    today_result = await session.execute(today_stmt)
+    today_admins = list(today_result.scalars().all())
+
+    todays_out: list[AdministrationOut] = []
+    for a in today_admins:
+        member = await session.get(Member, a.administered_by)
+        todays_out.append(
+            AdministrationOut(
+                id=a.id,
+                pauta_id=a.pauta_id,
+                administered_at=a.administered_at,
+                administered_by=a.administered_by,
+                member_name=member.display_name if member else None,
+                created_at=a.created_at,
+            )
+        )
+
     return PautaOut(
         id=pauta.id,
         family_id=pauta.family_id,
@@ -37,6 +96,8 @@ def _to_out(pauta: Pauta) -> PautaOut:
         created_by=pauta.created_by,
         created_at=pauta.created_at,
         day_number=pauta.day_number,
+        next_dose_at=next_dose_at,
+        todays_administrations=todays_out,
     )
 
 
@@ -85,7 +146,7 @@ async def create_pauta(
     session.add(pauta)
     await session.flush()
     await session.refresh(pauta)
-    return _to_out(pauta)
+    return await _to_out(pauta, session)
 
 
 @router.get("/pautas")
@@ -107,7 +168,7 @@ async def list_pautas(
     out: list[PautaOut] = []
     for p in pautas:
         p = await _lazy_finish(p, session)
-        out.append(_to_out(p))
+        out.append(await _to_out(p, session))
     return out
 
 
@@ -119,7 +180,7 @@ async def get_pauta(
     """Detalle de una Pauta con campos calculados."""
     pauta = await _get_owned_pauta(session, pauta_id)
     pauta = await _lazy_finish(pauta, session)
-    return _to_out(pauta)
+    return await _to_out(pauta, session)
 
 
 @router.post("/pautas/{pauta_id}/finish")
@@ -138,4 +199,4 @@ async def finish_pauta(
     session.add(pauta)
     await session.flush()
     await session.refresh(pauta)
-    return _to_out(pauta)
+    return await _to_out(pauta, session)
