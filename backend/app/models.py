@@ -136,6 +136,47 @@ class EventTypeUpdate(SQLModel):
     icon: str | None = None
 
 
+class ShoppingItem(SQLModel, table=True):
+    """Ítem de compra: algo que hay que comprar, en la lista única de la Familia.
+
+    Estado `pending` (por comprar) o `bought` (comprado). `text` es texto libre
+    (el Miembro dicta "pañales talla 4 para Lucía"). `created_by` registra quién
+    lo apuntó; `family_id` acota por RLS.
+    """
+
+    __tablename__ = "shopping_items"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    text: str
+    status: str = Field(default="pending")
+    created_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    updated_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class ShoppingItemCreate(SQLModel):
+    """Cuerpo del alta de un Ítem de compra (texto libre, sin `family_id`)."""
+
+    text: str
+
+
+class ShoppingItemOut(SQLModel):
+    """Representación de un Ítem de compra para el frontend."""
+
+    id: uuid.UUID
+    family_id: str
+    text: str
+    status: str
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+
+
 class McpToken(SQLModel, table=True):
     """Token MCP de un Miembro (ADR-0001); resuelve a su Miembro → Familia.
 

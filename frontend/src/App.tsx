@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Show } from '@clerk/react'
 import { Route, Routes } from 'react-router'
+import { useTheme } from './features/ajustes/useTheme'
 import { Shell } from './features/shell/Shell'
 import { HoyPage } from './features/hoy/HoyPage'
 import { CompraPage } from './features/compra/CompraPage'
@@ -13,6 +14,7 @@ import { SignInPage } from './pages/SignInPage'
 
 function App() {
   const [ajustesOpen, setAjustesOpen] = useState(false)
+  useTheme() // apply persisted theme on mount
 
   return (
     <>

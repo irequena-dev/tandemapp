@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { SHOPPING_ITEMS, type MockShoppingItem } from '../../lib/mock-data'
+import { useShoppingItems, useCreateShoppingItem } from './api'
+import type { ShoppingItem } from './types'
 import './compra.css'
 
 function CheckIcon() {
@@ -27,66 +28,37 @@ function CartIcon() {
   )
 }
 
-function ItemRow({ item, onToggle }: { item: MockShoppingItem; onToggle: () => void }) {
+function ItemRow({ item, onToggle }: { item: ShoppingItem; onToggle: () => void }) {
+  const isBought = item.status === 'bought'
   return (
-    <li className={`compra-item${item.is_bought ? ' compra-item--done' : ''}`}>
+    <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
       <button
         type="button"
-        className={`compra-item__check${item.is_bought ? ' compra-item__check--done' : ''}`}
+        className={`compra-item__check${isBought ? ' compra-item__check--done' : ''}`}
         onClick={onToggle}
-        aria-label={item.is_bought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
+        aria-label={isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
       >
-        {item.is_bought && <CheckIcon />}
+        {isBought && <CheckIcon />}
       </button>
       <span className="compra-item__text">{item.text}</span>
-      {item.is_bought && item.bought_by && (
-        <span className="compra-item__meta">{item.bought_by}</span>
-      )}
     </li>
   )
 }
 
 export function CompraPage() {
-  const [items, setItems] = useState<MockShoppingItem[]>(SHOPPING_ITEMS)
+  const { data: items = [], isLoading } = useShoppingItems()
+  const createItem = useCreateShoppingItem()
   const [newText, setNewText] = useState('')
   const [boughtOpen, setBoughtOpen] = useState(false)
 
-  const pending = items.filter((i) => !i.is_bought)
-  const bought = items.filter((i) => i.is_bought)
-
-  const toggle = (id: string) => {
-    setItems((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              is_bought: !i.is_bought,
-              bought_by: !i.is_bought ? 'Ana' : null,
-              bought_at: !i.is_bought ? new Date().toISOString() : null,
-            }
-          : i,
-      ),
-    )
-  }
+  const pending = items.filter((i) => i.status === 'pending')
+  const bought = items.filter((i) => i.status === 'bought')
 
   const addItem = () => {
     const text = newText.trim()
     if (!text) return
-    setItems((prev) => [
-      ...prev,
-      {
-        id: `item-new-${Date.now()}`,
-        text,
-        is_bought: false,
-        bought_by: null,
-        bought_at: null,
-      },
-    ])
+    createItem.mutate({ text })
     setNewText('')
-  }
-
-  const clearBought = () => {
-    setItems((prev) => prev.filter((i) => !i.is_bought))
   }
 
   return (
@@ -114,7 +86,9 @@ export function CompraPage() {
         </button>
       </form>
 
-      {items.length === 0 && (
+      {isLoading && <p className="compra__loading">Cargando…</p>}
+
+      {!isLoading && items.length === 0 && (
         <div className="compra__empty">
           <span className="compra__empty-icon" aria-hidden="true">
             <CartIcon />
@@ -134,7 +108,7 @@ export function CompraPage() {
           </div>
           <ul className="compra__list">
             {pending.map((item) => (
-              <ItemRow key={item.id} item={item} onToggle={() => toggle(item.id)} />
+              <ItemRow key={item.id} item={item} onToggle={() => {}} />
             ))}
           </ul>
         </section>
@@ -153,16 +127,11 @@ export function CompraPage() {
               <span className="compra__count">{bought.length}</span>
               <ChevronIcon open={boughtOpen} />
             </button>
-            {boughtOpen && (
-              <button type="button" className="compra__clear" onClick={clearBought}>
-                Limpiar
-              </button>
-            )}
           </div>
           {boughtOpen && (
             <ul className="compra__list">
               {bought.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={() => toggle(item.id)} />
+                <ItemRow key={item.id} item={item} onToggle={() => {}} />
               ))}
             </ul>
           )}
