@@ -1,0 +1,215 @@
+/* Ajustes — settings overlay. See pantallas.md § Ajustes. */
+
+/* Backdrop */
+.ajustes-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ds-z-backdrop);
+  background: rgba(0, 0, 0, 0.35);
+  animation: ajustes-fade-in var(--ds-dur-base) var(--ds-ease) both;
+}
+
+@keyframes ajustes-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Panel */
+.ajustes {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--ds-z-modal);
+  width: min(100%, 28rem);
+  background: var(--ds-bg);
+  box-shadow: var(--ds-shadow-floating);
+  overflow-y: auto;
+  animation: ajustes-slide-in var(--ds-dur-base) var(--ds-ease) both;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes ajustes-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+
+/* Header */
+.ajustes__header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-bg);
+  border-bottom: 1px solid var(--ds-border);
+  z-index: 1;
+}
+
+.ajustes__title {
+  font-family: var(--ds-font-display);
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.ajustes__close {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--ds-r-md);
+  color: var(--ds-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
+}
+.ajustes__close:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.ajustes__close:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+/* Content */
+.ajustes__content {
+  flex: 1;
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+}
+
+/* Section */
+.ajustes-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.ajustes-section__title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+
+.ajustes-section__desc {
+  font-size: 0.875rem;
+  color: var(--ds-muted);
+  line-height: 1.4;
+}
+
+/* Card-style section */
+.ajustes-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
+/* Row items inside cards */
+.ajustes-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  min-height: 56px;
+}
+
+.ajustes-row + .ajustes-row {
+  border-top: 1px solid var(--ds-border);
+}
+
+.ajustes-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ajustes-row__name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.ajustes-row__role {
+  font-size: 0.8125rem;
+  color: var(--ds-muted);
+}
+
+.ajustes-row__actions {
+  flex: none;
+}
+
+/* Theme selector */
+.ajustes-theme {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.ajustes-theme__option {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-s-xs);
+  min-height: 44px;
+  padding: 0 var(--ds-s-md);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: transparent;
+  color: var(--ds-muted);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease),
+    border-color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.ajustes-theme__option:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+
+.ajustes-theme__option--active {
+  background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
+  color: var(--ds-primary);
+  border-color: var(--ds-primary);
+  font-weight: 600;
+}
+
+/* Token section */
+.ajustes-token {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.ajustes-token__value {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  word-break: break-all;
+  color: var(--ds-muted);
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-sm);
+}

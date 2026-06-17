@@ -1,0 +1,219 @@
+/* Hoy — home screen. Hero "Ahora" + timeline + summary cards.
+   See pantallas.md § Hoy, DESIGN.md tokens. */
+
+.hoy {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--ds-s-xl) var(--ds-s-lg) var(--ds-s-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+}
+
+.hoy__title {
+  font-family: var(--ds-font-display);
+  font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+/* ---------- Hero "Ahora" ---------- */
+.hoy-hero {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.hoy-hero--urgent {
+  border-color: var(--ds-attn);
+  background: var(--ds-attn-bg);
+}
+
+.hoy-hero__eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ds-muted);
+  text-transform: uppercase;
+}
+
+.hoy-hero--urgent .hoy-hero__eyebrow {
+  color: var(--ds-attn-ink);
+}
+
+.hoy-hero__heading {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+
+.hoy-hero__context {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ds-muted);
+}
+
+.hoy-hero--urgent .hoy-hero__context {
+  color: var(--ds-attn-ink);
+}
+
+.hoy-hero__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+
+.hoy-hero__calm {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+}
+
+.hoy-hero__calm-icon {
+  color: var(--ds-success);
+  flex: none;
+}
+
+/* ---------- Timeline ---------- */
+.hoy-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.hoy-timeline__title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-bottom: var(--ds-s-md);
+}
+
+.hoy-tl-item {
+  display: flex;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-md) 0;
+  position: relative;
+}
+
+.hoy-tl-item + .hoy-tl-item {
+  border-top: 1px solid var(--ds-border);
+}
+
+.hoy-tl-item__time {
+  flex: none;
+  width: 3.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+  text-align: right;
+  padding-top: 2px;
+}
+
+.hoy-tl-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.hoy-tl-item__label {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ds-ink);
+}
+
+.hoy-tl-item__sub {
+  font-size: 0.8125rem;
+  color: var(--ds-muted);
+  margin-top: 2px;
+}
+
+.hoy-tl-item__status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: 4px 10px;
+  border-radius: var(--ds-r-pill);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+  align-self: center;
+}
+
+.hoy-tl-item__status--done {
+  background: var(--ds-success-bg);
+  color: var(--ds-success-ink);
+}
+
+.hoy-tl-item__status--pending {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+
+.hoy-tl-item__status--due {
+  background: var(--ds-attn-bg);
+  color: var(--ds-attn-ink);
+}
+
+/* ---------- Summary cards ("Más cosas") ---------- */
+.hoy-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ds-s-md);
+}
+
+.hoy-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease);
+  cursor: pointer;
+}
+
+.hoy-card:hover {
+  background: var(--ds-surface-2);
+}
+
+.hoy-card:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.hoy-card__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-md);
+  background: var(--ds-surface-2);
+  color: var(--ds-primary);
+}
+
+.hoy-card__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ds-muted);
+}
+
+.hoy-card__value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}

@@ -31,8 +31,11 @@ Registro Medidas (altura, peso) y Tallas (ropa, calzado) dictándolas a Claude (
 - Frontend: **no** hay pestaña propia; el crecimiento y las tallas viven dentro de **Hijos → HijoDetail** (ver [IA y pantallas](./tandem-ia-pantallas.md)). El valor actual (altura, peso, talla de calzado y ropa) se asoma en el **card de Hijo**.
 
 ### Esquema
-- `measurements`: `id`, `family_id`, `child_id`, `type` (`height` | `weight`), `value` (numérico), `unit`, `measured_at`, `recorded_by`. **Append-only**; el valor actual es el más reciente por tipo.
-- `sizes`: `id`, `family_id`, `child_id`, `type` (`clothing` | `footwear`), `label` (texto, p. ej. "26", "6 años"), `recorded_at`, `recorded_by`. **Append-only**; la actual es la más reciente por tipo.
+
+> Contrato completo en [`docs/api-contract.md`](../api-contract.md).
+
+- `measurements`: `id` (UUID), `family_id`, `child_id`, `type` (`height` | `weight`), `value` (NUMERIC), `unit` (`cm` | `kg`), `measured_at` (DATE), `recorded_by` (member_id), `created_at`. **Append-only**; el valor actual es el más reciente por tipo. Índice: `(child_id, type, measured_at DESC)`.
+- `sizes`: `id` (UUID), `family_id`, `child_id`, `type` (`clothing` | `footwear`), `label` (TEXT, p. ej. "5-6 años", "29", "24-36 meses"), `recorded_at` (DATE), `recorded_by` (member_id), `created_at`. **Append-only**; la actual es la más reciente por tipo. El tipo `clothing` se muestra al usuario como **"Talla"** (no "Ropa"); el tipo `footwear` como **"Calzado"**. Índice: `(child_id, type, recorded_at DESC)`.
 
 ### Contratos
 - **REST**: listar histórico por Hijo y tipo; obtener valor/talla actual; crear; editar; borrar (correcciones). Acotado a la Familia.

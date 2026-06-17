@@ -79,14 +79,14 @@ Fase 4. **Lista de próximos** (no calendario).
 
 Fases 0 (identidad) + 2 (crecimiento/tallas) + 3 (visitas).
 
-- Un **card por Hijo**: avatar con **inicial + color** del Hijo, nombre, edad (derivada de la fecha de nacimiento), **altura** actual, **talla de calzado** actual, **peso** actual y **talla de ropa** actual.
+- Un **card por Hijo**: avatar con **inicial + color** del Hijo, nombre, edad (derivada de la fecha de nacimiento), **altura** actual, **peso** actual, **talla de calzado** actual y **talla** actual (rango de edad, p. ej. "5-6 años", "24-36 meses").
 - Click en el card abre **HijoDetail**.
 - La **identidad** del Hijo (alta/baja, nombre, fecha de nacimiento, color) se gestiona en **Ajustes**, no aquí.
 
 ### HijoDetail
 
 - **Card resumen comprimida** con la info básica del Hijo.
-- **Crecimiento** (Fase 2): evolución de **altura** y **peso** en el tiempo, **talla** actual de ropa y calzado, y alta/corrección de Medidas y Tallas desde la PWA.
+- **Crecimiento** (Fase 2): gráficas de evolución de **altura** (cm) y **peso** (kg) en el tiempo (eje X = fecha, eje Y = valor), tabla de histórico, **talla** actual y **talla de calzado** actual, y alta/corrección de Medidas y Tallas desde la PWA.
 - **Visitas médicas** (Fase 3): listado con **filtro por fecha**; **registrar** una Visita desde la PWA (US 13 de Fase 3) y **corregir/borrar**; click en una Visita abre su **detalle** (diagnóstico, notas/tratamiento) con **enlace a las Pautas** que originó.
 
 ## Pautas
@@ -114,10 +114,14 @@ Overlay sobre la vista actual; se abre desde el icono del header.
 
 ## Impacto en el esquema
 
+> Esquema consolidado en [`docs/api-contract.md`](../api-contract.md).
+
 Cambios derivados de esta definición de pantallas (detallados en cada PRD de fase):
 
-- **Fase 0** — `children` añade **`avatar_color`** (paleta acotada del sistema de diseño) para el avatar inicial + color.
+- **Fase 0** — `children` añade **`avatar_color`** (SMALLINT 0–5) para el avatar inicial + color.
 - **Fase 1** — `shopping_items` añade **`bought_by`** y **`bought_at`** para mostrar quién compró cada Ítem.
+- **Fase 2** — `sizes.type = 'clothing'` se muestra como **"Talla"** (no "Ropa"); `label` usa formato de rango de edad (p. ej. "5-6 años").
+- **Fase 4** — `event_types` añade **`icon`** (TEXT, clave del design system) para el icono visual por tipo.
 
 ## Notas
 

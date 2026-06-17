@@ -38,9 +38,12 @@ Una agenda por Familia donde apunto Eventos: cosas que ocurren o vencen en una f
 - Frontend (ver [IA y pantallas](./tandem-ia-pantallas.md)): pestaña **Eventos** (lista de próximos + filtros). La **gestión de Tipos de Evento** y la **creación/borrado de Series** viven **dentro de la pestaña Eventos** (no en Ajustes). Aporte a **Hoy**: los Eventos de hoy en el timeline y la tarjeta "Próxima cita" (próximo Evento de tipo médico) en "Más cosas".
 
 ### Esquema
-- `events`: `id`, `family_id`, `child_id` (nullable, 0 o 1), `title`, `event_type_id`, `date`, `time` (nullable → día completo), `status` (`pending` | `done`), `series_id` (nullable), `created_by`.
-- `event_types`: `id`, `family_id` (nullable para los base sembrados por el sistema), `name`. Lista gestionada por Familia (base + personalizados), incluye "otros".
-- `series`: `id`, `family_id`, definición de la regla **acotada** (cadencia + `ends_at`/`max_count`).
+
+> Contrato completo en [`docs/api-contract.md`](../api-contract.md).
+
+- `events`: `id` (UUID), `family_id`, `child_id` (UUID nullable, 0 o 1 Hijo), `title` (TEXT), `event_type_id` (UUID → `event_types`), `date` (DATE), `time` (TIME nullable → día completo), `status` (`pending` | `done`; `is_overdue` es calculado en lectura, no persistido), `series_id` (UUID nullable → `series`), `created_by` (member_id), `created_at`. Índices: `(family_id, date)`, `(event_type_id)`, `(child_id)`.
+- `event_types`: `id` (UUID), `family_id` (TEXT nullable — NULL = tipo base del sistema), `name` (TEXT), `icon` (TEXT, default `'circle'` — clave de icono del design system). Tipos base sembrados al crear la Familia: Médico, Cole, Extraescolar, Trámite, Otros. No se borran ni editan los tipos base.
+- `series`: `id` (UUID), `family_id`, `cadence` (`weekly` | `biweekly` | `monthly`), `day_of_week` (SMALLINT, 0=lun…6=dom), `starts_at` (DATE), `ends_at` (DATE nullable), `max_count` (SMALLINT nullable — uno de los dos es obligatorio), `created_at`. Es solo generador (ADR-0003); materializa las ocurrencias como Eventos al crearse.
 
 ### Contratos
 - **REST**: listar agenda (próximos, con filtros por tipo/Hijo); crear/editar/borrar Evento; marcar hecho/deshacer; CRUD de Tipos de Evento; crear Serie (materializa ocurrencias); borrar ocurrencias futuras de una Serie. Acotado a la Familia.

@@ -36,6 +36,7 @@ Comunes a todas las fases; cada PRD de fase las da por supuestas.
 - Monorepo: `frontend/` (React + Vite, PWA, TanStack Query) y `backend/` (FastAPI + FastMCP, SQLModel, PostgreSQL).
 - Dos superficies sobre el mismo dominio/BD: **API REST** (PWA) y **servidor MCP remoto** (Claude).
 - **ADR-0002**: el backend no interpreta lenguaje natural; Claude elige intención y extrae datos; el backend valida y persiste.
+- **Contrato de API REST**: [`docs/api-contract.md`](./api-contract.md) — definición normativa de endpoints, tipos, esquema de BBDD consolidado e índices. Cada PRD de fase referencia el contrato para su esquema.
 
 ### Seguridad y multi-tenancy
 - Familia ≡ Organización de Clerk (`family_id` ≡ `org_id`); Miembro ≡ usuario de Clerk y pertenece a exactamente una Familia. Toda tabla lleva `family_id`.

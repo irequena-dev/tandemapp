@@ -37,9 +37,12 @@ Registro las Visitas médicas con su diagnóstico para tener el historial, e ini
 - Frontend (ver [IA y pantallas](./tandem-ia-pantallas.md)): la Salud se **reparte** en dos sitios — pestaña **Pautas** (tratamientos activos/finalizados de toda la Familia, cross-Hijo) y sección **Visitas médicas** dentro de **Hijos → HijoDetail** (histórico por Hijo). La próxima toma alimenta el **héroe "Ahora"** y el **timeline** de Hoy.
 
 ### Esquema
-- `health_visits`: `id`, `family_id`, `child_id`, `visited_at`, `diagnosis`, metadatos médicos variables en columna **JSONB** (`notes`/`treatment`).
-- `pautas`: `id`, `family_id`, `child_id`, `medication`, `dose`, `interval` (tiempo entre tomas), `duration`/`ends_at`, `status` (`active` | `finished`), `health_visit_id` (opcional), `created_by`.
-- `administrations`: `id`, `family_id`, `pauta_id`, `administered_at`, `administered_by`.
+
+> Contrato completo en [`docs/api-contract.md`](../api-contract.md).
+
+- `health_visits`: `id` (UUID), `family_id`, `child_id`, `visited_at` (DATE), `diagnosis` (TEXT NOT NULL), `notes` (JSONB, nullable — notas libres / tratamiento), `created_by` (member_id), `created_at`. Índice: `(child_id, visited_at DESC)`.
+- `pautas`: `id` (UUID), `family_id`, `child_id`, `medication` (TEXT), `dose` (TEXT, p. ej. "5 ml"), `interval_hours` (SMALLINT — horas entre tomas), `duration_days` (SMALLINT), `started_at` (TIMESTAMPTZ), `status` (`active` | `finished`), `health_visit_id` (UUID nullable → enlace a la Visita que la originó), `created_by` (member_id), `created_at`. `ends_at` es **calculado** (`started_at + duration_days`), no persistido. Índices: `(family_id, status)`, `(child_id)`.
+- `administrations`: `id` (UUID), `family_id`, `pauta_id`, `administered_at` (TIMESTAMPTZ NOT NULL), `administered_by` (member_id), `created_at`. Índice: `(pauta_id, administered_at DESC)`.
 
 ### Contratos
 - **REST**: CRUD/listado de Visitas; listar Pautas (activas/finalizadas) por Hijo; iniciar Pauta; finalizar Pauta; registrar/corregir/borrar Administración; obtener "siguiente toma" calculada. Acotado a la Familia.

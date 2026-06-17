@@ -1,0 +1,259 @@
+/* Pautas — treatment list for the whole Familia. See pantallas.md § Pautas. */
+
+.pautas {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--ds-s-xl) var(--ds-s-lg) var(--ds-s-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xl);
+}
+
+.pautas__title {
+  font-family: var(--ds-font-display);
+  font-size: clamp(1.625rem, 1.3rem + 1.4vw, 2rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+/* ---------- Pauta list ---------- */
+.pautas__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+/* ---------- Pauta card ---------- */
+.pauta-card {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
+.pauta-card--finalizada {
+  opacity: 0.6;
+}
+
+.pauta-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  cursor: pointer;
+  min-height: 64px;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.pauta-card__header:hover {
+  background: var(--ds-surface-2);
+}
+
+.pauta-card__child {
+  flex: none;
+}
+
+.pauta-card__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pauta-card__med {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ds-ink);
+}
+
+.pauta-card__sub {
+  font-size: 0.8125rem;
+  color: var(--ds-muted);
+}
+
+.pauta-card__status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: 4px 10px;
+  border-radius: var(--ds-r-pill);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.pauta-card__status--activa {
+  background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
+  color: var(--ds-primary);
+}
+
+.pauta-card__status--finalizada {
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+}
+
+.pauta-card__chevron {
+  flex: none;
+  color: var(--ds-muted);
+  transition: transform var(--ds-dur-fast) var(--ds-ease);
+}
+.pauta-card__chevron--open {
+  transform: rotate(180deg);
+}
+
+/* ---------- Expanded body ---------- */
+.pauta-body {
+  padding: 0 var(--ds-s-lg) var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  border-top: 1px solid var(--ds-border);
+  animation: pauta-rise var(--ds-dur-base) var(--ds-ease) both;
+}
+
+@keyframes pauta-rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Progress bar */
+.pauta-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xs);
+  padding-top: var(--ds-s-md);
+}
+
+.pauta-progress__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+
+.pauta-progress__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--ds-surface-2);
+  overflow: hidden;
+}
+
+.pauta-progress__fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ds-primary);
+  transition: width var(--ds-dur-base) var(--ds-ease);
+}
+
+/* Tomas del día */
+.pauta-tomas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.pauta-tomas__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.pauta-toma {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-sm) 0;
+}
+
+.pauta-toma + .pauta-toma {
+  border-top: 1px solid var(--ds-border);
+}
+
+.pauta-toma__time {
+  flex: none;
+  width: 3.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+  text-align: right;
+}
+
+.pauta-toma__label {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--ds-ink);
+}
+
+.pauta-toma__status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: 4px 10px;
+  border-radius: var(--ds-r-pill);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.pauta-toma__status--dada {
+  background: var(--ds-success-bg);
+  color: var(--ds-success-ink);
+}
+
+.pauta-toma__status--proxima {
+  background: var(--ds-attn-bg);
+  color: var(--ds-attn-ink);
+}
+
+.pauta-toma__status--pendiente {
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+}
+
+.pauta-body__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+
+/* ---------- Empty ---------- */
+.pautas__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-3xl) var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.pautas__empty-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  color: var(--ds-primary);
+}
+
+.pautas__empty-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.pautas__empty-text {
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  max-width: 34ch;
+}
