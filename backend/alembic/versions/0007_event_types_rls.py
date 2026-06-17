@@ -1,7 +1,7 @@
 """event_types: Tipos de Evento con RLS por Familia y tipos base
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0007c
+Revises: 0007b
 Create Date: 2026-06-17
 
 Crea la tabla `event_types` con `family_id` nullable (NULL = tipo base del

@@ -1,6 +1,6 @@
 """sizes: tabla de Tallas (ropa, calzado) con RLS por Familia
 
-Revision ID: 0007
+Revision ID: 0007a
 Revises: 0006
 Create Date: 2026-06-17
 

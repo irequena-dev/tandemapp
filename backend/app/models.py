@@ -480,3 +480,45 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
+
+
+# ---------- Administraciones (dosis registradas) ----------
+
+# Ventana corta para la guarda de duplicado: si llega otra Administración de la
+# misma Pauta dentro de estos minutos, se ignora y se devuelve la existente.
+DUPLICATE_GUARD_MINUTES: int = 15
+
+
+class Administration(SQLModel, table=True):
+    """Administración: acto registrado de dar una dosis de una Pauta.
+
+    `administered_at` es cuándo se dio la dosis; `administered_by` es el Miembro
+    que la registró. `family_id` + RLS aíslan por Familia.
+    """
+
+    __tablename__ = "administrations"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    pauta_id: uuid.UUID = Field(foreign_key="pautas.id", index=True)
+    administered_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    administered_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class AdministrationOut(SQLModel):
+    """Administración tal como la devuelve la API."""
+
+    id: uuid.UUID
+    pauta_id: uuid.UUID
+    administered_at: datetime
+    administered_by: str
+    created_at: datetime
