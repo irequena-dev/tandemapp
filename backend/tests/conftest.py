@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 from testcontainers.postgres import PostgresContainer
 
 
@@ -48,6 +49,19 @@ async def app_session() -> AsyncIterator:
 
     async with get_sessionmaker()() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def admin_session() -> AsyncIterator[AsyncSession]:
+    """Sesión como owner (bypasses RLS) para preparar datos de test."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.config import get_settings
+
+    engine = create_async_engine(get_settings().database_url, future=True)
+    async with AsyncSession(engine) as session:
+        yield session
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture

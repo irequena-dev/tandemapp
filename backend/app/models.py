@@ -166,6 +166,12 @@ class ShoppingItemCreate(SQLModel):
     text: str
 
 
+class ShoppingItemUpdate(SQLModel):
+    """Edición parcial de un Ítem de compra: solo el texto libre."""
+
+    text: str
+
+
 class ShoppingItemOut(SQLModel):
     """Representación de un Ítem de compra para el frontend."""
 

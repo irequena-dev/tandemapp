@@ -159,6 +159,60 @@
   white-space: nowrap;
 }
 
+/* Inline edit input */
+.compra-item__edit-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--ds-ink);
+  background: var(--ds-bg);
+  border: 1px solid var(--ds-primary);
+  border-radius: var(--ds-r-sm);
+  padding: 2px var(--ds-s-sm);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
+}
+
+/* Row action buttons */
+.compra-item__actions {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--ds-dur-fast) var(--ds-ease);
+}
+
+.compra-item:hover .compra-item__actions,
+.compra-item:focus-within .compra-item__actions {
+  opacity: 1;
+}
+
+.compra-item__action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: transparent;
+  color: var(--ds-muted);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    color var(--ds-dur-fast) var(--ds-ease),
+    background-color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.compra-item__action:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+
+.compra-item__action--danger:hover {
+  color: var(--ds-danger);
+}
+
 /* ---------- Bought section (collapsed) ---------- */
 .compra__bought-toggle {
   display: flex;
