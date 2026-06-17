@@ -35,7 +35,12 @@ async def create_child(
     El `family_id` lo impone el servidor desde el contexto; coincide con
     `app.current_family_id`, así que el WITH CHECK de RLS lo acepta.
     """
-    child = Child(family_id=family_id, name=data.name, birth_date=data.birth_date)
+    child = Child(
+        family_id=family_id,
+        name=data.name,
+        birth_date=data.birth_date,
+        avatar_color=data.avatar_color,
+    )
     session.add(child)
     await session.flush()
     await session.refresh(child)

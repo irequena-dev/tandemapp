@@ -1,6 +1,7 @@
 import { type FormEvent, useId, useState } from 'react'
+import { AvatarColorPicker } from './AvatarColorPicker'
 import { DateField } from './DateField'
-import type { ChildInput } from './types'
+import type { AvatarColor, ChildInput } from './types'
 
 type ChildFormProps = {
   /** Texto del botón de envío (p. ej. "Añadir" o "Guardar"). */
@@ -9,6 +10,7 @@ type ChildFormProps = {
   hasError?: boolean
   initialName?: string
   initialBirthDate?: string
+  initialAvatarColor?: AvatarColor | null
   onSubmit: (input: ChildInput) => void
   /** Si se pasa, muestra un botón de cancelar (modo edición). */
   onCancel?: () => void
@@ -32,11 +34,13 @@ export function ChildForm({
   hasError = false,
   initialName = '',
   initialBirthDate = '',
+  initialAvatarColor = null,
   onSubmit,
   onCancel,
 }: ChildFormProps) {
   const [name, setName] = useState(initialName)
   const [birthDate, setBirthDate] = useState(initialBirthDate)
+  const [avatarColor, setAvatarColor] = useState<AvatarColor | null>(initialAvatarColor)
   const [showErrors, setShowErrors] = useState(false)
 
   const nameId = useId()
@@ -57,7 +61,7 @@ export function ChildForm({
       setShowErrors(true)
       return
     }
-    onSubmit({ name: trimmedName, birth_date: birthDate })
+    onSubmit({ name: trimmedName, birth_date: birthDate, avatar_color: avatarColor })
   }
 
   const showName = showErrors && nameError
@@ -107,6 +111,8 @@ export function ChildForm({
           )}
         </div>
       </div>
+
+      <AvatarColorPicker name={name} value={avatarColor} onChange={setAvatarColor} />
 
       <div className="hijo-form__actions">
         <button type="submit" className="btn btn--primary" disabled={pending}>

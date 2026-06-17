@@ -60,7 +60,9 @@ export function useCreateChild() {
       const optimistic: Child = {
         id: `optimistic-${crypto.randomUUID()}`,
         family_id: 'optimistic',
-        ...input,
+        name: input.name,
+        birth_date: input.birth_date,
+        avatar_color: input.avatar_color ?? null,
       }
       qc.setQueryData<Child[]>(childrenKeys.all, (old = []) => [...old, optimistic])
       return ctx

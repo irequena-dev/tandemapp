@@ -1,8 +1,23 @@
 import uuid
 from datetime import date, datetime
+from typing import Literal
 
+from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
+
+# Paleta acotada de colores de avatar para Hijo. Las claves corresponden a los
+# tonos de identidad del sistema de diseño (data-tone 0–5 en el CSS).
+AVATAR_COLORS: tuple[str, ...] = (
+    "clay",
+    "sage",
+    "ochre",
+    "terracotta",
+    "olive",
+    "rosewood",
+)
+
+AvatarColor = Literal["clay", "sage", "ochre", "terracotta", "olive", "rosewood"]
 
 
 class Family(SQLModel, table=True):
@@ -36,6 +51,15 @@ class ChildBase(SQLModel):
 
     name: str
     birth_date: date
+    avatar_color: str | None = None
+
+    @field_validator("avatar_color")
+    @classmethod
+    def validate_avatar_color(cls, v: str | None) -> str | None:
+        if v is not None and v not in AVATAR_COLORS:
+            msg = f"avatar_color debe ser uno de {AVATAR_COLORS}"
+            raise ValueError(msg)
+        return v
 
 
 class Child(ChildBase, table=True):
@@ -61,6 +85,15 @@ class ChildUpdate(SQLModel):
 
     name: str | None = None
     birth_date: date | None = None
+    avatar_color: str | None = None
+
+    @field_validator("avatar_color")
+    @classmethod
+    def validate_avatar_color(cls, v: str | None) -> str | None:
+        if v is not None and v not in AVATAR_COLORS:
+            msg = f"avatar_color debe ser uno de {AVATAR_COLORS}"
+            raise ValueError(msg)
+        return v
 
 
 class McpToken(SQLModel, table=True):
