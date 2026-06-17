@@ -170,10 +170,34 @@
   gap: var(--ds-s-md);
 }
 
+.hijo-detail__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .hijo-detail__section-title {
   font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.hijo-detail__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: var(--ds-s-xs) var(--ds-s-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-primary);
+  background: var(--ds-surface-2);
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  min-height: 36px;
+}
+.hijo-detail__add-btn:hover {
+  background: var(--ds-border);
 }
 
 /* Growth chart */
@@ -364,4 +388,102 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   max-width: 34ch;
+}
+
+/* ---------- Measurement form ---------- */
+.measurement-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.measurement-form__row {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+
+.measurement-form__select,
+.measurement-form__input {
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  font-size: 0.9375rem;
+  background: var(--ds-bg);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  color: var(--ds-ink);
+  min-height: 44px;
+  flex: 1;
+  min-width: 80px;
+}
+
+.measurement-form__select:focus,
+.measurement-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 25%, transparent);
+}
+
+.measurement-form__date {
+  flex: 1.2;
+}
+
+.measurement-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.measurement-form__btn {
+  padding: var(--ds-s-sm) var(--ds-s-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.measurement-form__btn--primary {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.measurement-form__btn--primary:hover {
+  background: var(--ds-primary-hover);
+}
+
+.measurement-form__btn--secondary {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.measurement-form__btn--secondary:hover {
+  background: var(--ds-border);
+}
+
+/* ---------- Growth row actions ---------- */
+.growth-row__actions {
+  display: flex;
+  gap: var(--ds-s-xs);
+  flex: none;
+}
+
+.growth-row__action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: transparent;
+  color: var(--ds-muted);
+  cursor: pointer;
+}
+.growth-row__action:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.growth-row__action--danger:hover {
+  color: var(--ds-danger);
 }
