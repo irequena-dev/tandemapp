@@ -13,3 +13,8 @@ export type ShoppingItem = {
 export type ShoppingItemInput = {
   text: string
 }
+
+/** Datos que el Miembro edita de un Ítem (solo texto libre). */
+export type ShoppingItemUpdate = {
+  text: string
+}
