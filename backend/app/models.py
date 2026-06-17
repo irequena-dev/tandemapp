@@ -194,7 +194,6 @@ class CurrentSizesOut(SQLModel):
     footwear: SizeOut | None = None
 
 
-
 class McpToken(SQLModel, table=True):
     """Token MCP de un Miembro (ADR-0001); resuelve a su Miembro → Familia.
 
