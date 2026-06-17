@@ -92,6 +92,10 @@ describe('Ajustes', () => {
   })
 
   it('abre el overlay de Ajustes al pulsar el botón', async () => {
+    server.use(
+      http.get('http://localhost:8000/members', () => HttpResponse.json([])),
+      http.get('http://localhost:8000/invitations', () => HttpResponse.json([])),
+    )
     const user = userEvent.setup()
     renderApp('/')
     await user.click(screen.getByRole('button', { name: /ajustes/i }))
@@ -99,6 +103,10 @@ describe('Ajustes', () => {
   })
 
   it('el overlay muestra las secciones: Hijos, Token MCP, Miembros', async () => {
+    server.use(
+      http.get('http://localhost:8000/members', () => HttpResponse.json([])),
+      http.get('http://localhost:8000/invitations', () => HttpResponse.json([])),
+    )
     const user = userEvent.setup()
     renderApp('/')
     await user.click(screen.getByRole('button', { name: /ajustes/i }))
