@@ -85,6 +85,22 @@ class McpToken(SQLModel, table=True):
     )
 
 
+class InvitationCreate(SQLModel):
+    """Cuerpo del alta de una invitación (solo se requiere el email)."""
+
+    email_address: str
+
+
+class InvitationOut(SQLModel):
+    """Representación de una invitación tal como la devuelve Clerk."""
+
+    id: str
+    email_address: str
+    role: str
+    status: str
+    created_at: int
+
+
 class McpTokenCreated(SQLModel):
     """Respuesta del alta: el valor en claro (una sola vez) + metadata."""
 
