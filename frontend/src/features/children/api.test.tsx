@@ -32,6 +32,7 @@ const mara: Child = {
   family_id: 'fam',
   name: 'Mara',
   birth_date: '2020-05-01',
+  avatar_color: null,
 }
 
 describe('useChildren', () => {
@@ -52,7 +53,13 @@ describe('useCreateChild (optimistic)', () => {
       http.get(URL, () => HttpResponse.json(store)),
       http.post(URL, async ({ request }) => {
         const input = (await request.json()) as ChildInput
-        const child: Child = { id: 'srv-1', family_id: 'fam', ...input }
+        const child: Child = {
+          id: 'srv-1',
+          family_id: 'fam',
+          name: input.name,
+          birth_date: input.birth_date,
+          avatar_color: input.avatar_color ?? null,
+        }
         store.push(child)
         return HttpResponse.json(child, { status: 201 })
       }),

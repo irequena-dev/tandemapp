@@ -1,20 +1,9 @@
 import { useState } from 'react'
 import { formatAge } from './age'
 import { useDeleteChild, useUpdateChild } from './api'
+import { initialOf, resolveColor, toneIndex } from './avatar'
 import { ChildForm } from './ChildForm'
 import type { Child } from './types'
-
-/** Inicial bien presentada (primer grafema, en mayúscula). */
-function initialOf(name: string): string {
-  return [...name.trim()][0]?.toUpperCase() ?? '?'
-}
-
-/** Tono calmado y estable por Hijo (0–5), derivado del nombre. */
-function toneOf(name: string): number {
-  let h = 0
-  for (const ch of name) h = (h + (ch.codePointAt(0) ?? 0)) % 6
-  return h
-}
 
 const PencilIcon = () => (
   <svg
@@ -74,6 +63,7 @@ export function ChildListItem({ child }: { child: Child }) {
           hasError={update.isError}
           initialName={child.name}
           initialBirthDate={child.birth_date}
+          initialAvatarColor={child.avatar_color}
           onSubmit={(patch) =>
             update.mutate(
               { id: child.id, patch },
@@ -92,7 +82,7 @@ export function ChildListItem({ child }: { child: Child }) {
         className={`hijo-row${isOptimistic ? ' hijo-row--pending' : ''}`}
         aria-busy={isOptimistic || undefined}
       >
-        <span className="hijo-mono" data-tone={toneOf(child.name)} aria-hidden="true">
+        <span className="hijo-mono" data-tone={toneIndex(resolveColor(child.avatar_color, child.id))} aria-hidden="true">
           {initialOf(child.name)}
         </span>
         <span className="hijo-row__text">

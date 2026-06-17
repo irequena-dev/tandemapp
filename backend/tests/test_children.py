@@ -75,3 +75,90 @@ async def test_create_child_requires_family(
         "/children", json={"name": "Fantasma", "birth_date": "2021-01-01"}
     )
     assert resp.status_code == 403
+
+
+# ---------- avatar_color ----------
+
+
+async def test_create_child_with_valid_avatar_color(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Alta con un color de la paleta acotada: se persiste y se devuelve."""
+    _as(identity, "org_color_1", "user_color_1")
+    resp = await auth_client.post(
+        "/children",
+        json={"name": "Luna", "birth_date": "2021-03-10", "avatar_color": "sage"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["avatar_color"] == "sage"
+
+    # También aparece en el listado.
+    listed = (await auth_client.get("/children")).json()
+    assert listed[0]["avatar_color"] == "sage"
+
+
+async def test_create_child_without_avatar_color(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Alta sin color: se persiste como null (el frontend usa fallback por id)."""
+    _as(identity, "org_color_2", "user_color_2")
+    resp = await auth_client.post(
+        "/children", json={"name": "Sol", "birth_date": "2022-06-01"}
+    )
+    assert resp.status_code == 201
+    assert resp.json()["avatar_color"] is None
+
+
+async def test_create_child_with_invalid_avatar_color(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Color fuera de la paleta → 422."""
+    _as(identity, "org_color_3", "user_color_3")
+    resp = await auth_client.post(
+        "/children",
+        json={"name": "Nube", "birth_date": "2020-01-01", "avatar_color": "purple"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_update_child_avatar_color(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Editar el color de un Hijo existente."""
+    _as(identity, "org_color_4", "user_color_4")
+    child_id = (
+        await auth_client.post(
+            "/children",
+            json={"name": "Río", "birth_date": "2019-08-15", "avatar_color": "clay"},
+        )
+    ).json()["id"]
+
+    # Cambiar el color.
+    resp = await auth_client.patch(
+        f"/children/{child_id}", json={"avatar_color": "ochre"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["avatar_color"] == "ochre"
+
+    # Poner a null (quitar color explícito → fallback por id).
+    resp = await auth_client.patch(f"/children/{child_id}", json={"avatar_color": None})
+    assert resp.status_code == 200
+    assert resp.json()["avatar_color"] is None
+
+
+async def test_update_child_invalid_avatar_color(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Editar con un color inválido → 422."""
+    _as(identity, "org_color_5", "user_color_5")
+    child_id = (
+        await auth_client.post(
+            "/children", json={"name": "Mar", "birth_date": "2020-02-20"}
+        )
+    ).json()["id"]
+
+    resp = await auth_client.patch(
+        f"/children/{child_id}", json={"avatar_color": "neon"}
+    )
+    assert resp.status_code == 422
