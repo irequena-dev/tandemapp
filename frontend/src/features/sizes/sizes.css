@@ -1,0 +1,221 @@
+/* Tallas section — clothing/footwear blocks in HijoDetail */
+
+.sizes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+/* ---------- Size block ---------- */
+.size-block {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.size-block__header {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+}
+
+.size-block__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+  min-width: 4.5rem;
+}
+
+.size-block__current {
+  flex: 1;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-primary);
+}
+
+.size-block__empty {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--ds-muted);
+  font-style: italic;
+}
+
+.size-block__add-btn {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ds-r-md);
+  background: var(--ds-surface-2);
+  color: var(--ds-primary);
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--ds-dur-fast) var(--ds-ease);
+}
+.size-block__add-btn:hover {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.size-block__add-btn:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.size-block__history-toggle {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--ds-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.size-block__history-toggle:hover {
+  text-decoration: underline;
+}
+
+/* ---------- History list ---------- */
+.size-block__history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--ds-border);
+}
+
+.size-history-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-sm) 0;
+  flex-wrap: wrap;
+}
+
+.size-history-row + .size-history-row {
+  border-top: 1px solid var(--ds-border);
+}
+
+.size-history-row__date {
+  flex: none;
+  width: 5.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+}
+
+.size-history-row__label {
+  flex: 1;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+
+.size-history-row__actions {
+  display: flex;
+  gap: var(--ds-s-xs);
+}
+
+.size-history-row__btn {
+  appearance: none;
+  border: none;
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  min-height: 32px;
+}
+.size-history-row__btn:hover {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.size-history-row__btn--danger:hover {
+  background: var(--ds-danger);
+  color: #fff;
+}
+
+/* ---------- Inline form ---------- */
+.size-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-sm);
+  align-items: center;
+}
+
+.size-form__input {
+  flex: 1;
+  min-width: 6rem;
+  height: 44px;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  background: var(--ds-bg);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  font-size: 0.9375rem;
+  color: var(--ds-ink);
+}
+.size-form__input:focus {
+  border-color: var(--ds-primary);
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 0;
+}
+
+.size-form__date {
+  height: 44px;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  background: var(--ds-bg);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-ink);
+}
+.size-form__date:focus {
+  border-color: var(--ds-primary);
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 0;
+}
+
+.size-form__actions {
+  display: flex;
+  gap: var(--ds-s-xs);
+  width: 100%;
+}
+
+.size-form__btn {
+  height: 44px;
+  padding: var(--ds-s-sm) var(--ds-s-lg);
+  border: none;
+  border-radius: var(--ds-r-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.size-form__btn--primary {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.size-form__btn--primary:hover {
+  background: var(--ds-primary-hover);
+}
+
+.size-form__btn--secondary {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.size-form__btn--secondary:hover {
+  background: var(--ds-border);
+}

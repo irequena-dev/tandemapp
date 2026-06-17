@@ -2,6 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
+import sqlalchemy as sa
 from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
@@ -194,6 +195,62 @@ class CurrentMeasurementsOut(SQLModel):
 
     height: MeasurementOut | None = None
     weight: MeasurementOut | None = None
+
+
+# ---------- Tallas (sizes) ----------
+
+SizeType = Literal["clothing", "footwear"]
+
+
+class Size(SQLModel, table=True):
+    """Talla de ropa o calzado de un Hijo; append-only, la actual es la más reciente."""
+
+    __tablename__ = "sizes"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    type: str = Field(sa_type=sa.Text)
+    label: str
+    recorded_at: date
+    recorded_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class SizeCreate(SQLModel):
+    """Alta de una Talla (sin family_id ni recorded_by: los impone el servidor)."""
+
+    type: SizeType
+    label: str
+    recorded_at: date
+
+
+class SizeUpdate(SQLModel):
+    """Edición parcial de una Talla (corrección)."""
+
+    label: str | None = None
+    recorded_at: date | None = None
+
+
+class SizeOut(SQLModel):
+    """Talla tal como la devuelve la API."""
+
+    id: uuid.UUID
+    child_id: uuid.UUID
+    type: SizeType
+    label: str
+    recorded_at: date
+    recorded_by: str
+    created_at: datetime
+
+
+class CurrentSizesOut(SQLModel):
+    """Tallas actuales por tipo: la más reciente de cada uno."""
+
+    clothing: SizeOut | None = None
+    footwear: SizeOut | None = None
 
 
 class McpToken(SQLModel, table=True):

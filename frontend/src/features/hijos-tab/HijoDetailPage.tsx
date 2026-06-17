@@ -10,6 +10,8 @@ import {
   useUpdateMeasurement,
 } from '../measurements/api'
 import type { Measurement, MeasurementInput } from '../measurements/types'
+import { SizesSection } from '../sizes/SizesSection'
+import '../sizes/sizes.css'
 import { visitasForChild, type MockVisita } from '../../lib/mock-data'
 import './hijos-tab.css'
 import '../children/children.css'
@@ -322,6 +324,9 @@ export function HijoDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Tallas */}
+      {childId && <SizesSection childId={childId} />}
 
       {/* Crecimiento */}
       <section className="hijo-detail__section">
