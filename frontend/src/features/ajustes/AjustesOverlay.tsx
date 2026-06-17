@@ -1,5 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
+import { UserButton } from '@clerk/react'
 import { useMembers, useInvitations, useCreateInvitation, useRevokeInvitation } from '../members/api'
+import { useTheme, type Theme } from './useTheme'
 import { CHILDREN } from '../../lib/mock-data'
 import './ajustes.css'
 import '../children/children.css'
@@ -22,7 +24,6 @@ function toneOf(name: string): number {
   return h
 }
 
-type Theme = 'system' | 'light' | 'dark'
 
 function InviteForm({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('')
@@ -74,7 +75,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 }
 
 export function AjustesOverlay({ onClose }: { onClose: () => void }) {
-  const [theme, setTheme] = useState<Theme>('system')
+  const [theme, setTheme] = useTheme()
   const [showInviteForm, setShowInviteForm] = useState(false)
 
   const { data: members = [] } = useMembers()
@@ -290,18 +291,17 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
           {/* Cuenta */}
           <section className="ajustes-section">
             <h3 className="ajustes-section__title">Cuenta</h3>
-            <div className="ajustes-card">
-              <div className="ajustes-row">
-                <span className="hijo-mono" data-tone={0} aria-hidden="true">A</span>
-                <div className="ajustes-row__text">
-                  <span className="ajustes-row__name">Ana Martínez</span>
-                  <span className="ajustes-row__role">ana.martinez@email.com</span>
-                </div>
-              </div>
+            <div className="ajustes-cuenta">
+              <UserButton
+                appearance={{
+                  elements: {
+                    rootBox: 'ajustes-clerk-root',
+                    avatarBox: 'ajustes-clerk-avatar',
+                  },
+                }}
+                showName
+              />
             </div>
-            <button type="button" className="btn btn--secondary" style={{ alignSelf: 'flex-start' }}>
-              Cerrar sesión
-            </button>
           </section>
         </div>
       </aside>
