@@ -57,6 +57,7 @@ export function useCreatePauta() {
       }),
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
+      const now = new Date()
       const optimistic: Pauta = {
         id: `optimistic-${crypto.randomUUID()}`,
         family_id: 'optimistic',
@@ -65,15 +66,18 @@ export function useCreatePauta() {
         dose: input.dose,
         interval_hours: input.interval_hours,
         duration_days: input.duration_days,
-        started_at: new Date().toISOString(),
+        started_at: now.toISOString(),
         ends_at: new Date(
-          Date.now() + input.duration_days * 86_400_000,
+          now.getTime() + input.duration_days * 86_400_000,
         ).toISOString(),
         status: 'active',
         health_visit_id: input.health_visit_id ?? null,
         created_by: 'optimistic',
-        created_at: new Date().toISOString(),
+        created_at: now.toISOString(),
         day_number: 1,
+        next_dose_at: new Date(
+          now.getTime() + input.interval_hours * 3_600_000,
+        ).toISOString(),
       }
       qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) => [optimistic, ...old])
       return ctx

@@ -8,7 +8,7 @@ Convenciones:
 """
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,20 @@ from ..models import Pauta, PautaCreate, PautaOut
 from ..tenancy import current_family_id, current_member_id, family_session
 
 router = APIRouter(tags=["pautas"])
+
+
+def _compute_next_dose_at(pauta: Pauta) -> datetime | None:
+    """Calcula la siguiente toma: null si finalizada, started_at + interval si activa.
+
+    Cuando existan Administraciones, será última_admin + interval. Hasta entonces,
+    la primera toma es started_at + interval_hours.
+    """
+    if pauta.status == "finished":
+        return None
+    candidate = pauta.started_at + timedelta(hours=pauta.interval_hours)
+    if candidate >= pauta.ends_at:
+        return None
+    return candidate
 
 
 def _to_out(pauta: Pauta) -> PautaOut:
@@ -37,6 +51,7 @@ def _to_out(pauta: Pauta) -> PautaOut:
         created_by=pauta.created_by,
         created_at=pauta.created_at,
         day_number=pauta.day_number,
+        next_dose_at=_compute_next_dose_at(pauta),
     )
 
 
@@ -96,8 +111,6 @@ async def list_pautas(
 ) -> list[PautaOut]:
     """Lista las Pautas de la Familia, con filtros opcionales por status/child_id."""
     stmt = select(Pauta)
-    if status_filter:
-        stmt = stmt.where(Pauta.status == status_filter)
     if child_id:
         stmt = stmt.where(Pauta.child_id == child_id)
     stmt = stmt.order_by(Pauta.started_at.desc())
@@ -107,6 +120,8 @@ async def list_pautas(
     out: list[PautaOut] = []
     for p in pautas:
         p = await _lazy_finish(p, session)
+        if status_filter and p.status != status_filter:
+            continue
         out.append(_to_out(p))
     return out
 

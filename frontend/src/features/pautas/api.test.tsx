@@ -40,6 +40,7 @@ const activePauta: Pauta = {
   created_by: 'member-1',
   created_at: '2026-06-12T08:00:00Z',
   day_number: 3,
+  next_dose_at: '2026-06-12T16:00:00Z',
 }
 
 const finishedPauta: Pauta = {
@@ -47,6 +48,7 @@ const finishedPauta: Pauta = {
   id: 'pauta-2',
   medication: 'Ibuprofeno',
   status: 'finished',
+  next_dose_at: null,
 }
 
 describe('usePautas', () => {

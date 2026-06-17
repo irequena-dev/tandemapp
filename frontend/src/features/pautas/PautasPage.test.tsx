@@ -55,6 +55,7 @@ const samplePauta: Pauta = {
   created_by: 'member-1',
   created_at: '2026-06-12T08:00:00Z',
   day_number: 3,
+  next_dose_at: '2026-06-12T16:00:00Z',
 }
 
 describe('PautasPage (costura de ruta/página)', () => {
@@ -79,10 +80,30 @@ describe('PautasPage (costura de ruta/página)', () => {
   })
 
   it('muestra las Pautas finalizadas con estilo recesado', async () => {
-    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished' }
+    const finished: Pauta = {
+      ...samplePauta,
+      id: 'pauta-fin',
+      status: 'finished',
+      next_dose_at: null,
+    }
     renderPage([finished])
     await waitFor(() => {
       expect(screen.queryByText('Finalizada')).not.toBeNull()
     })
+  })
+
+  it('Pauta auto-finalizada (status=finished, next_dose_at=null) muestra recesado sin próxima toma', async () => {
+    const autoFinished: Pauta = {
+      ...samplePauta,
+      id: 'pauta-auto-fin',
+      status: 'finished',
+      next_dose_at: null,
+    }
+    renderPage([autoFinished])
+    await waitFor(() => {
+      expect(screen.queryByText('Finalizada')).not.toBeNull()
+    })
+    // No debe mostrar "Próxima toma" en el header
+    expect(screen.queryByText('Próxima toma')).toBeNull()
   })
 })

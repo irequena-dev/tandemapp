@@ -480,3 +480,4 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
+    next_dose_at: datetime | None
