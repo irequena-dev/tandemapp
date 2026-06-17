@@ -1,97 +1,11 @@
 import { Link } from 'react-router'
-import {
-  EVENTS,
-  PAUTAS,
-  SHOPPING_ITEMS,
-  childById,
-  eventTypeById,
-} from '../../lib/mock-data'
+import { useToday } from './api'
+import type { HeroItem, TimelineEntry, TodaySummary } from './types'
 import './hoy.css'
-
-/* ---------- Helpers ---------- */
-
-function nextDoseTime(pauta: typeof PAUTAS[number]): Date | null {
-  if (pauta.status !== 'activa') return null
-  const last = pauta.administraciones.at(-1)
-  if (!last) return new Date(pauta.started_at)
-  return new Date(new Date(last.given_at).getTime() + pauta.interval_hours * 3600_000)
-}
-
-function formatTime(d: Date): string {
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-}
 
 /* ---------- Hero ---------- */
 
-function HeroSection() {
-  const activePautas = PAUTAS.filter((p) => p.status === 'activa')
-  const now = new Date()
-
-  let urgentPauta: typeof PAUTAS[number] | null = null
-  let urgentDose: Date | null = null
-
-  for (const p of activePautas) {
-    const next = nextDoseTime(p)
-    if (next && next <= new Date(now.getTime() + 30 * 60_000)) {
-      if (!urgentDose || next < urgentDose) {
-        urgentPauta = p
-        urgentDose = next
-      }
-    }
-  }
-
-  if (urgentPauta && urgentDose) {
-    const child = childById(urgentPauta.child_id)
-    const dayOfTreatment = Math.ceil(
-      (now.getTime() - new Date(urgentPauta.started_at).getTime()) / 86_400_000,
-    )
-    return (
-      <section className="hoy-hero hoy-hero--urgent" aria-label="Ahora">
-        <span className="hoy-hero__eyebrow">Ahora</span>
-        <h2 className="hoy-hero__heading">
-          {urgentPauta.medication} · {urgentPauta.dose}
-        </h2>
-        <p className="hoy-hero__context">
-          {child?.name} · día {dayOfTreatment} de {urgentPauta.duration_days}
-        </p>
-        <div className="hoy-hero__actions">
-          <button type="button" className="btn btn--primary btn--sm">
-            Marcar toma
-          </button>
-          <button type="button" className="btn btn--secondary btn--sm">
-            Deshacer
-          </button>
-        </div>
-      </section>
-    )
-  }
-
-  const todayEvents = EVENTS.filter(
-    (e) => e.date === now.toISOString().slice(0, 10) && e.status === 'pending',
-  )
-  const nextEvent = todayEvents.sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''))[0]
-
-  if (nextEvent) {
-    const child = nextEvent.child_id ? childById(nextEvent.child_id) : null
-    const evType = eventTypeById(nextEvent.event_type_id)
-    return (
-      <section className="hoy-hero hoy-hero--urgent" aria-label="Ahora">
-        <span className="hoy-hero__eyebrow">Ahora</span>
-        <h2 className="hoy-hero__heading">{nextEvent.title}</h2>
-        <p className="hoy-hero__context">
-          {nextEvent.time && `${nextEvent.time} · `}
-          {evType?.name}
-          {child && ` · ${child.name}`}
-        </p>
-        <div className="hoy-hero__actions">
-          <button type="button" className="btn btn--primary btn--sm">
-            Marcar hecho
-          </button>
-        </div>
-      </section>
-    )
-  }
-
+function HeroCalm() {
   return (
     <section className="hoy-hero" aria-label="Ahora">
       <span className="hoy-hero__eyebrow">Ahora</span>
@@ -106,60 +20,26 @@ function HeroSection() {
   )
 }
 
+function HeroUrgent({ hero }: { hero: HeroItem }) {
+  return (
+    <section className="hoy-hero hoy-hero--urgent" aria-label="Ahora">
+      <span className="hoy-hero__eyebrow">Ahora</span>
+      <h2 className="hoy-hero__heading">{hero.title}</h2>
+      <p className="hoy-hero__context">{hero.subtitle}</p>
+      <div className="hoy-hero__actions">
+        <button type="button" className="btn btn--primary btn--sm">
+          {hero.action_label}
+        </button>
+      </div>
+    </section>
+  )
+}
+
+function HeroSection({ hero }: { hero: HeroItem | null }) {
+  return hero ? <HeroUrgent hero={hero} /> : <HeroCalm />
+}
+
 /* ---------- Timeline ---------- */
-
-type TimelineEntry = {
-  time: string
-  label: string
-  sub: string
-  status: 'done' | 'pending' | 'due'
-}
-
-function buildTimeline(): TimelineEntry[] {
-  const entries: TimelineEntry[] = []
-  const today = new Date().toISOString().slice(0, 10)
-
-  for (const p of PAUTAS) {
-    if (p.status !== 'activa') continue
-    const child = childById(p.child_id)
-
-    for (const adm of p.administraciones) {
-      if (adm.given_at.slice(0, 10) !== today) continue
-      entries.push({
-        time: formatTime(new Date(adm.given_at)),
-        label: `${p.medication} ${p.dose}`,
-        sub: `${child?.name} · dada por ${adm.given_by}`,
-        status: 'done',
-      })
-    }
-
-    const next = nextDoseTime(p)
-    if (next && next.toISOString().slice(0, 10) === today) {
-      const isOverdue = next < new Date()
-      entries.push({
-        time: formatTime(next),
-        label: `${p.medication} ${p.dose}`,
-        sub: `${child?.name} · próxima toma`,
-        status: isOverdue ? 'due' : 'pending',
-      })
-    }
-  }
-
-  const todayEvents = EVENTS.filter((e) => e.date === today)
-  for (const ev of todayEvents) {
-    const child = ev.child_id ? childById(ev.child_id) : null
-    const evType = eventTypeById(ev.event_type_id)
-    entries.push({
-      time: ev.time ?? '—',
-      label: ev.title,
-      sub: [evType?.name, child?.name].filter(Boolean).join(' · '),
-      status: ev.status === 'done' ? 'done' : ev.status === 'overdue' ? 'due' : 'pending',
-    })
-  }
-
-  entries.sort((a, b) => a.time.localeCompare(b.time))
-  return entries
-}
 
 function CheckIcon() {
   return (
@@ -178,9 +58,13 @@ function ClockIcon() {
   )
 }
 
-function TimelineSection() {
-  const entries = buildTimeline()
+function statusLabel(s: string) {
+  if (s === 'done') return <><CheckIcon /> Hecho</>
+  if (s === 'upcoming') return <><ClockIcon /> Próxima</>
+  return <><ClockIcon /> Pendiente</>
+}
 
+function TimelineSection({ entries }: { entries: TimelineEntry[] }) {
   if (entries.length === 0) return null
 
   return (
@@ -188,16 +72,14 @@ function TimelineSection() {
       <h2 className="hoy-timeline__title">Hoy</h2>
       <div className="hoy-timeline">
         {entries.map((e, i) => (
-          <div className="hoy-tl-item" key={i}>
+          <div className="hoy-tl-item" key={e.administration_id ?? e.event_id ?? e.pauta_id ?? i}>
             <span className="hoy-tl-item__time ds-nums">{e.time}</span>
             <div className="hoy-tl-item__body">
-              <span className="hoy-tl-item__label">{e.label}</span>
-              <span className="hoy-tl-item__sub">{e.sub}</span>
+              <span className="hoy-tl-item__label">{e.title}</span>
+              {e.subtitle && <span className="hoy-tl-item__sub">{e.subtitle}</span>}
             </div>
             <span className={`hoy-tl-item__status hoy-tl-item__status--${e.status}`}>
-              {e.status === 'done' && <><CheckIcon /> Hecho</>}
-              {e.status === 'pending' && <><ClockIcon /> Pendiente</>}
-              {e.status === 'due' && <><ClockIcon /> Vencida</>}
+              {statusLabel(e.status)}
             </span>
           </div>
         ))}
@@ -208,15 +90,7 @@ function TimelineSection() {
 
 /* ---------- Summary cards ---------- */
 
-function SummaryCards() {
-  const pendingCount = SHOPPING_ITEMS.filter((i) => !i.is_bought).length
-  const activePautas = PAUTAS.filter((p) => p.status === 'activa').length
-  const finalizadas = PAUTAS.filter((p) => p.status === 'finalizada').length
-  const nextMedical = EVENTS
-    .filter((e) => e.event_type_id === 'et-medico' && e.status === 'pending')
-    .sort((a, b) => a.date.localeCompare(b.date))[0]
-  const nextMedChild = nextMedical?.child_id ? childById(nextMedical.child_id) : null
-
+function SummaryCards({ summary }: { summary: TodaySummary }) {
   return (
     <div className="hoy-cards">
       <Link to="/compra" className="hoy-card">
@@ -228,7 +102,9 @@ function SummaryCards() {
         </span>
         <span className="hoy-card__label">Compra</span>
         <span className="hoy-card__value">
-          {pendingCount > 0 ? `${pendingCount} por comprar` : 'Lista vacía'}
+          {summary.shopping_pending_count > 0
+            ? `${summary.shopping_pending_count} por comprar`
+            : 'Lista vacía'}
         </span>
       </Link>
 
@@ -240,7 +116,7 @@ function SummaryCards() {
         </span>
         <span className="hoy-card__label">Pautas</span>
         <span className="hoy-card__value">
-          {activePautas} activa{activePautas !== 1 ? 's' : ''} · {finalizadas} finalizada{finalizadas !== 1 ? 's' : ''}
+          {summary.pautas_active_count} activa{summary.pautas_active_count !== 1 ? 's' : ''} · {summary.pautas_finished_count} finalizada{summary.pautas_finished_count !== 1 ? 's' : ''}
         </span>
       </Link>
 
@@ -252,9 +128,7 @@ function SummaryCards() {
         </span>
         <span className="hoy-card__label">Próxima cita</span>
         <span className="hoy-card__value">
-          {nextMedical
-            ? `${nextMedChild?.name ?? ''} · ${new Date(nextMedical.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`
-            : 'Sin citas próximas'}
+          {summary.next_medical_event ? 'Próxima cita' : 'Sin citas próximas'}
         </span>
       </Link>
 
@@ -275,12 +149,32 @@ function SummaryCards() {
 /* ---------- Page ---------- */
 
 export function HoyPage() {
+  const { data, isLoading, isError } = useToday()
+
+  if (isLoading) {
+    return (
+      <div className="hoy" aria-labelledby="hoy-title">
+        <h1 className="hoy__title" id="hoy-title">Hoy</h1>
+        <p className="hoy-hero__calm">Cargando…</p>
+      </div>
+    )
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="hoy" aria-labelledby="hoy-title">
+        <h1 className="hoy__title" id="hoy-title">Hoy</h1>
+        <p className="hoy-hero__calm">No se pudo cargar la información.</p>
+      </div>
+    )
+  }
+
   return (
     <div className="hoy" aria-labelledby="hoy-title">
       <h1 className="hoy__title" id="hoy-title">Hoy</h1>
-      <HeroSection />
-      <TimelineSection />
-      <SummaryCards />
+      <HeroSection hero={data.hero} />
+      <TimelineSection entries={data.timeline} />
+      <SummaryCards summary={data.summary} />
     </div>
   )
 }
