@@ -293,6 +293,64 @@ class CurrentSizesOut(SQLModel):
     footwear: SizeOut | None = None
 
 
+class HealthVisit(SQLModel, table=True):
+    """Registro histórico de atención sanitaria a un Hijo, con diagnóstico.
+
+    Las `notes` (JSONB) almacenan notas libres / tratamiento como texto; la
+    columna es nullable. `family_id` + RLS aíslan por Familia; `created_by`
+    atribuye la acción al Miembro. No es una cita futura (eso es un Evento).
+    """
+
+    __tablename__ = "health_visits"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    visited_at: date
+    diagnosis: str
+    notes: dict | list | str | None = Field(
+        default=None, sa_column=Column(sa.JSON(), nullable=True)
+    )
+    created_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class HealthVisitCreate(SQLModel):
+    """Cuerpo del alta de una Visita médica (sin family_id ni created_by)."""
+
+    visited_at: date
+    diagnosis: str
+    notes: dict | list | str | None = None
+
+
+class HealthVisitUpdate(SQLModel):
+    """Edición parcial de una Visita médica."""
+
+    visited_at: date | None = None
+    diagnosis: str | None = None
+    notes: dict | list | str | None = None
+
+
+class HealthVisitOut(SQLModel):
+    """Visita médica tal como la devuelve el backend al frontend."""
+
+    id: uuid.UUID
+    child_id: uuid.UUID
+    family_id: str
+    visited_at: date
+    diagnosis: str
+    notes: dict | list | str | None = None
+    pauta_ids: list[str] = Field(default_factory=list)
+    created_by: str
+    created_at: datetime
+
+
 class McpToken(SQLModel, table=True):
     """Token MCP de un Miembro (ADR-0001); resuelve a su Miembro → Familia.
 
