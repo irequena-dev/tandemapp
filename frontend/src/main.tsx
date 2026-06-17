@@ -9,6 +9,7 @@ import { BrowserRouter } from 'react-router'
 import './index.css'
 import App from './App.tsx'
 import { createQueryClient } from './lib/queryClient'
+import { registerPWA } from './lib/registerPWA'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -17,6 +18,8 @@ if (!PUBLISHABLE_KEY) {
 }
 
 const queryClient = createQueryClient()
+
+registerPWA()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
