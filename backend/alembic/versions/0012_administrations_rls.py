@@ -1,7 +1,7 @@
 """administrations: tabla de Administraciones (dosis) con RLS por Familia
 
-Revision ID: 0010b
-Revises: 0010a
+Revision ID: 0012
+Revises: 0011
 Create Date: 2026-06-17
 
 Crea la tabla `administrations` (registro de dosis dadas de una Pauta):
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "0010b"
-down_revision: str | None = "0010a"
+revision: str = "0012"
+down_revision: str | None = "0011"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
