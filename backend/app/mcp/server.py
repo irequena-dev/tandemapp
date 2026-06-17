@@ -18,7 +18,7 @@ del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastmcp import FastMCP
@@ -26,9 +26,17 @@ from fastmcp.server.dependencies import get_http_request
 from sqlalchemy import select, text
 
 from ..database import get_sessionmaker
-from ..models import Child, ShoppingItem
+from ..models import (
+    DUPLICATE_GUARD_MINUTES,
+    Administration,
+    Child,
+    HealthVisit,
+    Pauta,
+    ShoppingItem,
+)
 from ..tenancy import FAMILY_VAR
 from .auth import extract_bearer, resolve_token
+from .child_matching import ChildMatchError, resolve_child_by_name
 
 # Clave bajo la que el wrapper deposita (member_id, family_id) en el scope ASGI.
 MCP_IDENTITY_KEY = "tandem_mcp_identity"
@@ -108,6 +116,262 @@ async def add_shopping_items(items: list[str]) -> list[dict[str, str]]:
                     }
                 )
     return created
+
+
+def _child_match_error_response(err: ChildMatchError) -> dict[str, Any]:
+    """Error estructurado MCP cuando el matching estricto de Hijo falla."""
+    valid = [
+        {"id": str(c.id), "name": c.name, "birth_date": str(c.birth_date)}
+        for c in err.valid_children
+    ]
+    return {
+        "error": err.reason,
+        "message": (
+            "Hijo no encontrado" if err.reason == "not_found" else "Nombre ambiguo"
+        ),
+        "valid_children": valid,
+    }
+
+
+@mcp.tool
+async def record_health_visit(
+    child_name: str,
+    visited_at: str,
+    diagnosis: str,
+    notes: str | None = None,
+) -> dict[str, Any]:
+    """Registra una Visita médica para un Hijo (historial de salud).
+
+    `child_name` se resuelve por matching estricto (case-insensitive). Si no
+    coincide, devuelve error estructurado con la lista de Hijos válidos.
+    `visited_at` es la fecha de la visita (YYYY-MM-DD). `notes` es texto libre
+    opcional (tratamiento, observaciones).
+    """
+    from datetime import date as date_type
+
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            result = await resolve_child_by_name(session, child_name)
+            if isinstance(result, ChildMatchError):
+                return _child_match_error_response(result)
+            child = result
+            visit = HealthVisit(
+                family_id=family_id,
+                child_id=child.id,
+                visited_at=date_type.fromisoformat(visited_at),
+                diagnosis=diagnosis,
+                notes=notes,
+                created_by=member_id,
+            )
+            session.add(visit)
+            await session.flush()
+            await session.refresh(visit)
+            return {
+                "id": str(visit.id),
+                "child_id": str(visit.child_id),
+                "visited_at": str(visit.visited_at),
+                "diagnosis": visit.diagnosis,
+                "notes": visit.notes,
+                "created_by": visit.created_by,
+            }
+
+
+@mcp.tool
+async def start_pauta(
+    child_name: str,
+    medication: str,
+    dose: str,
+    interval: int,
+    duration: int,
+) -> dict[str, Any]:
+    """Inicia una Pauta (tratamiento) para un Hijo.
+
+    `child_name`: matching estricto. `medication`: nombre del medicamento.
+    `dose`: cantidad (ej. "5 ml"). `interval`: horas entre tomas.
+    `duration`: días de duración del tratamiento.
+    """
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            result = await resolve_child_by_name(session, child_name)
+            if isinstance(result, ChildMatchError):
+                return _child_match_error_response(result)
+            child = result
+            now = datetime.now(UTC)
+            pauta = Pauta(
+                family_id=family_id,
+                child_id=child.id,
+                medication=medication,
+                dose=dose,
+                interval_hours=interval,
+                duration_days=duration,
+                started_at=now,
+                status="active",
+                created_by=member_id,
+                created_at=now,
+            )
+            session.add(pauta)
+            await session.flush()
+            await session.refresh(pauta)
+            return {
+                "id": str(pauta.id),
+                "child_id": str(pauta.child_id),
+                "medication": pauta.medication,
+                "dose": pauta.dose,
+                "interval_hours": pauta.interval_hours,
+                "duration_days": pauta.duration_days,
+                "started_at": pauta.started_at.isoformat(),
+                "status": pauta.status,
+            }
+
+
+@mcp.tool
+async def record_administration(pauta_id: str) -> dict[str, Any]:
+    """Registra que se ha dado una dosis de una Pauta (Administración).
+
+    Guarda de duplicado: si ya existe una Administración de la misma Pauta
+    dentro de la ventana corta (~15 min), no crea otra y devuelve la existente.
+    La Administración se atribuye al Miembro del token MCP.
+    """
+    import uuid
+
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    pid = uuid.UUID(pauta_id)
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            pauta = await session.get(Pauta, pid)
+            if pauta is None:
+                return {"error": "not_found", "message": "Pauta no encontrada"}
+            if pauta.status == "finished":
+                return {"error": "finished", "message": "La Pauta ya está finalizada"}
+
+            now = datetime.now(UTC)
+            window_start = now - timedelta(minutes=DUPLICATE_GUARD_MINUTES)
+            existing = (
+                await session.execute(
+                    select(Administration)
+                    .where(Administration.pauta_id == pid)
+                    .where(Administration.administered_at >= window_start)
+                    .order_by(Administration.administered_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                return {
+                    "id": str(existing.id),
+                    "pauta_id": str(existing.pauta_id),
+                    "administered_at": existing.administered_at.isoformat(),
+                    "administered_by": existing.administered_by,
+                    "duplicate": True,
+                }
+
+            admin = Administration(
+                family_id=family_id,
+                pauta_id=pid,
+                administered_at=now,
+                administered_by=member_id,
+            )
+            session.add(admin)
+            await session.flush()
+            await session.refresh(admin)
+            return {
+                "id": str(admin.id),
+                "pauta_id": str(admin.pauta_id),
+                "administered_at": admin.administered_at.isoformat(),
+                "administered_by": admin.administered_by,
+                "duplicate": False,
+            }
+
+
+@mcp.tool
+async def finish_pauta(pauta_id: str) -> dict[str, Any]:
+    """Finaliza manualmente una Pauta activa (cortar el tratamiento).
+
+    Devuelve error estructurado si la Pauta no existe o ya está finalizada.
+    """
+    import uuid
+
+    request = get_http_request()
+    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    pid = uuid.UUID(pauta_id)
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            pauta = await session.get(Pauta, pid)
+            if pauta is None:
+                return {"error": "not_found", "message": "Pauta no encontrada"}
+            if pauta.status == "finished":
+                return {
+                    "error": "already_finished",
+                    "message": "La Pauta ya está finalizada",
+                }
+            pauta.status = "finished"
+            session.add(pauta)
+            await session.flush()
+            await session.refresh(pauta)
+            return {
+                "id": str(pauta.id),
+                "status": pauta.status,
+                "medication": pauta.medication,
+            }
+
+
+@mcp.tool
+async def list_active_pautas(child_name: str | None = None) -> list[dict[str, Any]]:
+    """Lista las Pautas activas de la Familia (lectura mínima).
+
+    Filtrable por `child_name` (matching estricto). Devuelve solo Pautas con
+    status=active para que el cliente MCP elija la correcta antes de
+    registrar una Administración o finalizar.
+    """
+    request = get_http_request()
+    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            stmt = select(Pauta).where(Pauta.status == "active")
+            if child_name is not None:
+                result = await resolve_child_by_name(session, child_name)
+                if isinstance(result, ChildMatchError):
+                    return [_child_match_error_response(result)]
+                stmt = stmt.where(Pauta.child_id == result.id)
+            stmt = stmt.order_by(Pauta.started_at.desc())
+            rows = (await session.execute(stmt)).scalars().all()
+            return [
+                {
+                    "id": str(p.id),
+                    "child_id": str(p.child_id),
+                    "medication": p.medication,
+                    "dose": p.dose,
+                    "interval_hours": p.interval_hours,
+                    "duration_days": p.duration_days,
+                    "started_at": p.started_at.isoformat(),
+                    "status": p.status,
+                }
+                for p in rows
+            ]
 
 
 async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") -> None:
