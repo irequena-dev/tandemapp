@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 import sqlalchemy as sa
@@ -305,3 +305,80 @@ class McpTokenOut(SQLModel):
     id: uuid.UUID
     created_at: datetime
     revoked_at: datetime | None
+
+
+# ---------- Pautas (tratamientos) ----------
+
+
+PautaStatus = Literal["active", "finished"]
+
+
+class Pauta(SQLModel, table=True):
+    """Pauta: instrucción de tratamiento activa para un Hijo.
+
+    `ends_at` y `day_number` son calculados (no persistidos). La finalización
+    automática se aplica lazily al consultar (si `now >= started_at + duration_days`).
+    """
+
+    __tablename__ = "pautas"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    medication: str
+    dose: str
+    interval_hours: int
+    duration_days: int
+    started_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    status: str = Field(default="active")
+    health_visit_id: uuid.UUID | None = Field(default=None)
+    created_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+    @property
+    def ends_at(self) -> datetime:
+        return self.started_at + timedelta(days=self.duration_days)
+
+    @property
+    def day_number(self) -> int:
+        now = datetime.now(UTC)
+        elapsed = now - self.started_at
+        return max(1, min(int(elapsed.total_seconds() / 86400) + 1, self.duration_days))
+
+    @property
+    def is_expired(self) -> bool:
+        return datetime.now(UTC) >= self.ends_at
+
+
+class PautaCreate(SQLModel):
+    """Cuerpo para iniciar una Pauta (sin family_id/created_by: servidor)."""
+
+    child_id: uuid.UUID
+    medication: str
+    dose: str
+    interval_hours: int
+    duration_days: int
+    health_visit_id: uuid.UUID | None = None
+
+
+class PautaOut(SQLModel):
+    """Representación de Pauta para la API REST con campos calculados."""
+
+    id: uuid.UUID
+    family_id: str
+    child_id: uuid.UUID
+    medication: str
+    dose: str
+    interval_hours: int
+    duration_days: int
+    started_at: datetime
+    ends_at: datetime
+    status: str
+    health_visit_id: uuid.UUID | None
+    created_by: str
+    created_at: datetime
+    day_number: int
