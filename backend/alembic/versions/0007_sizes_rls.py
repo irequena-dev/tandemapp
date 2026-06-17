@@ -1,7 +1,7 @@
 """sizes: tabla de Tallas (ropa, calzado) con RLS por Familia
 
-Revision ID: 0007a
-Revises: 0007
+Revision ID: 0007
+Revises: 0006
 Create Date: 2026-06-17
 
 Crea la tabla `sizes` (Tallas), append-only: etiquetas de talla por Hijo.
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0007a"
-down_revision: str | None = "0007"
+down_revision: str | None = "0006"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
