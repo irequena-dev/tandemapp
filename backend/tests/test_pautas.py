@@ -2,12 +2,15 @@
 
 Cubre: iniciar, listar (con filtros), detalle, finalización manual,
 finalización automática (lazy), campos calculados (`ends_at`, `day_number`),
-y aislamiento por Familia (RLS).
+`next_dose_at`, y aislamiento por Familia (RLS).
 """
 
+import os
 from datetime import datetime, timedelta
 
 from httpx import AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 
 def _as(identity: dict, org_id: str, user_id: str) -> None:
@@ -22,6 +25,21 @@ async def _create_child(client: AsyncClient, name: str = "Mateo") -> str:
     )
     assert resp.status_code == 201
     return resp.json()["id"]
+
+
+async def _backdate_pauta(pauta_id: str, days_ago: int = 2) -> None:
+    """Retrocede `started_at` para que la Pauta expire (owner, sin RLS)."""
+    engine = create_async_engine(os.environ["DATABASE_URL"])
+    async with AsyncSession(engine) as session:
+        await session.execute(
+            text(
+                "UPDATE pautas SET started_at = now() - make_interval(days => :d) "
+                "WHERE id = :id"
+            ),
+            {"d": days_ago, "id": pauta_id},
+        )
+        await session.commit()
+    await engine.dispose()
 
 
 async def test_pauta_crud_and_calculated_fields(
@@ -195,3 +213,217 @@ async def test_pautas_isolated_between_families(
     # Familia B no puede acceder al detalle ni finalizar
     assert (await auth_client.get(f"/pautas/{pauta_id}")).status_code == 404
     assert (await auth_client.post(f"/pautas/{pauta_id}/finish")).status_code == 404
+
+
+# ---------- Finalización automática por duración ----------
+
+
+async def test_pauta_auto_finish_on_get(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """GET /pautas/:id de una Pauta expirada la marca finished (lazy)."""
+    _as(identity, "org_autofinish_get", "user_af_get")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Jarabe",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 1,
+        },
+    )
+    pauta_id = resp.json()["id"]
+    assert resp.json()["status"] == "active"
+
+    # Retrotraer started_at para que ends_at ya haya pasado
+    await _backdate_pauta(pauta_id, days_ago=3)
+
+    detail = (await auth_client.get(f"/pautas/{pauta_id}")).json()
+    assert detail["status"] == "finished"
+
+
+async def test_pauta_auto_finish_on_list(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """GET /pautas lista una Pauta expirada como finished."""
+    _as(identity, "org_autofinish_list", "user_af_list")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Vitaminas",
+            "dose": "1 ml",
+            "interval_hours": 24,
+            "duration_days": 1,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    await _backdate_pauta(pauta_id, days_ago=3)
+
+    listed = (await auth_client.get("/pautas")).json()
+    expired = [p for p in listed if p["id"] == pauta_id]
+    assert len(expired) == 1
+    assert expired[0]["status"] == "finished"
+
+
+async def test_pauta_auto_finish_next_dose_null(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Pauta finalizada automáticamente devuelve next_dose_at = null."""
+    _as(identity, "org_af_ndose", "user_af_ndose")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Paracetamol",
+            "dose": "2.5 ml",
+            "interval_hours": 6,
+            "duration_days": 1,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    await _backdate_pauta(pauta_id, days_ago=3)
+
+    detail = (await auth_client.get(f"/pautas/{pauta_id}")).json()
+    assert detail["status"] == "finished"
+    assert detail["next_dose_at"] is None
+
+
+async def test_pauta_active_has_next_dose(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Pauta activa devuelve next_dose_at con valor (started_at + interval)."""
+    _as(identity, "org_active_ndose", "user_active_ndose")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    pauta = resp.json()
+    assert pauta["status"] == "active"
+    assert pauta["next_dose_at"] is not None
+    started = datetime.fromisoformat(pauta["started_at"])
+    next_dose = datetime.fromisoformat(pauta["next_dose_at"])
+    assert next_dose - started == timedelta(hours=8)
+
+
+async def test_pauta_manual_finish_next_dose_null(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Pauta finalizada manualmente también devuelve next_dose_at = null."""
+    _as(identity, "org_mfin_ndose", "user_mfin_ndose")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Ibuprofeno",
+            "dose": "3 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    fin = await auth_client.post(f"/pautas/{pauta_id}/finish")
+    assert fin.json()["status"] == "finished"
+    assert fin.json()["next_dose_at"] is None
+
+
+async def test_pauta_auto_finish_preserves_data(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Lazy-finish no altera los demás campos de la Pauta."""
+    _as(identity, "org_af_preserve", "user_af_preserve")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Dalsy",
+            "dose": "4 ml",
+            "interval_hours": 6,
+            "duration_days": 2,
+        },
+    )
+    original = resp.json()
+    pauta_id = original["id"]
+
+    await _backdate_pauta(pauta_id, days_ago=5)
+
+    detail = (await auth_client.get(f"/pautas/{pauta_id}")).json()
+    assert detail["status"] == "finished"
+    # Los campos de dominio no se alteran
+    assert detail["medication"] == "Dalsy"
+    assert detail["dose"] == "4 ml"
+    assert detail["interval_hours"] == 6
+    assert detail["duration_days"] == 2
+    assert detail["child_id"] == child_id
+    assert detail["created_by"] == "user_af_preserve"
+
+
+async def test_pauta_status_filter_with_auto_finish(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """El filtro status funciona correctamente con auto-finish lazy.
+
+    Una Pauta expirada (active en DB pero ends_at pasado):
+    - NO aparece al filtrar `status=active`
+    - SÍ aparece al filtrar `status=finished`
+    """
+    _as(identity, "org_af_filter", "user_af_filter")
+    child_id = await _create_child(auth_client)
+
+    # Pauta que seguirá activa
+    await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Activa siempre",
+            "dose": "1 ml",
+            "interval_hours": 12,
+            "duration_days": 30,
+        },
+    )
+
+    # Pauta que expirará
+    resp_exp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Expirable",
+            "dose": "2 ml",
+            "interval_hours": 8,
+            "duration_days": 1,
+        },
+    )
+    expired_id = resp_exp.json()["id"]
+    await _backdate_pauta(expired_id, days_ago=3)
+
+    # Filtro active: solo la que sigue activa
+    active_list = (await auth_client.get("/pautas?status=active")).json()
+    assert all(p["status"] == "active" for p in active_list)
+    assert all(p["id"] != expired_id for p in active_list)
+
+    # Filtro finished: incluye la expirada
+    finished_list = (await auth_client.get("/pautas?status=finished")).json()
+    assert any(p["id"] == expired_id for p in finished_list)
+    assert all(p["status"] == "finished" for p in finished_list)

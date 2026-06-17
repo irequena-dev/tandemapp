@@ -52,9 +52,8 @@ function formatTime(d: Date): string {
 }
 
 function nextDoseTime(pauta: Pauta): Date | null {
-  if (pauta.status !== 'active') return null
-  // Without administrations in this slice, next dose is started_at + interval
-  return new Date(new Date(pauta.started_at).getTime() + pauta.interval_hours * 3600_000)
+  if (!pauta.next_dose_at) return null
+  return new Date(pauta.next_dose_at)
 }
 
 function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
