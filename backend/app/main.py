@@ -8,6 +8,7 @@ from .api import (
     invitations,
     mcp_tokens,
     members,
+    pautas,
     shopping_items,
     today,
 )
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(children.router)
     app.include_router(invitations.router)
     app.include_router(mcp_tokens.router)
+    app.include_router(pautas.router)
     app.include_router(shopping_items.router)
     app.include_router(today.router)
     # Servidor MCP remoto en `/mcp` (Streamable HTTP) con puerta Bearer (issue 05).
