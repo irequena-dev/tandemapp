@@ -9,6 +9,7 @@ from .api import (
     invitations,
     mcp_tokens,
     members,
+    today,
 )
 from .config import get_settings
 from .mcp.server import build_mcp_app
@@ -32,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(invitations.router)
     app.include_router(event_types.router)
     app.include_router(mcp_tokens.router)
+    app.include_router(today.router)
     # Servidor MCP remoto en `/mcp` (Streamable HTTP) con puerta Bearer (issue 05).
     app.mount("/mcp", mcp_asgi)
     return app
