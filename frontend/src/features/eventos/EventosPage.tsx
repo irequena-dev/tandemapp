@@ -2,11 +2,12 @@ import { useState } from 'react'
 import {
   CHILDREN,
   EVENTS,
-  EVENT_TYPES,
   childById,
-  eventTypeById,
   type MockEvent,
 } from '../../lib/mock-data'
+import { useEventTypes } from './event-types-api'
+import { EventTypesManager } from './EventTypesManager'
+import type { EventTypeOut } from './types'
 import './eventos.css'
 
 /* ---------- Icons ---------- */
@@ -78,10 +79,18 @@ function statusPill(status: MockEvent['status']) {
   }
 }
 
+function eventTypeById(types: EventTypeOut[], id: string): EventTypeOut | undefined {
+  return types.find((t) => t.id === id)
+}
+
 export function EventosPage() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [childFilter, setChildFilter] = useState<string | null>(null)
   const [events, setEvents] = useState<MockEvent[]>(EVENTS)
+  const [showTypes, setShowTypes] = useState(false)
+
+  const { data: eventTypes } = useEventTypes()
+  const types = eventTypes ?? []
 
   const filtered = events
     .filter((e) => !typeFilter || e.event_type_id === typeFilter)
@@ -100,10 +109,21 @@ export function EventosPage() {
     <div className="eventos" aria-labelledby="eventos-title">
       <div className="eventos__head">
         <h1 className="eventos__title" id="eventos-title">Eventos</h1>
-        <button type="button" className="btn btn--primary btn--sm">
-          Crear Evento
-        </button>
+        <div className="eventos__head-actions">
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setShowTypes((v) => !v)}
+          >
+            {showTypes ? 'Cerrar tipos' : 'Gestionar tipos'}
+          </button>
+          <button type="button" className="btn btn--primary btn--sm">
+            Crear Evento
+          </button>
+        </div>
       </div>
+
+      {showTypes && <EventTypesManager />}
 
       <div className="eventos__filters" role="group" aria-label="Filtros">
         <button
@@ -113,7 +133,7 @@ export function EventosPage() {
         >
           Todos
         </button>
-        {EVENT_TYPES.map((t) => (
+        {types.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -148,7 +168,7 @@ export function EventosPage() {
       {filtered.length > 0 && (
         <ul className="eventos__list">
           {filtered.map((ev) => {
-            const evType = eventTypeById(ev.event_type_id)
+            const evType = eventTypeById(types, ev.event_type_id)
             const child = ev.child_id ? childById(ev.child_id) : null
             return (
               <li className="evento-item" key={ev.id}>

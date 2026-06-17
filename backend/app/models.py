@@ -97,6 +97,46 @@ class ChildUpdate(SQLModel):
         return v
 
 
+class EventType(SQLModel, table=True):
+    """Tipo de Evento: categoría para clasificar Eventos en la agenda.
+
+    `family_id = NULL` → tipo base del sistema (compartido, `is_system=True`).
+    `family_id` con valor → tipo personalizado de una Familia.
+    """
+
+    __tablename__ = "event_types"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str | None = Field(default=None, foreign_key="families.id")
+    name: str
+    icon: str = "circle"
+    is_system: bool = False
+
+
+class EventTypeOut(SQLModel):
+    """Representación de lectura de un Tipo de Evento."""
+
+    id: uuid.UUID
+    family_id: str | None
+    name: str
+    icon: str
+    is_system: bool
+
+
+class EventTypeCreate(SQLModel):
+    """Cuerpo del alta de un Tipo de Evento personalizado."""
+
+    name: str
+    icon: str = "circle"
+
+
+class EventTypeUpdate(SQLModel):
+    """Edición parcial de un Tipo de Evento personalizado."""
+
+    name: str | None = None
+    icon: str | None = None
+
+
 class ShoppingItem(SQLModel, table=True):
     """Ítem de compra: algo que hay que comprar, en la lista única de la Familia.
 
