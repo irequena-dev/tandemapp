@@ -34,7 +34,10 @@ Una lista de la compra única y compartida por Familia. Apunto artículos dictá
 - Frontend: pantalla **Compra** (pestaña) + tarjeta de resumen "Compra" en el bloque "Más cosas" de **Hoy**.
 
 ### Esquema
-- `shopping_items`: `id`, `family_id`, `text` (texto libre), `status` (`pending` | `bought`), `created_by`, **`bought_by`** y **`bought_at`** (quién y cuándo lo marcó comprado; se fijan al tachar y se limpian al deshacer), timestamps. **Lista única por Familia** (no hay entidad lista). El destinatario ("para Mateo") va **dentro de `text`**; no hay campo de nota aparte.
+
+> Contrato completo en [`docs/api-contract.md`](../api-contract.md).
+
+- `shopping_items`: `id` (UUID), `family_id`, `text` (TEXT NOT NULL, texto libre), `status` (TEXT, `pending` | `bought`), `created_by` (member_id), `bought_by` (member_id nullable — quién lo marcó comprado), `bought_at` (TIMESTAMPTZ nullable — cuándo; se fijan al tachar y se limpian al deshacer), `created_at`, `updated_at`. **Lista única por Familia** (no hay entidad lista). El destinatario ("para Mateo") va **dentro de `text`**; no hay campo de nota aparte. Índice: `(family_id)`.
 
 ### Contratos
 - **REST**: listar ítems (con agrupación pendiente/comprado), crear, editar texto, tachar (pending→bought), deshacer (bought→pending), limpiar comprados, borrar. Todo acotado a la Familia.

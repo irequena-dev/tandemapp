@@ -41,11 +41,14 @@ Una base de plataforma que ofrece: registro e inicio de sesión, una Familia por
 - **Aislamiento en defensa en profundidad**: (a) capa de aplicación que inyecta SIEMPRE `family_id`, y (b) **RLS** en PostgreSQL como red de seguridad, con variable de sesión (`SET LOCAL`) fijada por transacción desde el contexto autenticado.
 
 ### Esquema (cimientos)
-- `families` (espejo de la org de Clerk).
-- `members` (espejo del usuario de Clerk; `family_id`). Es el nombre técnico del Miembro.
-- `children`: `id`, `family_id`, `name`, `birth_date`, `avatar_color` (paleta acotada del sistema de diseño; alimenta el avatar inicial + color, consistente en card de Hijos, HijoDetail y filas de Pautas). **`avatar_color` es nullable y se añade de forma incremental** (migración posterior a la 0002; ver issue `08-color-avatar-hijo`), porque la gestión base de Hijos (issue 03) ya está entregada; los Hijos sin color usan un fallback determinista derivado de su `id`.
-- `mcp_tokens`: `id`, `member_id`, hash del token, metadatos de revocación.
-- Todas las tablas (estas y las de fases siguientes) llevan `family_id` y políticas RLS.
+
+> Contrato completo en [`docs/api-contract.md`](../api-contract.md).
+
+- `families`: `id` (TEXT PK — `org_id` de Clerk), `slug`, `name`. Espejo de la Organización de Clerk.
+- `members`: `id` (TEXT PK — `user_id` de Clerk), `family_id` (TEXT FK → families), `display_name`. Espejo del usuario de Clerk; es el nombre técnico del Miembro.
+- `children`: `id` (UUID), `family_id` (TEXT FK → families), `name` (TEXT NOT NULL), `birth_date` (DATE NOT NULL), `avatar_color` (SMALLINT nullable, 0–5 — paleta acotada del sistema de diseño; alimenta el avatar inicial + color, consistente en card de Hijos, HijoDetail y filas de Pautas). **`avatar_color` es nullable y se añade de forma incremental** (migración posterior a la 0002; ver issue `08-color-avatar-hijo`); los Hijos sin color usan un fallback determinista.
+- `mcp_tokens`: `id` (UUID), `member_id` (TEXT FK → members), `family_id` (TEXT FK → families), `token_hash` (TEXT), `created_at` (TIMESTAMPTZ), `revoked_at` (TIMESTAMPTZ nullable — null = activo).
+- Todas las tablas (estas y las de fases siguientes) llevan `family_id` y políticas RLS. El patrón de RLS se documenta en el contrato de API.
 
 ### Contratos
 - **REST**: CRUD de Hijos; gestión de miembros/invitaciones (vía Clerk); generación/revocación de token MCP. Todo acotado a la Familia autenticada.
