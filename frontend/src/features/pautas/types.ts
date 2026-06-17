@@ -17,6 +17,7 @@ export type Pauta = {
   created_by: string
   created_at: string
   day_number: number // calculado
+  next_dose_at: string | null // ISO datetime, null cuando finalizada
 }
 
 export type PautaInput = {

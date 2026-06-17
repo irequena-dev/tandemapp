@@ -82,6 +82,24 @@ class Child(ChildBase, table=True):
     family_id: str = Field(foreign_key="families.id", index=True)
 
 
+class ChildWithMetricsOut(SQLModel):
+    """Hijo enriquecido con las métricas actuales (§1.3.1 del contrato API).
+
+    Los valores se derivan de la Medida/Talla más reciente por tipo; `null`
+    indica que no hay ningún registro de ese tipo para el Hijo.
+    """
+
+    id: uuid.UUID
+    family_id: str
+    name: str
+    birth_date: date
+    avatar_color: str | None = None
+    current_height_cm: float | None = None
+    current_weight_kg: float | None = None
+    current_talla: str | None = None
+    current_talla_calzado: str | None = None
+
+
 class ChildCreate(ChildBase):
     """Cuerpo del alta de un Hijo (sin `family_id`: lo impone el servidor)."""
 
@@ -580,6 +598,7 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
+    next_dose_at: datetime | None
 
 
 # ---------- Administraciones (dosis registradas) ----------

@@ -18,18 +18,20 @@ del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_request
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from ..database import get_sessionmaker
 from ..models import (
     DUPLICATE_GUARD_MINUTES,
     Administration,
     Child,
+    Event,
+    EventType,
     HealthVisit,
     Measurement,
     Pauta,
@@ -482,6 +484,119 @@ async def record_size(child_name: str, type: str, label: str) -> dict:
                 "type": size.type,
                 "label": size.label,
                 "recorded_at": str(size.recorded_at),
+            }
+
+
+@mcp.tool
+async def list_event_types() -> list[dict[str, str]]:
+    """Lista los Tipos de Evento visibles: base del sistema + propios de la Familia.
+
+    Lectura mínima para que la IA elija un tipo válido al crear un Evento.
+    """
+    request = get_http_request()
+    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            rows = (
+                (await session.execute(select(EventType).order_by(EventType.name)))
+                .scalars()
+                .all()
+            )
+            return [{"id": str(et.id), "name": et.name, "icon": et.icon} for et in rows]
+
+
+@mcp.tool
+async def create_event(
+    title: str,
+    date: date,
+    type: str,
+    time: time | None = None,
+    child_name: str | None = None,
+) -> dict[str, str | None]:
+    """Crea un Evento suelto en la agenda de la Familia.
+
+    - `type`: nombre del Tipo de Evento; si no encaja con ninguno existente se
+      usa "Otros" (fallback).
+    - `child_name`: nombre exacto del Hijo (opcional); matching estricto.
+    - No se permite recurrencia por voz (las Series son solo PWA).
+    """
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+
+            # Resolver tipo: buscar por nombre case-insensitive; fallback a "Otros".
+            matched_type = (
+                (
+                    await session.execute(
+                        select(EventType).where(
+                            func.lower(EventType.name) == func.lower(type)
+                        )
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if matched_type is None:
+                matched_type = (
+                    (
+                        await session.execute(
+                            select(EventType).where(
+                                func.lower(EventType.name) == "otros"
+                            )
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+            if matched_type is None:
+                return {"error": "No se encontró el tipo 'Otros' en el sistema."}
+
+            # Resolver child_name si se proporcionó.
+            child_id = None
+            if child_name is not None:
+                result = await resolve_child_by_name(session, child_name)
+                if isinstance(result, ChildMatchError):
+                    valid_names = [c.name for c in result.valid_children]
+                    return {
+                        "error": f"Hijo no encontrado: '{child_name}'. "
+                        f"Hijos válidos: {', '.join(valid_names)}"
+                        if result.reason == "not_found"
+                        else f"Nombre ambiguo: '{child_name}'. "
+                        f"Hijos válidos: {', '.join(valid_names)}"
+                    }
+                child_id = result.id
+
+            event = Event(
+                family_id=family_id,
+                child_id=child_id,
+                title=title,
+                event_type_id=matched_type.id,
+                date=date,
+                time=time,
+                status="pending",
+                created_by=member_id,
+            )
+            session.add(event)
+            await session.flush()
+            await session.refresh(event)
+
+            return {
+                "id": str(event.id),
+                "title": event.title,
+                "date": str(event.date),
+                "time": str(event.time) if event.time else None,
+                "type": matched_type.name,
+                "child_id": str(event.child_id) if event.child_id else None,
+                "status": event.status,
             }
 
 

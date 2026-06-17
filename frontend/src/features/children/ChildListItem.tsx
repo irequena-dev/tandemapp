@@ -3,7 +3,7 @@ import { formatAge } from './age'
 import { useDeleteChild, useUpdateChild } from './api'
 import { initialOf, resolveColor, toneIndex } from './avatar'
 import { ChildForm } from './ChildForm'
-import type { Child } from './types'
+import type { ChildWithMetrics } from './types'
 
 const PencilIcon = () => (
   <svg
@@ -39,13 +39,41 @@ const TrashIcon = () => (
   </svg>
 )
 
+/** Formatea las métricas actuales del Hijo como chips compactos. */
+function MetricChips({ child }: { child: ChildWithMetrics }) {
+  const chips: { label: string; value: string }[] = []
+  if (child.current_height_cm != null) {
+    chips.push({ label: 'Altura', value: `${child.current_height_cm} cm` })
+  }
+  if (child.current_weight_kg != null) {
+    chips.push({ label: 'Peso', value: `${child.current_weight_kg} kg` })
+  }
+  if (child.current_talla != null) {
+    chips.push({ label: 'Talla', value: child.current_talla })
+  }
+  if (child.current_talla_calzado != null) {
+    chips.push({ label: 'Calzado', value: child.current_talla_calzado })
+  }
+  if (chips.length === 0) return null
+  return (
+    <span className="hijo-row__metrics" aria-label="Métricas actuales">
+      {chips.map((c) => (
+        <span key={c.label} className="hijo-metric" title={c.label}>
+          <span className="hijo-metric__label">{c.label}</span>
+          <span className="hijo-metric__value ds-nums">{c.value}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
 /**
  * Una fila de la lista de Hijos: vista de lectura (monograma + nombre + edad
- * derivada) con acciones de editar/eliminar, y modo edición que reutiliza
- * `ChildForm`. Las filas optimistas (aún sin confirmar) se ven atenuadas y no
- * son accionables; la baja pide confirmación inline (gesto destructivo).
+ * derivada + métricas actuales) con acciones de editar/eliminar, y modo edición
+ * que reutiliza `ChildForm`. Las filas optimistas (aún sin confirmar) se ven
+ * atenuadas y no son accionables; la baja pide confirmación inline.
  */
-export function ChildListItem({ child }: { child: Child }) {
+export function ChildListItem({ child }: { child: ChildWithMetrics }) {
   const update = useUpdateChild()
   const remove = useDeleteChild()
   const [editing, setEditing] = useState(false)
@@ -88,6 +116,7 @@ export function ChildListItem({ child }: { child: Child }) {
         <span className="hijo-row__text">
           <span className="hijo-row__name">{child.name}</span>
           <span className="hijo-row__age ds-nums">{formatAge(child.birth_date)}</span>
+          <MetricChips child={child} />
         </span>
 
         {!confirming && (
