@@ -6,11 +6,12 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
-import type { Child, ChildInput, ChildPatch } from './types'
+import type { Child, ChildInput, ChildPatch, ChildWithMetrics } from './types'
 
 /** Claves de caché de Hijos (una sola lista por Familia activa). */
 export const childrenKeys = {
   all: ['children'] as const,
+  withMetrics: ['children', 'current_metrics'] as const,
 }
 
 /** Contexto que viaja entre `onMutate` y `onError` para poder revertir. */
@@ -41,6 +42,18 @@ export function useChildren() {
     queryKey: childrenKeys.all,
     queryFn: async () =>
       apiFetch<Child[]>('/children', { token: await getToken() }),
+  })
+}
+
+/** Lista los Hijos con métricas actuales (?include=current_metrics). */
+export function useChildrenWithMetrics() {
+  const { getToken } = useAuth()
+  return useQuery({
+    queryKey: childrenKeys.withMetrics,
+    queryFn: async () =>
+      apiFetch<ChildWithMetrics[]>('/children?include=current_metrics', {
+        token: await getToken(),
+      }),
   })
 }
 

@@ -162,3 +162,134 @@ async def test_update_child_invalid_avatar_color(
         f"/children/{child_id}", json={"avatar_color": "neon"}
     )
     assert resp.status_code == 422
+
+
+# ---------- include=current_metrics ----------
+
+
+async def test_children_with_current_metrics(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """?include=current_metrics devuelve Hijos enriquecidos con métricas actuales."""
+    _as(identity, "org_metrics_1", "user_metrics_1")
+
+    # Crear un Hijo
+    child_id = (
+        await auth_client.post(
+            "/children", json={"name": "Lucas", "birth_date": "2019-04-10"}
+        )
+    ).json()["id"]
+
+    # Registrar medidas (dos de altura, una de peso) → actual = más reciente
+    await auth_client.post(
+        f"/children/{child_id}/measurements",
+        json={"type": "height", "value": 90, "unit": "cm", "measured_at": "2023-01-01"},
+    )
+    await auth_client.post(
+        f"/children/{child_id}/measurements",
+        json={"type": "height", "value": 95, "unit": "cm", "measured_at": "2024-01-01"},
+    )
+    await auth_client.post(
+        f"/children/{child_id}/measurements",
+        json={
+            "type": "weight",
+            "value": 14.5,
+            "unit": "kg",
+            "measured_at": "2024-01-01",
+        },
+    )
+
+    # Registrar tallas (ropa y calzado)
+    await auth_client.post(
+        f"/children/{child_id}/sizes",
+        json={"type": "clothing", "label": "5-6 años", "recorded_at": "2024-01-01"},
+    )
+    await auth_client.post(
+        f"/children/{child_id}/sizes",
+        json={"type": "footwear", "label": "28", "recorded_at": "2024-01-01"},
+    )
+
+    # Consultar con include=current_metrics
+    resp = await auth_client.get("/children", params={"include": "current_metrics"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    child = data[0]
+
+    assert child["id"] == child_id
+    assert child["name"] == "Lucas"
+    assert child["current_height_cm"] == 95
+    assert child["current_weight_kg"] == 14.5
+    assert child["current_talla"] == "5-6 años"
+    assert child["current_talla_calzado"] == "28"
+
+
+async def test_children_with_current_metrics_null_when_no_data(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """?include=current_metrics devuelve null para métricas sin datos."""
+    _as(identity, "org_metrics_2", "user_metrics_2")
+
+    # Crear un Hijo sin medidas ni tallas
+    child_id = (
+        await auth_client.post(
+            "/children", json={"name": "Noa", "birth_date": "2021-06-15"}
+        )
+    ).json()["id"]
+
+    resp = await auth_client.get("/children", params={"include": "current_metrics"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    child = data[0]
+
+    assert child["id"] == child_id
+    assert child["current_height_cm"] is None
+    assert child["current_weight_kg"] is None
+    assert child["current_talla"] is None
+    assert child["current_talla_calzado"] is None
+
+
+async def test_children_without_include_no_metrics(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Sin ?include=current_metrics, la respuesta no incluye campos de métricas."""
+    _as(identity, "org_metrics_3", "user_metrics_3")
+
+    await auth_client.post(
+        "/children", json={"name": "Río", "birth_date": "2020-03-01"}
+    )
+
+    resp = await auth_client.get("/children")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert "current_height_cm" not in data[0]
+
+
+async def test_children_metrics_isolated_between_families(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Las métricas de Hijos de otra Familia no se filtran."""
+    # Familia A: hijo con medidas
+    _as(identity, "org_metrics_iso_a", "user_metrics_iso_a")
+    child_a = (
+        await auth_client.post(
+            "/children", json={"name": "Hijo A", "birth_date": "2019-01-01"}
+        )
+    ).json()["id"]
+    await auth_client.post(
+        f"/children/{child_a}/measurements",
+        json={
+            "type": "height",
+            "value": 100,
+            "unit": "cm",
+            "measured_at": "2024-01-01",
+        },
+    )
+
+    # Familia B: no ve nada
+    _as(identity, "org_metrics_iso_b", "user_metrics_iso_b")
+    resp = await auth_client.get("/children", params={"include": "current_metrics"})
+    assert resp.status_code == 200
+    assert resp.json() == []

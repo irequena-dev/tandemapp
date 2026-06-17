@@ -504,6 +504,35 @@
   color: var(--ds-muted);
 }
 
+/* ---------- Metric chips (current height/weight/talla/calzado) ---------- */
+.hijo-row__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs);
+  margin-top: 2px;
+}
+
+.hijo-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 8px;
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-pill);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.hijo-metric__label {
+  color: var(--ds-muted);
+  font-weight: 500;
+}
+
+.hijo-metric__value {
+  color: var(--ds-ink);
+  font-weight: 600;
+}
+
 .hijo-row__actions {
   display: flex;
   align-items: center;

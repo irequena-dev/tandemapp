@@ -1,10 +1,17 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import col, select
 
-from ..models import Child, ChildCreate, ChildUpdate
+from ..models import (
+    Child,
+    ChildCreate,
+    ChildUpdate,
+    ChildWithMetricsOut,
+    Measurement,
+    Size,
+)
 from ..tenancy import current_family_id, family_session
 
 router = APIRouter(tags=["children"])
@@ -49,11 +56,97 @@ async def create_child(
 
 @router.get("/children")
 async def list_children(
+    include: str | None = Query(default=None),
     session: AsyncSession = Depends(family_session),
-) -> list[Child]:
-    """Lista los Hijos de la Familia autenticada (RLS acota las filas)."""
+) -> list[Child] | list[ChildWithMetricsOut]:
+    """Lista los Hijos de la Familia autenticada (RLS acota las filas).
+
+    Con `?include=current_metrics` enriquece cada Hijo con su última Medida
+    y Talla por tipo (derivadas por consulta, nunca almacenadas aparte).
+    """
     result = await session.execute(select(Child).order_by(Child.birth_date, Child.name))
-    return list(result.scalars().all())
+    children = list(result.scalars().all())
+
+    if include != "current_metrics":
+        return children
+
+    enriched: list[ChildWithMetricsOut] = []
+    for child in children:
+        height_cm: float | None = None
+        weight_kg: float | None = None
+        talla: str | None = None
+        talla_calzado: str | None = None
+
+        # Última Medida de altura
+        stmt = (
+            select(Measurement)
+            .where(
+                col(Measurement.child_id) == child.id,
+                Measurement.type == "height",
+            )
+            .order_by(
+                col(Measurement.measured_at).desc(),
+                col(Measurement.created_at).desc(),
+            )
+            .limit(1)
+        )
+        row = (await session.execute(stmt)).scalar_one_or_none()
+        if row is not None:
+            height_cm = row.value
+
+        # Última Medida de peso
+        stmt = (
+            select(Measurement)
+            .where(
+                col(Measurement.child_id) == child.id,
+                Measurement.type == "weight",
+            )
+            .order_by(
+                col(Measurement.measured_at).desc(),
+                col(Measurement.created_at).desc(),
+            )
+            .limit(1)
+        )
+        row = (await session.execute(stmt)).scalar_one_or_none()
+        if row is not None:
+            weight_kg = row.value
+
+        # Última Talla de ropa
+        stmt = (
+            select(Size)
+            .where(col(Size.child_id) == child.id, col(Size.type) == "clothing")
+            .order_by(col(Size.recorded_at).desc(), col(Size.created_at).desc())
+            .limit(1)
+        )
+        size_row = (await session.execute(stmt)).scalar_one_or_none()
+        if size_row is not None:
+            talla = size_row.label
+
+        # Última Talla de calzado
+        stmt = (
+            select(Size)
+            .where(col(Size.child_id) == child.id, col(Size.type) == "footwear")
+            .order_by(col(Size.recorded_at).desc(), col(Size.created_at).desc())
+            .limit(1)
+        )
+        size_row = (await session.execute(stmt)).scalar_one_or_none()
+        if size_row is not None:
+            talla_calzado = size_row.label
+
+        enriched.append(
+            ChildWithMetricsOut(
+                id=child.id,
+                family_id=child.family_id,
+                name=child.name,
+                birth_date=child.birth_date,
+                avatar_color=child.avatar_color,
+                current_height_cm=height_cm,
+                current_weight_kg=weight_kg,
+                current_talla=talla,
+                current_talla_calzado=talla_calzado,
+            )
+        )
+    return enriched
 
 
 @router.patch("/children/{child_id}")

@@ -28,3 +28,11 @@ export type ChildInput = {
 
 /** Edición parcial: solo los campos presentes se actualizan. */
 export type ChildPatch = Partial<ChildInput>
+
+/** Hijo enriquecido con las métricas actuales (§1.3.1 del contrato API). */
+export type ChildWithMetrics = Child & {
+  current_height_cm: number | null
+  current_weight_kg: number | null
+  current_talla: string | null
+  current_talla_calzado: string | null
+}
