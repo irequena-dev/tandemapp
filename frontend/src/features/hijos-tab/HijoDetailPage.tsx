@@ -10,9 +10,15 @@ import {
   useUpdateMeasurement,
 } from '../measurements/api'
 import type { Measurement, MeasurementInput } from '../measurements/types'
+import {
+  useCreateHealthVisit,
+  useDeleteHealthVisit,
+  useHealthVisits,
+  useUpdateHealthVisit,
+} from '../health-visits/api'
+import type { HealthVisit } from '../health-visits/types'
 import { SizesSection } from '../sizes/SizesSection'
 import '../sizes/sizes.css'
-import { visitasForChild, type MockVisita } from '../../lib/mock-data'
 import './hijos-tab.css'
 import '../children/children.css'
 
@@ -263,8 +269,17 @@ export function HijoDetailPage() {
   const { data: currentM } = useCurrentMeasurements(childId ?? '')
   const deleteMutation = useDeleteMeasurement(childId ?? '')
 
-  // Visitas still from mock (out of scope for this issue)
-  const visitas: MockVisita[] = childId ? visitasForChild(childId) : []
+  // Visitas médicas — real API
+  const { data: visitas = [] } = useHealthVisits(childId ?? '')
+  const createVisit = useCreateHealthVisit(childId ?? '')
+  const updateVisit = useUpdateHealthVisit(childId ?? '')
+  const deleteVisit = useDeleteHealthVisit(childId ?? '')
+
+  const [showVisitForm, setShowVisitForm] = useState(false)
+  const [editingVisit, setEditingVisit] = useState<HealthVisit | undefined>()
+  const [visitDetail, setVisitDetail] = useState<HealthVisit | undefined>()
+  const [filterFrom, setFilterFrom] = useState('')
+  const [filterTo, setFilterTo] = useState('')
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
@@ -292,10 +307,6 @@ export function HijoDetailPage() {
   const sortedMedidas = [...measurements].sort(
     (a, b) => b.measured_at.localeCompare(a.measured_at),
   )
-  const sortedVisitas = [...visitas].sort(
-    (a, b) => b.date.localeCompare(a.date),
-  )
-
   function handleEdit(m: Measurement) {
     setEditingMeasurement(m)
     setShowForm(true)
@@ -404,31 +415,280 @@ export function HijoDetailPage() {
       </section>
 
       {/* Visitas médicas */}
-      <section className="hijo-detail__section">
-        <h2 className="hijo-detail__section-title">Visitas médicas</h2>
-        {sortedVisitas.length === 0 ? (
-          <div className="hijo-detail__empty">
-            Sin visitas médicas registradas.
-          </div>
-        ) : (
-          <ul className="hijo-detail__visitas">
-            {sortedVisitas.map((v) => (
-              <li className="visita-row" key={v.id}>
-                <div className="visita-row__head">
-                  <span className="visita-row__title">{v.title}</span>
-                  <span className="visita-row__date">{formatDate(v.date)}</span>
-                </div>
-                <span className="visita-row__diagnosis">{v.diagnosis}</span>
-                {v.pauta_ids.length > 0 && (
-                  <Link to="/pautas" style={{ fontSize: '0.8125rem', color: 'var(--ds-primary)', fontWeight: 500 }}>
-                    Ver Pautas asociadas →
-                  </Link>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <VisitasSection
+        childId={childId}
+        visitas={visitas}
+        createVisit={createVisit}
+        updateVisit={updateVisit}
+        deleteVisit={deleteVisit}
+        showForm={showVisitForm}
+        setShowForm={setShowVisitForm}
+        editing={editingVisit}
+        setEditing={setEditingVisit}
+        detail={visitDetail}
+        setDetail={setVisitDetail}
+        filterFrom={filterFrom}
+        setFilterFrom={setFilterFrom}
+        filterTo={filterTo}
+        setFilterTo={setFilterTo}
+      />
     </div>
+  )
+}
+
+/* ---------- Visitas médicas section ---------- */
+
+type VisitasSectionProps = {
+  childId: string
+  visitas: HealthVisit[]
+  createVisit: ReturnType<typeof useCreateHealthVisit>
+  updateVisit: ReturnType<typeof useUpdateHealthVisit>
+  deleteVisit: ReturnType<typeof useDeleteHealthVisit>
+  showForm: boolean
+  setShowForm: (v: boolean) => void
+  editing: HealthVisit | undefined
+  setEditing: (v: HealthVisit | undefined) => void
+  detail: HealthVisit | undefined
+  setDetail: (v: HealthVisit | undefined) => void
+  filterFrom: string
+  setFilterFrom: (v: string) => void
+  filterTo: string
+  setFilterTo: (v: string) => void
+}
+
+function VisitasSection({
+  visitas,
+  createVisit,
+  updateVisit,
+  deleteVisit,
+  showForm,
+  setShowForm,
+  editing,
+  setEditing,
+  detail,
+  setDetail,
+  filterFrom,
+  setFilterFrom,
+  filterTo,
+  setFilterTo,
+}: VisitasSectionProps) {
+  const filtered = visitas
+    .filter((v) => !filterFrom || v.visited_at >= filterFrom)
+    .filter((v) => !filterTo || v.visited_at <= filterTo)
+    .sort((a, b) => b.visited_at.localeCompare(a.visited_at))
+
+  if (detail) {
+    return (
+      <section className="hijo-detail__section">
+        <div className="visita-detail">
+          <div className="visita-detail__header">
+            <button
+              type="button"
+              className="visita-detail__back"
+              onClick={() => setDetail(undefined)}
+            >
+              <ArrowLeft /> Volver
+            </button>
+            <span className="visita-detail__date">{formatDate(detail.visited_at)}</span>
+          </div>
+          <div className="visita-detail__section">
+            <h3>Diagnóstico</h3>
+            <p className="visita-detail__text">{detail.diagnosis}</p>
+          </div>
+          {detail.notes != null && (
+            <div className="visita-detail__section">
+              <h3>Notas</h3>
+              <p className="visita-detail__text">
+                {typeof detail.notes === 'string' ? detail.notes : JSON.stringify(detail.notes)}
+              </p>
+            </div>
+          )}
+          {detail.pauta_ids.length > 0 && (
+            <Link to="/pautas" className="visita-detail__pautas-link">
+              Ver Pautas asociadas →
+            </Link>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="hijo-detail__section">
+      <div className="hijo-detail__section-header">
+        <h2 className="hijo-detail__section-title">Visitas médicas</h2>
+        {!showForm && (
+          <button
+            type="button"
+            className="hijo-detail__add-btn"
+            onClick={() => { setEditing(undefined); setShowForm(true) }}
+            aria-label="Registrar visita"
+          >
+            <PlusIcon /> Visita
+          </button>
+        )}
+      </div>
+
+      {/* Date filter */}
+      <div className="visita-filter">
+        <label className="visita-filter__label">
+          Desde
+          <input
+            type="date"
+            className="visita-filter__input"
+            value={filterFrom}
+            onChange={(e) => setFilterFrom(e.target.value)}
+          />
+        </label>
+        <label className="visita-filter__label">
+          Hasta
+          <input
+            type="date"
+            className="visita-filter__input"
+            value={filterTo}
+            onChange={(e) => setFilterTo(e.target.value)}
+          />
+        </label>
+        {(filterFrom || filterTo) && (
+          <button
+            type="button"
+            className="visita-filter__clear"
+            onClick={() => { setFilterFrom(''); setFilterTo('') }}
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <VisitaForm
+          editing={editing}
+          onCreate={(input) => {
+            createVisit.mutate(input, { onSuccess: () => setShowForm(false) })
+          }}
+          onUpdate={(id, patch) => {
+            updateVisit.mutate({ id, patch }, { onSuccess: () => { setShowForm(false); setEditing(undefined) } })
+          }}
+          onCancel={() => { setShowForm(false); setEditing(undefined) }}
+        />
+      )}
+
+      {filtered.length === 0 ? (
+        <div className="hijo-detail__empty">
+          Sin visitas médicas registradas.
+        </div>
+      ) : (
+        <ul className="hijo-detail__visitas">
+          {filtered.map((v) => (
+            <li className="visita-row" key={v.id}>
+              <button
+                type="button"
+                className="visita-row__btn"
+                onClick={() => setDetail(v)}
+              >
+                <span className="visita-row__date">{formatDate(v.visited_at)}</span>
+                <span className="visita-row__diagnosis">{v.diagnosis}</span>
+              </button>
+              <span className="visita-row__actions">
+                <button
+                  type="button"
+                  className="visita-action-btn"
+                  onClick={() => { setEditing(v); setShowForm(true) }}
+                  aria-label="Editar visita"
+                >
+                  <EditIcon />
+                </button>
+                <button
+                  type="button"
+                  className="visita-action-btn visita-action-btn--danger"
+                  onClick={() => deleteVisit.mutate(v.id)}
+                  aria-label="Borrar visita"
+                >
+                  <TrashIcon />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+/* ---------- Visita form ---------- */
+
+type VisitaFormProps = {
+  editing?: HealthVisit
+  onCreate: (input: { visited_at: string; diagnosis: string; notes?: unknown }) => void
+  onUpdate: (id: string, patch: { visited_at?: string; diagnosis?: string; notes?: unknown }) => void
+  onCancel: () => void
+}
+
+function VisitaForm({ editing, onCreate, onUpdate, onCancel }: VisitaFormProps) {
+  const [visitedAt, setVisitedAt] = useState(
+    editing?.visited_at ?? new Date().toISOString().slice(0, 10),
+  )
+  const [diagnosis, setDiagnosis] = useState(editing?.diagnosis ?? '')
+  const [notes, setNotes] = useState(
+    editing?.notes != null
+      ? typeof editing.notes === 'string'
+        ? editing.notes
+        : JSON.stringify(editing.notes)
+      : '',
+  )
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!diagnosis.trim()) return
+    const notesValue = notes.trim() || undefined
+    if (editing) {
+      onUpdate(editing.id, { visited_at: visitedAt, diagnosis, notes: notesValue })
+    } else {
+      onCreate({ visited_at: visitedAt, diagnosis, notes: notesValue })
+    }
+  }
+
+  return (
+    <form className="visita-form" onSubmit={handleSubmit}>
+      <label className="visita-form__label">
+        Fecha
+        <input
+          type="date"
+          className="visita-form__input"
+          value={visitedAt}
+          onChange={(e) => setVisitedAt(e.target.value)}
+          required
+        />
+      </label>
+      <label className="visita-form__label">
+        Diagnóstico
+        <input
+          type="text"
+          className="visita-form__input"
+          value={diagnosis}
+          onChange={(e) => setDiagnosis(e.target.value)}
+          placeholder="Ej: revisión pediátrica"
+          required
+        />
+      </label>
+      <label className="visita-form__label">
+        Notas
+        <textarea
+          className="visita-form__textarea"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Tratamiento, observaciones…"
+          rows={3}
+        />
+      </label>
+      <div className="visita-form__actions">
+        <button type="submit" className="visita-form__btn visita-form__btn--primary">
+          {editing ? 'Guardar' : 'Registrar'}
+        </button>
+        <button type="button" className="visita-form__btn visita-form__btn--secondary" onClick={onCancel}>
+          Cancelar
+        </button>
+      </div>
+    </form>
   )
 }
