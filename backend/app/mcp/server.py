@@ -18,6 +18,7 @@ del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastmcp import FastMCP
@@ -25,9 +26,14 @@ from fastmcp.server.dependencies import get_http_request
 from sqlalchemy import select, text
 
 from ..database import get_sessionmaker
-from ..models import Child
+from ..models import Child, Measurement, Size
 from ..tenancy import FAMILY_VAR
 from .auth import extract_bearer, resolve_token
+from .child_matching import ChildMatchError, resolve_child_by_name
+
+# Conjuntos curados de tipos válidos (la IA no inventa tipos).
+VALID_MEASUREMENT_TYPES = frozenset({"height", "weight"})
+VALID_SIZE_TYPES = frozenset({"clothing", "footwear"})
 
 # Clave bajo la que el wrapper deposita (member_id, family_id) en el scope ASGI.
 MCP_IDENTITY_KEY = "tandem_mcp_identity"
@@ -68,6 +74,126 @@ async def list_children() -> list[dict[str, str]]:
                 }
                 for c in rows
             ]
+
+
+def _child_error_payload(match_error: ChildMatchError) -> dict:
+    """Error estructurado de resolución de Hijo para la superficie MCP."""
+    reason_key = (
+        "child_not_found" if match_error.reason == "not_found" else "child_ambiguous"
+    )
+    return {
+        "error": reason_key,
+        "valid_children": [
+            {"id": str(c.id), "name": c.name, "birth_date": str(c.birth_date)}
+            for c in match_error.valid_children
+        ],
+    }
+
+
+@mcp.tool
+async def record_measurement(
+    child_name: str, type: str, value: float, unit: str
+) -> dict:
+    """Registra una Medida (height/weight) para un Hijo de la Familia.
+
+    `type` debe ser 'height' o 'weight'. `child_name` se resuelve por matching
+    estricto (case-insensitive). Si el tipo es inválido o el Hijo no se
+    encuentra/es ambiguo, devuelve un error estructurado.
+    """
+    if type not in VALID_MEASUREMENT_TYPES:
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "invalid_type",
+                    "detail": f"type debe ser uno de {sorted(VALID_MEASUREMENT_TYPES)}",
+                    "valid_types": sorted(VALID_MEASUREMENT_TYPES),
+                }
+            )
+        )
+
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            child_or_err = await resolve_child_by_name(session, child_name)
+            if isinstance(child_or_err, ChildMatchError):
+                raise ValueError(json.dumps(_child_error_payload(child_or_err)))
+
+            measurement = Measurement(
+                family_id=family_id,
+                child_id=child_or_err.id,
+                type=type,
+                value=value,
+                unit=unit,
+                measured_at=date.today(),
+                recorded_by=member_id,
+                created_at=datetime.now(UTC),
+            )
+            session.add(measurement)
+            await session.flush()
+            return {
+                "id": str(measurement.id),
+                "child_id": str(measurement.child_id),
+                "type": measurement.type,
+                "value": measurement.value,
+                "unit": measurement.unit,
+                "measured_at": str(measurement.measured_at),
+            }
+
+
+@mcp.tool
+async def record_size(child_name: str, type: str, label: str) -> dict:
+    """Registra una Talla (clothing/footwear) para un Hijo de la Familia.
+
+    `type` debe ser 'clothing' o 'footwear'. `child_name` se resuelve por
+    matching estricto (case-insensitive). Si el tipo es inválido o el Hijo no se
+    encuentra/es ambiguo, devuelve un error estructurado.
+    """
+    if type not in VALID_SIZE_TYPES:
+        raise ValueError(
+            json.dumps(
+                {
+                    "error": "invalid_type",
+                    "detail": f"type debe ser uno de {sorted(VALID_SIZE_TYPES)}",
+                    "valid_types": sorted(VALID_SIZE_TYPES),
+                }
+            )
+        )
+
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            child_or_err = await resolve_child_by_name(session, child_name)
+            if isinstance(child_or_err, ChildMatchError):
+                raise ValueError(json.dumps(_child_error_payload(child_or_err)))
+
+            size = Size(
+                family_id=family_id,
+                child_id=child_or_err.id,
+                type=type,
+                label=label,
+                recorded_at=date.today(),
+                recorded_by=member_id,
+                created_at=datetime.now(UTC),
+            )
+            session.add(size)
+            await session.flush()
+            return {
+                "id": str(size.id),
+                "child_id": str(size.child_id),
+                "type": size.type,
+                "label": size.label,
+                "recorded_at": str(size.recorded_at),
+            }
 
 
 async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") -> None:

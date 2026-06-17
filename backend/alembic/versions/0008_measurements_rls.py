@@ -1,7 +1,7 @@
 """measurements: tabla de Medidas (altura, peso) con RLS por Familia
 
-Revision ID: 0005
-Revises: 0004
+Revision ID: 0008
+Revises: 0007c
 Create Date: 2026-06-17
 
 Crea la tabla `measurements` para el registro append-only de Medidas de un Hijo:
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0008"
-down_revision: str | None = "0007"
+down_revision: str | None = "0007c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
