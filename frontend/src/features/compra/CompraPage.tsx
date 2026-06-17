@@ -1,5 +1,13 @@
-import { useState } from 'react'
-import { useShoppingItems, useCreateShoppingItem, useBuyShoppingItem, useUndoShoppingItem } from './api'
+import { useRef, useState } from 'react'
+import {
+  useShoppingItems,
+  useCreateShoppingItem,
+  useUpdateShoppingItem,
+  useDeleteShoppingItem,
+  useClearBoughtItems,
+  useBuyShoppingItem,
+  useUndoShoppingItem,
+} from './api'
 import type { ShoppingItem } from './types'
 import './compra.css'
 
@@ -28,43 +36,106 @@ function CartIcon() {
   )
 }
 
-function PendingRow({ item, onBuy }: { item: ShoppingItem; onBuy: () => void }) {
+function TrashIcon() {
   return (
-    <li className="compra-item">
-      <button
-        type="button"
-        className="compra-item__check"
-        onClick={onBuy}
-        aria-label={`Marcar ${item.text} como comprado`}
-      />
-      <span className="compra-item__text">{item.text}</span>
-    </li>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
   )
 }
 
-function BoughtRow({ item, onUndo }: { item: ShoppingItem; onUndo: () => void }) {
+function PencilIcon() {
   return (
-    <li className="compra-item compra-item--done">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  )
+}
+
+function ItemRow({
+  item,
+  onToggle,
+  onEdit,
+  onDelete,
+}: {
+  item: ShoppingItem
+  onToggle: () => void
+  onEdit: (text: string) => void
+  onDelete: () => void
+}) {
+  const isBought = item.status === 'bought'
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item.text)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const startEdit = () => {
+    setDraft(item.text)
+    setEditing(true)
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  const commitEdit = () => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== item.text) {
+      onEdit(trimmed)
+    }
+    setEditing(false)
+  }
+
+  return (
+    <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
       <button
         type="button"
-        className="compra-item__check compra-item__check--done"
-        onClick={onUndo}
-        aria-label={`Desmarcar ${item.text}`}
+        className={`compra-item__check${isBought ? ' compra-item__check--done' : ''}`}
+        onClick={onToggle}
+        aria-label={isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
       >
-        <CheckIcon />
+        {isBought && <CheckIcon />}
       </button>
-      <span className="compra-item__text">{item.text}</span>
-      {item.bought_by && (
-        <span className="compra-item__meta">{item.bought_by}</span>
+
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="compra-item__edit-input"
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitEdit()
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          aria-label={`Editar ${item.text}`}
+        />
+      ) : (
+        <span className="compra-item__text">{item.text}</span>
       )}
-      <button
-        type="button"
-        className="compra-item__undo"
-        onClick={onUndo}
-        aria-label={`Deshacer compra de ${item.text}`}
-      >
-        Deshacer
-      </button>
+
+      <div className="compra-item__actions">
+        {!editing && (
+          <button
+            type="button"
+            className="compra-item__action"
+            onClick={startEdit}
+            aria-label={`Editar ${item.text}`}
+          >
+            <PencilIcon />
+          </button>
+        )}
+        <button
+          type="button"
+          className="compra-item__action compra-item__action--danger"
+          onClick={onDelete}
+          aria-label={`Borrar ${item.text}`}
+        >
+          <TrashIcon />
+        </button>
+      </div>
     </li>
   )
 }
@@ -72,6 +143,9 @@ function BoughtRow({ item, onUndo }: { item: ShoppingItem; onUndo: () => void })
 export function CompraPage() {
   const { data: items = [], isLoading } = useShoppingItems()
   const createItem = useCreateShoppingItem()
+  const updateItem = useUpdateShoppingItem()
+  const deleteItem = useDeleteShoppingItem()
+  const clearBought = useClearBoughtItems()
   const buyItem = useBuyShoppingItem()
   const undoItem = useUndoShoppingItem()
   const [newText, setNewText] = useState('')
@@ -134,7 +208,13 @@ export function CompraPage() {
           </div>
           <ul className="compra__list">
             {pending.map((item) => (
-              <PendingRow key={item.id} item={item} onBuy={() => buyItem.mutate(item.id)} />
+              <ItemRow
+                key={item.id}
+                item={item}
+                onToggle={() => buyItem.mutate(item.id)}
+                onEdit={(text) => updateItem.mutate({ id: item.id, text })}
+                onDelete={() => deleteItem.mutate(item.id)}
+              />
             ))}
           </ul>
         </section>
@@ -153,11 +233,24 @@ export function CompraPage() {
               <span className="compra__count">{bought.length}</span>
               <ChevronIcon open={boughtOpen} />
             </button>
+            <button
+              type="button"
+              className="compra__clear"
+              onClick={() => clearBought.mutate()}
+            >
+              Limpiar comprados
+            </button>
           </div>
           {boughtOpen && (
             <ul className="compra__list">
               {bought.map((item) => (
-                <BoughtRow key={item.id} item={item} onUndo={() => undoItem.mutate(item.id)} />
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  onToggle={() => undoItem.mutate(item.id)}
+                  onEdit={(text) => updateItem.mutate({ id: item.id, text })}
+                  onDelete={() => deleteItem.mutate(item.id)}
+                />
               ))}
             </ul>
           )}
