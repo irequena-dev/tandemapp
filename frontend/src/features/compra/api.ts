@@ -6,7 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
-import type { ShoppingItem, ShoppingItemInput } from './types'
+import type { ShoppingItem, ShoppingItemInput, ShoppingItemUpdate } from './types'
 
 /** Claves de caché de Ítems de compra (una sola lista por Familia activa). */
 export const shoppingKeys = {
@@ -59,6 +59,8 @@ export function useCreateShoppingItem() {
         text: input.text,
         status: 'pending',
         created_by: 'optimistic',
+        bought_by: null,
+        bought_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -66,6 +68,141 @@ export function useCreateShoppingItem() {
         ...old,
         optimistic,
       ])
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Edita el texto libre de un Ítem de compra, con actualización optimista. */
+export function useUpdateShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...body }: ShoppingItemUpdate & { id: string }) =>
+      apiFetch<ShoppingItem>(`/api/shopping-items/${id}`, {
+        method: 'PATCH',
+        token: await getToken(),
+        body,
+      }),
+    onMutate: async ({ id, text }) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.map((i) =>
+          i.id === id ? { ...i, text, updated_at: new Date().toISOString() } : i,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Marca un Ítem como comprado (optimistic: status→bought de inmediato). */
+export function useBuyShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (itemId: string) =>
+      apiFetch<ShoppingItem>(`/api/shopping-items/${itemId}/buy`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (itemId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                status: 'bought' as const,
+                bought_by: 'optimistic',
+                bought_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }
+            : i,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Deshace la compra de un Ítem (optimistic: status→pending de inmediato). */
+export function useUndoShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (itemId: string) =>
+      apiFetch<ShoppingItem>(`/api/shopping-items/${itemId}/undo`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (itemId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                status: 'pending' as const,
+                bought_by: null,
+                bought_at: null,
+                updated_at: new Date().toISOString(),
+              }
+            : i,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Borra un Ítem de compra (hard delete), con eliminación optimista. */
+export function useDeleteShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiFetch<undefined>(`/api/shopping-items/${id}`, {
+        method: 'DELETE',
+        token: await getToken(),
+      })
+    },
+    onMutate: async (id) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.filter((i) => i.id !== id),
+      )
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Elimina todos los Ítems comprados de la Familia, con limpieza optimista. */
+export function useClearBoughtItems() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await apiFetch<undefined>('/api/shopping-items/bought', {
+        method: 'DELETE',
+        token: await getToken(),
+      })
+    },
+    onMutate: async () => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.filter((i) => i.status !== 'bought'),
+      )
       return ctx
     },
     onError: (_e, _input, ctx) => rollback(qc, ctx),
