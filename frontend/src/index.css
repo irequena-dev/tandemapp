@@ -71,15 +71,16 @@
   color-scheme: light;
 }
 
+/* Dark tokens — shared by system preference and explicit override */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --ds-bg: #1b1814; /* warm near-black field */
-    --ds-surface: #25221c; /* raised card */
-    --ds-surface-2: #201d17; /* insets */
+  :root:not([data-theme='light']) {
+    --ds-bg: #1b1814;
+    --ds-surface: #25221c;
+    --ds-surface-2: #201d17;
     --ds-border: #343029;
-    --ds-ink: #ece5d8; /* warm off-white, 14:1 on field */
-    --ds-muted: #a49a8d; /* 6.4:1 on field */
-    --ds-primary: #93b382; /* light sage — dark text on top */
+    --ds-ink: #ece5d8;
+    --ds-muted: #a49a8d;
+    --ds-primary: #93b382;
     --ds-primary-hover: #a6c495;
     --ds-on-primary: #141310;
     --ds-accent: #93b382;
@@ -91,17 +92,43 @@
     --ds-warning-ink: #f0cd8f;
     --ds-danger: #e88c83;
     --ds-focus-ring: rgba(147, 179, 130, 0.45);
-
     --ds-attn: #dc8d56;
     --ds-attn-solid: #dc8d56;
     --ds-attn-ink: #e6a878;
     --ds-attn-bg: #38291d;
-
     --ds-shadow-floating: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
     --ds-shadow-toast: 0 6px 20px -6px rgba(0, 0, 0, 0.65);
-
     color-scheme: dark;
   }
+}
+
+/* Explicit dark override (user chose Oscuro) */
+:root[data-theme='dark'] {
+  --ds-bg: #1b1814;
+  --ds-surface: #25221c;
+  --ds-surface-2: #201d17;
+  --ds-border: #343029;
+  --ds-ink: #ece5d8;
+  --ds-muted: #a49a8d;
+  --ds-primary: #93b382;
+  --ds-primary-hover: #a6c495;
+  --ds-on-primary: #141310;
+  --ds-accent: #93b382;
+  --ds-success: #93b382;
+  --ds-success-bg: #283324;
+  --ds-success-ink: #bcd6ab;
+  --ds-warning: #e0b061;
+  --ds-warning-bg: #352a18;
+  --ds-warning-ink: #f0cd8f;
+  --ds-danger: #e88c83;
+  --ds-focus-ring: rgba(147, 179, 130, 0.45);
+  --ds-attn: #dc8d56;
+  --ds-attn-solid: #dc8d56;
+  --ds-attn-ink: #e6a878;
+  --ds-attn-bg: #38291d;
+  --ds-shadow-floating: 0 10px 28px -10px rgba(0, 0, 0, 0.6);
+  --ds-shadow-toast: 0 6px 20px -6px rgba(0, 0, 0, 0.65);
+  color-scheme: dark;
 }
 
 *,

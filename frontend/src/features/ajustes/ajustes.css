@@ -248,3 +248,17 @@
   background: var(--ds-surface-2);
   border-radius: var(--ds-r-sm);
 }
+
+/* Cuenta — Clerk UserButton wrapper */
+.ajustes-cuenta {
+  padding: var(--ds-s-md) 0;
+}
+
+.ajustes-clerk-root {
+  width: 100%;
+}
+
+.ajustes-clerk-avatar {
+  width: 40px;
+  height: 40px;
+}

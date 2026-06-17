@@ -36,7 +36,11 @@ const CALM_TODAY = {
 }
 
 function renderApp(initialRoute = '/') {
-  server.use(http.get('http://localhost:8000/api/today', () => HttpResponse.json(CALM_TODAY)))
+  server.use(
+    http.get('http://localhost:8000/api/today', () => HttpResponse.json(CALM_TODAY)),
+    http.get('http://localhost:8000/members', () => HttpResponse.json([])),
+    http.get('http://localhost:8000/invitations', () => HttpResponse.json([])),
+  )
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
