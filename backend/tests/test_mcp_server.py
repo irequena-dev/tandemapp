@@ -441,7 +441,6 @@ async def test_record_measurement_child_not_found_is_error(
 ) -> None:
     from fastmcp import Client
     from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
 
     from app.main import app
 
@@ -460,19 +459,18 @@ async def test_record_measurement_child_not_found_is_error(
     )
     async with _lifespan(app):
         async with Client(transport=transport) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_measurement",
-                    {
-                        "child_name": "Inexistente",
-                        "type": "height",
-                        "value": 100.0,
-                        "unit": "cm",
-                    },
-                )
+            result = await c.call_tool(
+                "record_measurement",
+                {
+                    "child_name": "Inexistente",
+                    "type": "height",
+                    "value": 100.0,
+                    "unit": "cm",
+                },
+            )
 
-    payload = _parse_tool_error(exc_info.value)
-    assert payload["error"] == "child_not_found"
+    payload = _tool_result(result)
+    assert payload["error"] == "not_found"
     assert any(c["name"] == "Noa" for c in payload["valid_children"])
 
 
@@ -486,7 +484,6 @@ async def test_record_measurement_child_ambiguous_is_error(
 ) -> None:
     from fastmcp import Client
     from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
 
     from app.main import app
 
@@ -505,19 +502,18 @@ async def test_record_measurement_child_ambiguous_is_error(
     )
     async with _lifespan(app):
         async with Client(transport=transport) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_measurement",
-                    {
-                        "child_name": "LEO",
-                        "type": "weight",
-                        "value": 12.0,
-                        "unit": "kg",
-                    },
-                )
+            result = await c.call_tool(
+                "record_measurement",
+                {
+                    "child_name": "LEO",
+                    "type": "weight",
+                    "value": 12.0,
+                    "unit": "kg",
+                },
+            )
 
-    payload = _parse_tool_error(exc_info.value)
-    assert payload["error"] == "child_ambiguous"
+    payload = _tool_result(result)
+    assert payload["error"] == "ambiguous"
     assert len(payload["valid_children"]) == 2
 
 
@@ -656,7 +652,6 @@ async def test_record_size_child_not_found_is_error(
 ) -> None:
     from fastmcp import Client
     from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
 
     from app.main import app
 
@@ -675,18 +670,17 @@ async def test_record_size_child_not_found_is_error(
     )
     async with _lifespan(app):
         async with Client(transport=transport) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_size",
-                    {
-                        "child_name": "Nadie",
-                        "type": "clothing",
-                        "label": "4",
-                    },
-                )
+            result = await c.call_tool(
+                "record_size",
+                {
+                    "child_name": "Nadie",
+                    "type": "clothing",
+                    "label": "4",
+                },
+            )
 
-    payload = _parse_tool_error(exc_info.value)
-    assert payload["error"] == "child_not_found"
+    payload = _tool_result(result)
+    assert payload["error"] == "not_found"
     assert any(c["name"] == "Iris" for c in payload["valid_children"])
 
 
@@ -700,7 +694,6 @@ async def test_record_measurement_isolated_between_families(
 ) -> None:
     from fastmcp import Client
     from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
 
     from app.main import app
 
@@ -741,20 +734,19 @@ async def test_record_measurement_isolated_between_families(
 
         # Token A intenta grabar Medida para Luna (de Familia B) → error
         async with Client(transport=tr_a) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_measurement",
-                    {
-                        "child_name": "Luna",
-                        "type": "height",
-                        "value": 75.0,
-                        "unit": "cm",
-                    },
-                )
+            result_fail = await c.call_tool(
+                "record_measurement",
+                {
+                    "child_name": "Luna",
+                    "type": "height",
+                    "value": 75.0,
+                    "unit": "cm",
+                },
+            )
 
     payload_ok = _tool_result(result_ok)
     assert "id" in payload_ok
-    payload_fail = _parse_tool_error(exc_info.value)
-    assert payload_fail["error"] == "child_not_found"
+    payload_fail = _tool_result(result_fail)
+    assert payload_fail["error"] == "not_found"
     assert any(c["name"] == "Sol" for c in payload_fail["valid_children"])
     assert not any(c["name"] == "Luna" for c in payload_fail["valid_children"])
