@@ -59,6 +59,8 @@ export function useCreateShoppingItem() {
         text: input.text,
         status: 'pending',
         created_by: 'optimistic',
+        bought_by: null,
+        bought_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -69,6 +71,70 @@ export function useCreateShoppingItem() {
       return ctx
     },
     onError: (_e, _input, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Marca un Ítem como comprado (optimistic: status→bought de inmediato). */
+export function useBuyShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (itemId: string) =>
+      apiFetch<ShoppingItem>(`/api/shopping-items/${itemId}/buy`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (itemId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                status: 'bought' as const,
+                bought_by: 'optimistic',
+                bought_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }
+            : i,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settle(qc),
+  })
+}
+
+/** Deshace la compra de un Ítem (optimistic: status→pending de inmediato). */
+export function useUndoShoppingItem() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (itemId: string) =>
+      apiFetch<ShoppingItem>(`/api/shopping-items/${itemId}/undo`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (itemId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<ShoppingItem[]>(shoppingKeys.all, (old = []) =>
+        old.map((i) =>
+          i.id === itemId
+            ? {
+                ...i,
+                status: 'pending' as const,
+                bought_by: null,
+                bought_at: null,
+                updated_at: new Date().toISOString(),
+              }
+            : i,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
     onSettled: () => settle(qc),
   })
 }

@@ -63,3 +63,111 @@ async def test_create_shopping_item_requires_family(
     identity.update({"sub": "user_no_org_shop"})
     resp = await auth_client.post("/api/shopping-items", json={"text": "Fantasma"})
     assert resp.status_code == 403
+
+
+async def test_buy_sets_status_and_attribution(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST .../buy marca bought, fija bought_by/bought_at del JWT."""
+    _as(identity, "org_buy_a", "user_buy_a1")
+    created = (
+        await auth_client.post("/api/shopping-items", json={"text": "Yogures"})
+    ).json()
+    item_id = created["id"]
+
+    # Tachar.
+    resp = await auth_client.post(f"/api/shopping-items/{item_id}/buy")
+    assert resp.status_code == 200
+    bought = resp.json()
+    assert bought["status"] == "bought"
+    assert bought["bought_by"] == "user_buy_a1"
+    assert bought["bought_at"] is not None
+    # El Ítem se conserva (no se borra).
+    assert bought["text"] == "Yogures"
+    assert bought["id"] == item_id
+
+
+async def test_undo_clears_attribution(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST .../undo vuelve a pending y limpia bought_by/bought_at."""
+    _as(identity, "org_undo_a", "user_undo_a1")
+    created = (
+        await auth_client.post("/api/shopping-items", json={"text": "Galletas"})
+    ).json()
+    item_id = created["id"]
+
+    # Comprar y luego deshacer.
+    await auth_client.post(f"/api/shopping-items/{item_id}/buy")
+    resp = await auth_client.post(f"/api/shopping-items/{item_id}/undo")
+    assert resp.status_code == 200
+    undone = resp.json()
+    assert undone["status"] == "pending"
+    assert undone["bought_by"] is None
+    assert undone["bought_at"] is None
+
+
+async def test_buy_attribution_uses_jwt_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """La atribución usa el Miembro del JWT, no un valor del cliente."""
+    _as(identity, "org_attr", "user_attr_creator")
+    created = (
+        await auth_client.post("/api/shopping-items", json={"text": "Café"})
+    ).json()
+    item_id = created["id"]
+
+    # Otro Miembro de la misma Familia lo tacha.
+    _as(identity, "org_attr", "user_attr_buyer")
+    resp = await auth_client.post(f"/api/shopping-items/{item_id}/buy")
+    assert resp.status_code == 200
+    bought = resp.json()
+    assert bought["bought_by"] == "user_attr_buyer"
+    assert bought["created_by"] == "user_attr_creator"
+
+
+async def test_list_returns_pending_and_bought(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """El listado devuelve tanto pendientes como comprados."""
+    _as(identity, "org_list_both", "user_list_both")
+    await auth_client.post("/api/shopping-items", json={"text": "Agua"})
+    r2 = (await auth_client.post("/api/shopping-items", json={"text": "Zumo"})).json()
+
+    # Comprar solo uno.
+    await auth_client.post(f"/api/shopping-items/{r2['id']}/buy")
+
+    listed = (await auth_client.get("/api/shopping-items")).json()
+    texts = {i["text"]: i["status"] for i in listed}
+    assert texts["Agua"] == "pending"
+    assert texts["Zumo"] == "bought"
+
+
+async def test_buy_undo_isolated_between_families(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS impide que otra Familia tache un Ítem ajeno (404)."""
+    _as(identity, "org_iso_buy_a", "user_iso_buy_a1")
+    created = (
+        await auth_client.post("/api/shopping-items", json={"text": "Arroz"})
+    ).json()
+    item_id = created["id"]
+
+    # Familia B no puede tachar el Ítem de A.
+    _as(identity, "org_iso_buy_b", "user_iso_buy_b1")
+    resp = await auth_client.post(f"/api/shopping-items/{item_id}/buy")
+    assert resp.status_code == 404
+
+    # Tampoco deshacer.
+    resp = await auth_client.post(f"/api/shopping-items/{item_id}/undo")
+    assert resp.status_code == 404
+
+
+async def test_buy_nonexistent_returns_404(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    _as(identity, "org_404_buy", "user_404_buy")
+    resp = await auth_client.post(
+        "/api/shopping-items/00000000-0000-0000-0000-000000000000/buy"
+    )
+    assert resp.status_code == 404

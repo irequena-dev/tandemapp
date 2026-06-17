@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useShoppingItems, useCreateShoppingItem } from './api'
+import { useShoppingItems, useCreateShoppingItem, useBuyShoppingItem, useUndoShoppingItem } from './api'
 import type { ShoppingItem } from './types'
 import './compra.css'
 
@@ -28,19 +28,43 @@ function CartIcon() {
   )
 }
 
-function ItemRow({ item, onToggle }: { item: ShoppingItem; onToggle: () => void }) {
-  const isBought = item.status === 'bought'
+function PendingRow({ item, onBuy }: { item: ShoppingItem; onBuy: () => void }) {
   return (
-    <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
+    <li className="compra-item">
       <button
         type="button"
-        className={`compra-item__check${isBought ? ' compra-item__check--done' : ''}`}
-        onClick={onToggle}
-        aria-label={isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
+        className="compra-item__check"
+        onClick={onBuy}
+        aria-label={`Marcar ${item.text} como comprado`}
+      />
+      <span className="compra-item__text">{item.text}</span>
+    </li>
+  )
+}
+
+function BoughtRow({ item, onUndo }: { item: ShoppingItem; onUndo: () => void }) {
+  return (
+    <li className="compra-item compra-item--done">
+      <button
+        type="button"
+        className="compra-item__check compra-item__check--done"
+        onClick={onUndo}
+        aria-label={`Desmarcar ${item.text}`}
       >
-        {isBought && <CheckIcon />}
+        <CheckIcon />
       </button>
       <span className="compra-item__text">{item.text}</span>
+      {item.bought_by && (
+        <span className="compra-item__meta">{item.bought_by}</span>
+      )}
+      <button
+        type="button"
+        className="compra-item__undo"
+        onClick={onUndo}
+        aria-label={`Deshacer compra de ${item.text}`}
+      >
+        Deshacer
+      </button>
     </li>
   )
 }
@@ -48,6 +72,8 @@ function ItemRow({ item, onToggle }: { item: ShoppingItem; onToggle: () => void 
 export function CompraPage() {
   const { data: items = [], isLoading } = useShoppingItems()
   const createItem = useCreateShoppingItem()
+  const buyItem = useBuyShoppingItem()
+  const undoItem = useUndoShoppingItem()
   const [newText, setNewText] = useState('')
   const [boughtOpen, setBoughtOpen] = useState(false)
 
@@ -108,7 +134,7 @@ export function CompraPage() {
           </div>
           <ul className="compra__list">
             {pending.map((item) => (
-              <ItemRow key={item.id} item={item} onToggle={() => {}} />
+              <PendingRow key={item.id} item={item} onBuy={() => buyItem.mutate(item.id)} />
             ))}
           </ul>
         </section>
@@ -131,7 +157,7 @@ export function CompraPage() {
           {boughtOpen && (
             <ul className="compra__list">
               {bought.map((item) => (
-                <ItemRow key={item.id} item={item} onToggle={() => {}} />
+                <BoughtRow key={item.id} item={item} onUndo={() => undoItem.mutate(item.id)} />
               ))}
             </ul>
           )}
