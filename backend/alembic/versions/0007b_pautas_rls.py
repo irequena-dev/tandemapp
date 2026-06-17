@@ -1,7 +1,7 @@
 """pautas: tabla de Pautas (tratamientos) con RLS por Familia
 
-Revision ID: 0007
-Revises: 0006
+Revision ID: 0007b
+Revises: 0007a
 Create Date: 2026-06-17
 
 Crea la tabla `pautas` para los tratamientos activos/finalizados:
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "0007"
-down_revision: str | None = "0006"
+revision: str = "0007b"
+down_revision: str | None = "0007a"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
