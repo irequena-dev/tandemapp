@@ -97,3 +97,50 @@ describe('HoyPage — estado calmado', () => {
     )
   })
 })
+
+/* ---------- Tarjeta Compra ---------- */
+
+describe('HoyPage — tarjeta Compra', () => {
+  it('muestra "X por comprar" cuando hay Ítems pendientes', async () => {
+    const response: TodayOut = {
+      hero: null,
+      timeline: [],
+      summary: {
+        shopping_pending_count: 5,
+        pautas_active_count: 0,
+        pautas_finished_count: 0,
+        next_medical_event: null,
+        children_status: 'up_to_date',
+      },
+    }
+    server.use(http.get(API, () => HttpResponse.json(response)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByText('5 por comprar')).toBeTruthy(),
+    )
+  })
+
+  it('muestra "Lista vacía" cuando shopping_pending_count es 0', async () => {
+    server.use(http.get(API, () => HttpResponse.json(CALM_RESPONSE)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByText('Lista vacía')).toBeTruthy(),
+    )
+  })
+
+  it('la tarjeta Compra navega a /compra', async () => {
+    server.use(http.get(API, () => HttpResponse.json(CALM_RESPONSE)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByText('Compra')).toBeTruthy(),
+    )
+    const link = screen.getByText('Compra').closest('a')
+    expect(link?.getAttribute('href')).toBe('/compra')
+  })
+})
