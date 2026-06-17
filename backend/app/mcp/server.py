@@ -18,6 +18,7 @@ del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 from fastmcp import FastMCP
@@ -25,7 +26,7 @@ from fastmcp.server.dependencies import get_http_request
 from sqlalchemy import select, text
 
 from ..database import get_sessionmaker
-from ..models import Child
+from ..models import Child, ShoppingItem
 from ..tenancy import FAMILY_VAR
 from .auth import extract_bearer, resolve_token
 
@@ -68,6 +69,45 @@ async def list_children() -> list[dict[str, str]]:
                 }
                 for c in rows
             ]
+
+
+@mcp.tool
+async def add_shopping_items(items: list[str]) -> list[dict[str, str]]:
+    """Añade varios Ítems de compra a la lista de la Familia del token MCP.
+
+    Cada string se inserta como un Ítem en estado `pending`. Devuelve la lista
+    de Ítems creados con su id, texto y estado.
+    """
+    request = get_http_request()
+    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    now = datetime.now(UTC)
+    created: list[dict[str, str]] = []
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:k, :v, true)"),
+                {"k": FAMILY_VAR, "v": family_id},
+            )
+            for item_text in items:
+                item = ShoppingItem(
+                    family_id=family_id,
+                    text=item_text,
+                    status="pending",
+                    created_by=member_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(item)
+                await session.flush()
+                await session.refresh(item)
+                created.append(
+                    {
+                        "id": str(item.id),
+                        "text": item.text,
+                        "status": item.status,
+                    }
+                )
+    return created
 
 
 async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") -> None:
