@@ -138,6 +138,65 @@ class ShoppingItemOut(SQLModel):
     updated_at: datetime
 
 
+class Measurement(SQLModel, table=True):
+    """Medida numérica (altura/peso) de un Hijo, append-only.
+
+    Cada registro conserva un valor con su fecha; el "valor actual" es el más
+    reciente por tipo (derivado por consulta, no almacenado aparte).
+    """
+
+    __tablename__ = "measurements"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    type: str  # 'height' | 'weight'
+    value: float
+    unit: str  # 'cm' | 'kg'
+    measured_at: date
+    recorded_by: str = Field(foreign_key="members.id")
+    created_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+
+
+class MeasurementCreate(SQLModel):
+    """Alta de una Medida (el servidor impone family_id y recorded_by)."""
+
+    type: str  # 'height' | 'weight'
+    value: float
+    unit: str  # 'cm' | 'kg'
+    measured_at: date
+
+
+class MeasurementUpdate(SQLModel):
+    """Corrección parcial de una Medida."""
+
+    value: float | None = None
+    unit: str | None = None
+    measured_at: date | None = None
+
+
+class MeasurementOut(SQLModel):
+    """Medida tal y como la devuelve la API."""
+
+    id: uuid.UUID
+    child_id: uuid.UUID
+    type: str
+    value: float
+    unit: str
+    measured_at: date
+    recorded_by: str
+    created_at: datetime
+
+
+class CurrentMeasurementsOut(SQLModel):
+    """Valores más recientes por tipo (height / weight)."""
+
+    height: MeasurementOut | None = None
+    weight: MeasurementOut | None = None
+
+
 # ---------- Tallas (sizes) ----------
 
 SizeType = Literal["clothing", "footwear"]
