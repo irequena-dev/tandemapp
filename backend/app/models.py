@@ -598,7 +598,8 @@ class PautaOut(SQLModel):
     created_by: str
     created_at: datetime
     day_number: int
-    next_dose_at: datetime | None
+    next_dose_at: datetime | None = None
+    todays_administrations: list["AdministrationOut"] = Field(default_factory=list)
 
 
 # ---------- Administraciones (dosis registradas) ----------
@@ -633,11 +634,24 @@ class Administration(SQLModel, table=True):
     )
 
 
+class AdministrationCreate(SQLModel):
+    """Cuerpo para registrar una Administración (administered_at opcional = now)."""
+
+    administered_at: datetime | None = None
+
+
+class AdministrationUpdate(SQLModel):
+    """Corrección parcial de una Administración."""
+
+    administered_at: datetime | None = None
+
+
 class AdministrationOut(SQLModel):
-    """Administración tal como la devuelve la API."""
+    """Administración tal como la devuelve la API REST."""
 
     id: uuid.UUID
     pauta_id: uuid.UUID
     administered_at: datetime
     administered_by: str
+    member_name: str | None = None
     created_at: datetime

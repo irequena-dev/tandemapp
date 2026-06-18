@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import (
+    administrations,
     children,
     event_types,
     events,
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(events.router)
     app.include_router(mcp_tokens.router)
     app.include_router(pautas.router)
+    app.include_router(administrations.router)
     app.include_router(shopping_items.router)
     app.include_router(sizes.router)
     app.include_router(today.router)

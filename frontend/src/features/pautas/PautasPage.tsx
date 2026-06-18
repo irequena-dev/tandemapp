@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useChildren } from '../children/api'
-import { useFinishPauta, usePautas } from './api'
+import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas } from './api'
 import type { Pauta } from './types'
 import './pautas.css'
 import '../children/children.css'
@@ -47,25 +47,23 @@ function PulseIcon() {
   )
 }
 
-function formatTime(d: Date): string {
-  return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-}
-
-function nextDoseTime(pauta: Pauta): Date | null {
-  if (!pauta.next_dose_at) return null
-  return new Date(pauta.next_dose_at)
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
 }
 
 function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
   const [open, setOpen] = useState(false)
   const finishMutation = useFinishPauta()
+  const createAdmin = useCreateAdministration()
+  const deleteAdmin = useDeleteAdministration()
   const now = new Date()
   const startMs = new Date(pauta.started_at).getTime()
   const totalMs = pauta.duration_days * 86_400_000
   const elapsed = now.getTime() - startMs
   const progress = Math.min((elapsed / totalMs) * 100, 100)
 
-  const next = nextDoseTime(pauta)
+  const todaysAdmins = pauta.todays_administrations ?? []
+  const lastAdmin = todaysAdmins.length > 0 ? todaysAdmins[todaysAdmins.length - 1] : null
 
   return (
     <div className={`pauta-card${pauta.status === 'finished' ? ' pauta-card--finalizada' : ''}`}>
@@ -90,7 +88,7 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
             {childName} · cada {pauta.interval_hours}h · {pauta.duration_days} días
           </span>
         </div>
-        <span className={`pauta-card__status pauta-card__status--${pauta.status}`}>
+        <span className={`pauta-card__status pauta-card__status--${pauta.status === 'active' ? 'activa' : 'finalizada'}`}>
           {pauta.status === 'active' ? 'Activa' : 'Finalizada'}
         </span>
         <ChevronDown open={open} />
@@ -108,15 +106,62 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
             </div>
           </div>
 
-          {/* Next dose */}
-          {pauta.status === 'active' && next && (
+          {/* Tomas del día */}
+          {pauta.status === 'active' && (
             <div className="pauta-tomas">
-              <span className="pauta-tomas__title">Próxima toma</span>
+              <span className="pauta-tomas__title">Tomas de hoy</span>
+
+              {todaysAdmins.map((a) => (
+                <div className="pauta-toma" key={a.id}>
+                  <span className="pauta-toma__time ds-nums">
+                    {formatTime(a.administered_at)}
+                  </span>
+                  <span className="pauta-toma__label">
+                    Dada{a.member_name ? ` por ${a.member_name}` : ''}
+                  </span>
+                  <span className="pauta-toma__status pauta-toma__status--dada">
+                    <CheckSmall /> Dada
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--xs"
+                    aria-label="Deshacer toma"
+                    onClick={() => deleteAdmin.mutate({ pautaId: pauta.id, adminId: a.id })}
+                  >
+                    Deshacer
+                  </button>
+                </div>
+              ))}
+
+              {/* Próxima toma */}
+              {pauta.next_dose_at && (
+                <div className="pauta-toma">
+                  <span className="pauta-toma__time ds-nums">
+                    {formatTime(pauta.next_dose_at)}
+                  </span>
+                  <span className="pauta-toma__label">Siguiente toma</span>
+                  <span className="pauta-toma__status pauta-toma__status--proxima">
+                    <ClockSmall /> Próxima
+                  </span>
+                </div>
+              )}
+
+              {todaysAdmins.length === 0 && !pauta.next_dose_at && (
+                <p className="pauta-toma__label">Sin tomas registradas hoy</p>
+              )}
+            </div>
+          )}
+
+          {/* Última toma */}
+          {lastAdmin && (
+            <div className="pauta-tomas">
+              <span className="pauta-tomas__title">Última toma</span>
               <div className="pauta-toma">
-                <span className="pauta-toma__time ds-nums">{formatTime(next)}</span>
-                <span className="pauta-toma__label">Próxima toma</span>
-                <span className="pauta-toma__status pauta-toma__status--proxima">
-                  <ClockSmall /> Próxima
+                <span className="pauta-toma__time ds-nums">
+                  {formatTime(lastAdmin.administered_at)}
+                </span>
+                <span className="pauta-toma__label">
+                  {lastAdmin.member_name ?? 'Miembro'}
                 </span>
               </div>
             </div>
@@ -144,6 +189,14 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
             <div className="pauta-body__actions">
               <button
                 type="button"
+                className="btn btn--primary btn--sm"
+                onClick={() => createAdmin.mutate(pauta.id)}
+                disabled={createAdmin.isPending}
+              >
+                Marcar toma
+              </button>
+              <button
+                type="button"
                 className="btn btn--secondary btn--sm"
                 onClick={() => finishMutation.mutate(pauta.id)}
                 disabled={finishMutation.isPending}
@@ -169,9 +222,9 @@ export function PautasPage() {
 
   const sorted = [...pautas].sort((a, b) => {
     if (a.status !== b.status) return a.status === 'active' ? -1 : 1
-    const nextA = nextDoseTime(a)
-    const nextB = nextDoseTime(b)
-    if (nextA && nextB) return nextA.getTime() - nextB.getTime()
+    if (a.next_dose_at && b.next_dose_at) {
+      return new Date(a.next_dose_at).getTime() - new Date(b.next_dose_at).getTime()
+    }
     return 0
   })
 
