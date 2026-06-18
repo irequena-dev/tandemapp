@@ -213,6 +213,22 @@
   color: var(--ds-danger);
 }
 
+/* Undo button (bought row) */
+.compra-item__undo {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--ds-r-sm);
+  transition: color var(--ds-dur-fast) var(--ds-ease);
+}
+.compra-item__undo:hover {
+  color: var(--ds-primary);
+}
+
 /* ---------- Bought section (collapsed) ---------- */
 .compra__bought-toggle {
   display: flex;
