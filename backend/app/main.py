@@ -14,6 +14,7 @@ from .api import (
     measurements,
     members,
     pautas,
+    series,
     shopping_items,
     sizes,
     today,
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(invitations.router)
     app.include_router(event_types.router)
     app.include_router(events.router)
+    app.include_router(series.router)
     app.include_router(mcp_tokens.router)
     app.include_router(pautas.router)
     app.include_router(administrations.router)

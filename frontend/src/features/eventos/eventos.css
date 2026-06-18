@@ -343,3 +343,50 @@
   gap: var(--ds-s-sm);
   justify-content: flex-end;
 }
+
+/* ---------- Series recurrentes ---------- */
+
+.evento-form--serie {
+  border-top: 2px solid var(--ds-primary);
+}
+
+.evento-form__preview {
+  list-style: none;
+  margin: 0;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  background: var(--ds-surface-muted, var(--ds-surface));
+  border: 1px dashed var(--ds-border);
+  border-radius: var(--ds-r-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs) var(--ds-s-sm);
+  max-height: 9.5rem;
+  overflow-y: auto;
+}
+
+.evento-form__preview li {
+  font-size: 0.8125rem;
+  color: var(--ds-ink-soft, var(--ds-ink));
+  white-space: nowrap;
+}
+
+.evento-form__preview-more {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.evento-item__serie-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: var(--ds-s-xs);
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--ds-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.evento-item__serie-link:hover {
+  opacity: 0.8;
+}

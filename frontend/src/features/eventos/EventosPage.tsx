@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
+import { useCreateSeries, useDeleteSeriesFuture } from './series-api'
 import { EventTypesManager } from './EventTypesManager'
+import { SeriesForm } from './SeriesForm'
 import type { EventOut, EventTypeOut } from './types'
 import './eventos.css'
 
@@ -163,6 +165,7 @@ export function EventosPage() {
   const [childFilter, setChildFilter] = useState<string | null>(null)
   const [showTypes, setShowTypes] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
+  const [showSeries, setShowSeries] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: eventTypes } = useEventTypes()
@@ -173,6 +176,8 @@ export function EventosPage() {
   const deleteMut = useDeleteEvent()
   const doneMut = useDoneEvent()
   const undoMut = useUndoEvent()
+  const createSeriesMut = useCreateSeries()
+  const deleteSeriesFutureMut = useDeleteSeriesFuture()
 
   const types = eventTypes ?? []
   const kids = childrenData ?? []
@@ -209,8 +214,19 @@ export function EventosPage() {
           </button>
           <button
             type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => {
+              setShowSeries((v) => !v)
+              setShowCreate(false)
+              setEditingId(null)
+            }}
+          >
+            {showSeries ? 'Cerrar Serie' : 'Crear Serie'}
+          </button>
+          <button
+            type="button"
             className="btn btn--primary btn--sm"
-            onClick={() => { setShowCreate((v) => !v); setEditingId(null) }}
+            onClick={() => { setShowCreate((v) => !v); setEditingId(null); setShowSeries(false) }}
           >
             {showCreate ? 'Cancelar' : 'Crear Evento'}
           </button>
@@ -218,6 +234,18 @@ export function EventosPage() {
       </div>
 
       {showTypes && <EventTypesManager />}
+
+      {showSeries && (
+        <SeriesForm
+          types={types}
+          children={kids}
+          onSubmit={(data) => {
+            createSeriesMut.mutate(data)
+            setShowSeries(false)
+          }}
+          onCancel={() => setShowSeries(false)}
+        />
+      )}
 
       {showCreate && (
         <EventForm
@@ -299,6 +327,17 @@ export function EventosPage() {
                   {ev.event_type && ` · ${ev.event_type.name}`}
                   {ev.child && ` · ${ev.child.name}`}
                 </span>
+                {ev.series_id && (
+                  <button
+                    type="button"
+                    className="evento-item__serie-link"
+                    aria-label={`Borrar futuras de ${ev.title}`}
+                    title="Borrar ocurrencias futuras de esta serie"
+                    onClick={() => deleteSeriesFutureMut.mutate(ev.series_id!)}
+                  >
+                    Borrar futuras
+                  </button>
+                )}
               </div>
               <div className="evento-item__actions">
                 {statusVisual(ev)}

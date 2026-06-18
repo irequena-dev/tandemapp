@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 import sqlalchemy as sa
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, SQLModel
 
@@ -241,6 +241,75 @@ class EventOut(SQLModel):
     series_id: uuid.UUID | None
     created_by: str
     created_at: datetime
+
+
+# ---------- Series recurrentes (Fase 4) ----------
+
+SeriesCadence = Literal["weekly", "biweekly", "monthly"]
+
+
+class Series(SQLModel, table=True):
+    """Serie recurrente acotada: solo generador (ADR-0003).
+
+    Al crearse materializa todas sus ocurrencias como Eventos independientes (cada
+    uno con su `series_id`); la propia Serie NO guarda title/event_type_id/child_id/
+    time — esos datos viven en cada Evento materializado. Acotada: `ends_at` o
+    `max_count` (uno obligatorio). Recalendarizar = borrar futuras + nueva Serie.
+    """
+
+    __tablename__ = "series"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    cadence: str
+    day_of_week: int | None = None
+    starts_at: date
+    ends_at: date | None = None
+    max_count: int | None = None
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class SeriesCreate(SQLModel):
+    """Cuerpo del alta de una Serie (sin family_id/created_by: servidor).
+
+    `day_of_week` (0=lun…6=dom) es obligatorio para weekly/biweekly. La Serie debe
+    estar acotada: `ends_at` o `max_count` (uno obligatorio).
+    """
+
+    title: str
+    event_type_id: uuid.UUID
+    child_id: uuid.UUID | None = None
+    time: dt_time | None = None
+    cadence: SeriesCadence
+    day_of_week: int | None = None
+    starts_at: date
+    ends_at: date | None = None
+    max_count: int | None = None
+
+    @model_validator(mode="after")
+    def _validate_bounded_and_anchor(self) -> "SeriesCreate":
+        if self.ends_at is None and self.max_count is None:
+            raise ValueError("Se requiere ends_at o max_count (Serie acotada)")
+        if self.cadence in ("weekly", "biweekly") and self.day_of_week is None:
+            raise ValueError("day_of_week es obligatorio para weekly/biweekly")
+        if self.day_of_week is not None and not 0 <= self.day_of_week <= 6:
+            raise ValueError("day_of_week debe estar entre 0 y 6")
+        if self.max_count is not None and self.max_count < 1:
+            raise ValueError("max_count debe ser >= 1")
+        return self
+
+
+class SeriesCreatedOut(SQLModel):
+    """Respuesta del alta de una Serie: su id y cuántas ocurrencias creó."""
+
+    id: uuid.UUID
+    events_created: int
 
 
 class ShoppingItem(SQLModel, table=True):

@@ -63,3 +63,27 @@ export type EventUpdate = {
   event_type_id?: string
   child_id?: string | null
 }
+
+/* ---------- Series recurrentes ---------- */
+
+/** Cadencia de una Serie recurrente acotada. */
+export type SeriesCadence = 'weekly' | 'biweekly' | 'monthly'
+
+/** Cuerpo del alta de una Serie (generador materializado en Eventos). */
+export type SeriesCreate = {
+  title: string
+  event_type_id: string
+  child_id?: string | null
+  time?: string | null
+  cadence: SeriesCadence
+  day_of_week?: number | null // 0=lun…6=dom; requerido si weekly/biweekly
+  starts_at: string // YYYY-MM-DD
+  ends_at?: string | null // uno de ends_at o max_count es obligatorio
+  max_count?: number | null
+}
+
+/** Respuesta del alta de una Serie: su id y cuántas ocurrencias creó. */
+export type SeriesCreatedOut = {
+  id: string
+  events_created: number
+}
