@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { Link } from 'react-router'
-import { useToday } from './api'
+import { useMarkDose, useToday, useUndoDose } from './api'
 import type { HeroItem, TimelineEntry, TodaySummary } from './types'
 import './hoy.css'
 
@@ -21,15 +22,51 @@ function HeroCalm() {
 }
 
 function HeroUrgent({ hero }: { hero: HeroItem }) {
+  const markDose = useMarkDose()
+  const undoDose = useUndoDose()
+  const [lastAdminId, setLastAdminId] = useState<string | null>(null)
+
+  const handleAction = () => {
+    if (hero.type === 'pauta_dose' && hero.pauta_id) {
+      markDose.mutate(hero.pauta_id, {
+        onSuccess: (admin) => setLastAdminId(admin.id),
+      })
+    }
+  }
+
+  const handleUndo = () => {
+    if (hero.pauta_id && lastAdminId) {
+      undoDose.mutate(
+        { pautaId: hero.pauta_id, adminId: lastAdminId },
+        { onSuccess: () => setLastAdminId(null) },
+      )
+    }
+  }
+
   return (
     <section className="hoy-hero hoy-hero--urgent" aria-label="Ahora">
       <span className="hoy-hero__eyebrow">Ahora</span>
       <h2 className="hoy-hero__heading">{hero.title}</h2>
       <p className="hoy-hero__context">{hero.subtitle}</p>
       <div className="hoy-hero__actions">
-        <button type="button" className="btn btn--primary btn--sm">
+        <button
+          type="button"
+          className="btn btn--primary btn--sm"
+          onClick={handleAction}
+          disabled={markDose.isPending}
+        >
           {hero.action_label}
         </button>
+        {hero.type === 'pauta_dose' && lastAdminId && (
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={handleUndo}
+            disabled={undoDose.isPending}
+          >
+            Deshacer
+          </button>
+        )}
       </div>
     </section>
   )

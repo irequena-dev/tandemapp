@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
@@ -13,6 +13,9 @@ vi.mock('@clerk/react', () => ({
 }))
 
 const API = 'http://localhost:8000/api/today'
+const ADMIN_POST = 'http://localhost:8000/pautas/:id/administrations'
+const ADMIN_DELETE =
+  'http://localhost:8000/pautas/:id/administrations/:adminId'
 
 function makeWrapper() {
   const qc = new QueryClient({
@@ -142,5 +145,109 @@ describe('HoyPage — tarjeta Compra', () => {
     )
     const link = screen.getByText('Compra').closest('a')
     expect(link?.getAttribute('href')).toBe('/compra')
+  })
+})
+
+/* ---------- Aporte Fase 3: héroe dosis + timeline ---------- */
+
+const HERO_PAUTA: TodayOut = {
+  hero: {
+    type: 'pauta_dose',
+    title: 'Amoxicilina · 5 ml',
+    subtitle: 'Mateo · Día 1 de 7',
+    action_label: 'Marcar toma',
+    pauta_id: 'pauta-1',
+  },
+  timeline: [],
+  summary: {
+    shopping_pending_count: 0,
+    pautas_active_count: 1,
+    pautas_finished_count: 0,
+    next_medical_event: null,
+    children_status: 'up_to_date',
+  },
+}
+
+describe('HoyPage — héroe dosis (Marcar toma + Deshacer)', () => {
+  it('muestra el título, subtítulo y acción del héroe de toma', async () => {
+    server.use(http.get(API, () => HttpResponse.json(HERO_PAUTA)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('Amoxicilina · 5 ml')).toBeTruthy())
+    expect(screen.getByText('Mateo · Día 1 de 7')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Marcar toma' })).toBeTruthy()
+  })
+
+  it('al pulsar "Marcar toma" registra la Administración y ofrece "Deshacer"', async () => {
+    const markSpy = vi.fn()
+    const undoSpy = vi.fn()
+    server.use(
+      http.get(API, () => HttpResponse.json(HERO_PAUTA)),
+      http.post(ADMIN_POST, () => {
+        markSpy()
+        return HttpResponse.json({ id: 'admin-1' }, { status: 201 })
+      }),
+      http.delete(ADMIN_DELETE, () => {
+        undoSpy()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Marcar toma' })).toBeTruthy(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar toma' }))
+
+    await waitFor(() => expect(markSpy).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Deshacer' })).toBeTruthy(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+    await waitFor(() => expect(undoSpy).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('HoyPage — timeline de tomas', () => {
+  it('rendera las entradas del timeline (dada y próxima) con su hora', async () => {
+    const response: TodayOut = {
+      hero: null,
+      timeline: [
+        {
+          type: 'dose_given',
+          time: '08:30',
+          title: 'Amoxicilina · 5 ml',
+          subtitle: 'Dada por Ana',
+          status: 'done',
+          pauta_id: 'p1',
+          administration_id: 'a1',
+        },
+        {
+          type: 'dose_upcoming',
+          time: '16:30',
+          title: 'Amoxicilina · 5 ml',
+          subtitle: 'Mateo',
+          status: 'upcoming',
+          pauta_id: 'p1',
+        },
+      ],
+      summary: {
+        shopping_pending_count: 0,
+        pautas_active_count: 1,
+        pautas_finished_count: 0,
+        next_medical_event: null,
+        children_status: 'up_to_date',
+      },
+    }
+    server.use(http.get(API, () => HttpResponse.json(response)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('08:30')).toBeTruthy())
+    expect(screen.getByText('16:30')).toBeTruthy()
+    expect(screen.getAllByText('Amoxicilina · 5 ml')).toHaveLength(2)
   })
 })
