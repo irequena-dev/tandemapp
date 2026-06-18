@@ -116,7 +116,21 @@ function ItemRow({
         <span className="compra-item__text">{item.text}</span>
       )}
 
+      {isBought && item.bought_by && (
+        <span className="compra-item__meta">{item.bought_by}</span>
+      )}
+
       <div className="compra-item__actions">
+        {isBought && (
+          <button
+            type="button"
+            className="compra-item__undo"
+            onClick={onToggle}
+            aria-label={`Deshacer compra de ${item.text}`}
+          >
+            Deshacer
+          </button>
+        )}
         {!editing && (
           <button
             type="button"

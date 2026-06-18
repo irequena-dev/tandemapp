@@ -157,8 +157,6 @@ async def list_pautas(
 ) -> list[PautaOut]:
     """Lista las Pautas de la Familia, con filtros opcionales por status/child_id."""
     stmt = select(Pauta)
-    if status_filter:
-        stmt = stmt.where(Pauta.status == status_filter)
     if child_id:
         stmt = stmt.where(Pauta.child_id == child_id)
     stmt = stmt.order_by(Pauta.started_at.desc())
@@ -168,6 +166,10 @@ async def list_pautas(
     out: list[PautaOut] = []
     for p in pautas:
         p = await _lazy_finish(p, session)
+        # El filtrado por status se aplica tras _lazy_finish: una Pauta caducada
+        # se marca finished aquí mismo, así ?status=active no la devuelve como activa.
+        if status_filter and p.status != status_filter:
+            continue
         out.append(await _to_out(p, session))
     return out
 

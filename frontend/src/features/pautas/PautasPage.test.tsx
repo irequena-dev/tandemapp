@@ -89,6 +89,21 @@ describe('PautasPage (costura de ruta/página)', () => {
     })
   })
 
+  it('Pauta auto-finalizada (status=finished, next_dose_at=null) muestra recesado sin próxima toma', async () => {
+    const autoFinished: Pauta = {
+      ...samplePauta,
+      id: 'pauta-auto-fin',
+      status: 'finished',
+      next_dose_at: null,
+    }
+    renderPage([autoFinished])
+    await waitFor(() => {
+      expect(screen.queryByText('Finalizada')).not.toBeNull()
+    })
+    // No debe mostrar "Próxima toma" en el header
+    expect(screen.queryByText('Próxima toma')).toBeNull()
+  })
+
   it('muestra tomas del día con "Dada por" y botón "Marcar toma"', async () => {
     const admin: Administration = {
       id: 'admin-1',

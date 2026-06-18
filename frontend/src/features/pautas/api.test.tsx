@@ -49,6 +49,7 @@ const finishedPauta: Pauta = {
   id: 'pauta-2',
   medication: 'Ibuprofeno',
   status: 'finished',
+  next_dose_at: null,
 }
 
 describe('usePautas', () => {
