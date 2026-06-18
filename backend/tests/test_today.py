@@ -65,6 +65,38 @@ async def _backdate_pauta(pauta_id: str, days_ago: int = 2) -> None:
     await engine.dispose()
 
 
+async def _get_event_type_id(client: AsyncClient, name: str = "Médico") -> str:
+    """Devuelve el id del tipo base (sistema) con el nombre dado."""
+    resp = await client.get("/event-types")
+    assert resp.status_code == 200
+    matches = [t for t in resp.json() if t["is_system"] and t["name"] == name]
+    assert len(matches) > 0
+    return matches[0]["id"]
+
+
+async def _create_event(
+    client: AsyncClient,
+    *,
+    type_id: str,
+    date_iso: str,
+    title: str = "Control pediatra",
+    time: str | None = None,
+    child_id: str | None = None,
+) -> dict:
+    payload: dict = {
+        "title": title,
+        "date": date_iso,
+        "event_type_id": type_id,
+    }
+    if time is not None:
+        payload["time"] = time
+    if child_id is not None:
+        payload["child_id"] = child_id
+    resp = await client.post("/events", json=payload)
+    assert resp.status_code == 201
+    return resp.json()
+
+
 async def test_today_calm_state(auth_client: AsyncClient, identity: dict) -> None:
     """Sin datos de dominio, el endpoint devuelve la forma vacía / calmada."""
     _as(identity, "org_today", "user_today_1")
@@ -340,3 +372,182 @@ async def test_today_hero_imminent_dose(
     assert hero["type"] == "pauta_dose"
     assert hero["pauta_id"] == pauta["id"]
     assert hero["subtitle"] == "Mateo · Día 1 de 2"
+
+
+# ---------- Aporte Fase 4: timeline de Eventos de hoy ---------- #
+
+
+async def test_today_timeline_includes_todays_event(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """El timeline incluye los Eventos de hoy (type=event)."""
+    _as(identity, "org_today_evtl", "user_today_evtl")
+    type_id = await _get_event_type_id(auth_client, "Cole")
+    today = datetime.now(UTC).date().isoformat()
+
+    await _create_event(
+        auth_client,
+        type_id=type_id,
+        date_iso=today,
+        title="Cole",
+        time="09:00:00",
+    )
+
+    resp = await auth_client.get("/api/today")
+    timeline = resp.json()["timeline"]
+    entries = [e for e in timeline if e["type"] == "event"]
+    assert len(entries) == 1
+    ev = entries[0]
+    assert ev["title"] == "Cole"
+    assert ev["time"] == "09:00"
+    assert ev["status"] == "pending"
+    assert ev["event_id"]
+
+
+# ---------- Aporte Fase 4: próxima cita médica ---------- #
+
+
+async def test_today_next_medical_event(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """summary.next_medical_event es el próximo Evento de tipo Médico."""
+    _as(identity, "org_today_nme", "user_today_nme")
+    med_id = await _get_event_type_id(auth_client, "Médico")
+    future = (datetime.now(UTC).date() + timedelta(days=5)).isoformat()
+
+    created = await _create_event(
+        auth_client, type_id=med_id, date_iso=future, title="Vacuna", time="11:30:00"
+    )
+
+    resp = await auth_client.get("/api/today")
+    nme = resp.json()["summary"]["next_medical_event"]
+    assert nme is not None
+    assert nme["id"] == created["id"]
+    assert nme["title"] == "Vacuna"
+    assert nme["event_type"]["name"] == "Médico"
+
+
+async def test_today_next_medical_event_null_when_none(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Sin Eventos Médicos futuros, next_medical_event es null."""
+    _as(identity, "org_today_nmenull", "user_today_nmenull")
+    # Un Evento no médico no cuenta.
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    future = (datetime.now(UTC).date() + timedelta(days=3)).isoformat()
+    await _create_event(auth_client, type_id=cole_id, date_iso=future, title="Cole")
+
+    resp = await auth_client.get("/api/today")
+    assert resp.json()["summary"]["next_medical_event"] is None
+
+
+# ---------- Aporte Fase 4: héroe evento (fallback sin toma) ---------- #
+
+
+async def test_today_event_hero_when_no_dose(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Sin toma pendiente, el Evento más inminente de hoy ocupa el héroe."""
+    _as(identity, "org_today_evhero", "user_today_evhero")
+    child_id = await _create_child(auth_client, "Lucía")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    today = datetime.now(UTC).date().isoformat()
+
+    created = await _create_event(
+        auth_client,
+        type_id=cole_id,
+        date_iso=today,
+        title="Cole",
+        time="09:00:00",
+        child_id=child_id,
+    )
+
+    hero = (await auth_client.get("/api/today")).json()["hero"]
+    assert hero is not None
+    assert hero["type"] == "event"
+    assert hero["title"] == "Cole"
+    assert hero["action_label"] == "Marcar hecho"
+    assert hero["event_id"] == created["id"]
+    assert "Lucía" in hero["subtitle"]
+
+
+async def test_today_dose_hero_takes_priority_over_event(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Con una toma vencida Y un Evento de hoy, el héroe es la toma (prioridad)."""
+    _as(identity, "org_today_dprio", "user_today_dprio")
+    child_id = await _create_child(auth_client)
+    # Pauta con toma vencida.
+    pauta = await _create_pauta(auth_client, child_id)
+    past = (datetime.now(UTC) - timedelta(hours=9)).isoformat()
+    await auth_client.post(
+        f"/pautas/{pauta['id']}/administrations", json={"administered_at": past}
+    )
+    # Evento de hoy.
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    await _create_event(
+        auth_client,
+        type_id=cole_id,
+        date_iso=datetime.now(UTC).date().isoformat(),
+        title="Cole",
+        time="09:00:00",
+    )
+
+    hero = (await auth_client.get("/api/today")).json()["hero"]
+    assert hero is not None
+    assert hero["type"] == "pauta_dose"
+
+
+# ---------- Aporte Fase 4: zona horaria del dispositivo ---------- #
+
+
+async def test_today_grouping_uses_device_timezone(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """El param `tz` define qué es "hoy": un Evento aparece solo en su fecha local."""
+    from zoneinfo import ZoneInfo
+
+    _as(identity, "org_today_tz", "user_today_tz")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+
+    # UTC+14 y UTC-12 nunca comparten fecha calendario → determinista siempre.
+    ahead = ZoneInfo("Pacific/Kiritimati")  # UTC+14
+    behind = ZoneInfo("Etc/GMT+12")  # UTC-12 (zonas Etc están invertidas)
+    today_ahead = datetime.now(ahead).date()
+    today_behind = datetime.now(behind).date()
+    assert today_ahead != today_behind  # sanity del test
+
+    await _create_event(
+        auth_client, type_id=cole_id, date_iso=today_ahead.isoformat(), title="Cole"
+    )
+
+    resp_ahead = await auth_client.get("/api/today?tz=Pacific/Kiritimati")
+    ahead_entries = [e for e in resp_ahead.json()["timeline"] if e["type"] == "event"]
+    assert len(ahead_entries) == 1  # es "hoy" en la zona adelantada
+
+    resp_behind = await auth_client.get("/api/today?tz=Etc/GMT+12")
+    behind_entries = [e for e in resp_behind.json()["timeline"] if e["type"] == "event"]
+    assert behind_entries == []  # no es "hoy" en la zona atrasada
+
+
+# ---------- Aporte Fase 4: timeline cronológico (Eventos) ---------- #
+
+
+async def test_today_timeline_events_ordered_chronologically(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Varios Eventos de hoy se ordenan cronológicamente por hora."""
+    _as(identity, "org_today_evord", "user_today_evord")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    today = datetime.now(UTC).date().isoformat()
+
+    await _create_event(
+        auth_client, type_id=cole_id, date_iso=today, title="Cena", time="20:00:00"
+    )
+    await _create_event(
+        auth_client, type_id=cole_id, date_iso=today, title="Cole", time="09:00:00"
+    )
+
+    timeline = (await auth_client.get("/api/today")).json()["timeline"]
+    events = [e for e in timeline if e["type"] == "event"]
+    assert [e["title"] for e in events] == ["Cole", "Cena"]

@@ -251,3 +251,103 @@ describe('HoyPage — timeline de tomas', () => {
     expect(screen.getAllByText('Amoxicilina · 5 ml')).toHaveLength(2)
   })
 })
+
+/* ---------- Aporte Fase 4: héroe evento + próxima cita ---------- */
+
+const EVENT_DONE = 'http://localhost:8000/events/:id/done'
+const EVENT_UNDO = 'http://localhost:8000/events/:id/undo'
+
+const HERO_EVENT: TodayOut = {
+  hero: {
+    type: 'event',
+    title: 'Cole',
+    subtitle: '09:00 · Lucía',
+    action_label: 'Marcar hecho',
+    event_id: 'ev-1',
+  },
+  timeline: [],
+  summary: {
+    shopping_pending_count: 0,
+    pautas_active_count: 0,
+    pautas_finished_count: 0,
+    next_medical_event: null,
+    children_status: 'up_to_date',
+  },
+}
+
+describe('HoyPage — héroe evento (Marcar hecho + Deshacer)', () => {
+  it('muestra el héroe de Evento y permite marcar hecho y deshacer', async () => {
+    const doneSpy = vi.fn()
+    const undoSpy = vi.fn()
+    server.use(
+      http.get(API, () => HttpResponse.json(HERO_EVENT)),
+      http.post(EVENT_DONE, () => {
+        doneSpy()
+        return HttpResponse.json({})
+      }),
+      http.post(EVENT_UNDO, () => {
+        undoSpy()
+        return HttpResponse.json({})
+      }),
+    )
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('Cole')).toBeTruthy())
+    expect(screen.getByText('09:00 · Lucía')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Marcar hecho' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar hecho' }))
+    await waitFor(() => expect(doneSpy).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Deshacer' })).toBeTruthy(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+    await waitFor(() => expect(undoSpy).toHaveBeenCalledTimes(1))
+  })
+})
+
+describe('HoyPage — tarjeta Próxima cita', () => {
+  it('muestra el Evento médico próximo y enlaza a /eventos', async () => {
+    const response: TodayOut = {
+      hero: null,
+      timeline: [],
+      summary: {
+        shopping_pending_count: 0,
+        pautas_active_count: 0,
+        pautas_finished_count: 0,
+        next_medical_event: {
+          id: 'ev-med',
+          family_id: 'fam',
+          title: 'Vacuna',
+          date: '2030-07-01',
+          time: '11:30:00',
+          event_type_id: 't-med',
+          event_type: {
+            id: 't-med',
+            family_id: null,
+            name: 'Médico',
+            icon: 'stethoscope',
+            is_system: true,
+          },
+          child_id: null,
+          child: null,
+          status: 'pending',
+          is_overdue: false,
+          series_id: null,
+          created_by: 'm1',
+          created_at: '2026-06-17T10:00:00Z',
+        },
+        children_status: 'up_to_date',
+      },
+    }
+    server.use(http.get(API, () => HttpResponse.json(response)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('Vacuna')).toBeTruthy())
+    const link = screen.getByText('Próxima cita').closest('a')
+    expect(link?.getAttribute('href')).toBe('/eventos')
+  })
+})

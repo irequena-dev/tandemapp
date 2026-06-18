@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { useMarkDose, useToday, useUndoDose } from './api'
+import { useMarkDose, useMarkEventDone, useToday, useUndoDose, useUndoEvent } from './api'
 import type { HeroItem, TimelineEntry, TodaySummary } from './types'
 import './hoy.css'
 
@@ -24,24 +24,36 @@ function HeroCalm() {
 function HeroUrgent({ hero }: { hero: HeroItem }) {
   const markDose = useMarkDose()
   const undoDose = useUndoDose()
+  const markEvent = useMarkEventDone()
+  const undoEvent = useUndoEvent()
   const [lastAdminId, setLastAdminId] = useState<string | null>(null)
+  const [eventDone, setEventDone] = useState(false)
 
   const handleAction = () => {
     if (hero.type === 'pauta_dose' && hero.pauta_id) {
       markDose.mutate(hero.pauta_id, {
         onSuccess: (admin) => setLastAdminId(admin.id),
       })
+    } else if (hero.type === 'event' && hero.event_id) {
+      markEvent.mutate(hero.event_id, { onSuccess: () => setEventDone(true) })
     }
   }
 
   const handleUndo = () => {
-    if (hero.pauta_id && lastAdminId) {
+    if (hero.type === 'pauta_dose' && hero.pauta_id && lastAdminId) {
       undoDose.mutate(
         { pautaId: hero.pauta_id, adminId: lastAdminId },
         { onSuccess: () => setLastAdminId(null) },
       )
+    } else if (hero.type === 'event' && hero.event_id) {
+      undoEvent.mutate(hero.event_id, { onSuccess: () => setEventDone(false) })
     }
   }
+
+  const canUndo =
+    (hero.type === 'pauta_dose' && lastAdminId) ||
+    (hero.type === 'event' && eventDone)
+  const acting = markDose.isPending || markEvent.isPending
 
   return (
     <section className="hoy-hero hoy-hero--urgent" aria-label="Ahora">
@@ -53,16 +65,16 @@ function HeroUrgent({ hero }: { hero: HeroItem }) {
           type="button"
           className="btn btn--primary btn--sm"
           onClick={handleAction}
-          disabled={markDose.isPending}
+          disabled={acting}
         >
           {hero.action_label}
         </button>
-        {hero.type === 'pauta_dose' && lastAdminId && (
+        {canUndo && (
           <button
             type="button"
             className="btn btn--secondary btn--sm"
             onClick={handleUndo}
-            disabled={undoDose.isPending}
+            disabled={undoDose.isPending || undoEvent.isPending}
           >
             Deshacer
           </button>
@@ -165,7 +177,9 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
         </span>
         <span className="hoy-card__label">Próxima cita</span>
         <span className="hoy-card__value">
-          {summary.next_medical_event ? 'Próxima cita' : 'Sin citas próximas'}
+          {summary.next_medical_event
+            ? summary.next_medical_event.title
+            : 'Sin citas próximas'}
         </span>
       </Link>
 

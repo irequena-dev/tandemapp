@@ -12,8 +12,12 @@ export function useToday() {
   const { getToken } = useAuth()
   return useQuery({
     queryKey: todayKeys.all,
-    queryFn: async () =>
-      apiFetch<TodayOut>('/api/today', { token: await getToken() }),
+    queryFn: async () => {
+      // La zona horaria del dispositivo define qué es "hoy" (timestamps en UTC).
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const qs = tz ? `?tz=${encodeURIComponent(tz)}` : ''
+      return apiFetch<TodayOut>(`/api/today${qs}`, { token: await getToken() })
+    },
   })
 }
 
@@ -44,6 +48,38 @@ export function useUndoDose() {
     mutationFn: async ({ pautaId, adminId }: { pautaId: string; adminId: string }) =>
       apiFetch<void>(`/pautas/${pautaId}/administrations/${adminId}`, {
         method: 'DELETE',
+        token: await getToken(),
+      }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: todayKeys.all })
+    },
+  })
+}
+
+/** Marca el Evento del héroe como hecho (POST done) y refresca Hoy. */
+export function useMarkEventDone() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (eventId: string) =>
+      apiFetch<unknown>(`/events/${eventId}/done`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: todayKeys.all })
+    },
+  })
+}
+
+/** Deshace el marcado del Evento del héroe (POST undo) y refresca Hoy. */
+export function useUndoEvent() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (eventId: string) =>
+      apiFetch<unknown>(`/events/${eventId}/undo`, {
+        method: 'POST',
         token: await getToken(),
       }),
     onSettled: () => {

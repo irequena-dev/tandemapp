@@ -1,5 +1,7 @@
 /** Contrato de `GET /api/today` (§6 del api-contract.md). */
 
+import type { EventOut } from '../eventos/types'
+
 export type HeroItem = {
   type: 'pauta_dose' | 'event'
   title: string
@@ -24,7 +26,7 @@ export type TodaySummary = {
   shopping_pending_count: number
   pautas_active_count: number
   pautas_finished_count: number
-  next_medical_event: null // EventOut | null — always null until Fase 4
+  next_medical_event: EventOut | null
   children_status: string
 }
 
