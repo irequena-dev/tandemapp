@@ -4,6 +4,8 @@ import { useMembers, useInvitations, useCreateInvitation, useRevokeInvitation } 
 import { useChildrenWithMetrics, useCreateChild } from '../children/api'
 import { ChildForm } from '../children/ChildForm'
 import { ChildList } from '../children/ChildList'
+import { useMcpTokens, useCreateMcpToken, useRevokeMcpToken } from '../mcp-tokens/api'
+import type { McpTokenCreated } from '../mcp-tokens/types'
 import { useTheme, type Theme } from './useTheme'
 import './ajustes.css'
 import '../children/children.css'
@@ -90,6 +92,38 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
   const [addingChild, setAddingChild] = useState(false)
   // Remontar el formulario tras un alta correcta limpia sus campos.
   const [childFormKey, setChildFormKey] = useState(0)
+
+  // Token MCP: ciclo de vida real (generar + revocar) conectado a la API.
+  const { data: tokens = [], isPending: tokensPending } = useMcpTokens()
+  const createToken = useCreateMcpToken()
+  const revokeToken = useRevokeMcpToken()
+  // El valor en claro se revela una sola vez al generar; luego solo metadata.
+  const [revealedToken, setRevealedToken] = useState<McpTokenCreated | null>(null)
+  const [tokenCopied, setTokenCopied] = useState(false)
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+
+  const handleGenerateToken = () => {
+    createToken.mutate(undefined, {
+      onSuccess: (created) => {
+        setRevealedToken(created)
+        setTokenCopied(false)
+      },
+    })
+  }
+
+  const handleCopyToken = async () => {
+    if (!revealedToken) return
+    try {
+      await navigator.clipboard.writeText(revealedToken.token)
+      setTokenCopied(true)
+    } catch {
+      setTokenCopied(false)
+    }
+  }
+
+  const handleRevokeToken = (id: string) => {
+    revokeToken.mutate(id, { onSuccess: () => setRevokingId(null) })
+  }
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -254,19 +288,98 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
             )}
           </section>
 
-          {/* Token MCP */}
+          {/* Token MCP — generar y revocar (conectado a la API) */}
           <section className="ajustes-section">
-            <h3 className="ajustes-section__title">Token MCP</h3>
-            <p className="ajustes-section__desc">
-              Conecta Claude para dictar datos por voz. Genera un token y configúralo en la app de Claude.
-            </p>
-            <div className="ajustes-token">
-              <span className="ajustes-token__value">mcp_tk_••••••••••••••••</span>
-              <div style={{ display: 'flex', gap: 'var(--ds-s-sm)' }}>
-                <button type="button" className="btn btn--primary btn--sm">Generar nuevo</button>
-                <button type="button" className="btn btn--secondary btn--sm">Revocar</button>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+              <h3 className="ajustes-section__title">Token MCP</h3>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={handleGenerateToken}
+                disabled={createToken.isPending}
+              >
+                {createToken.isPending ? 'Generando…' : 'Generar token'}
+              </button>
             </div>
+            <p className="ajustes-section__desc">
+              Conecta Claude para dictar datos por voz. El valor del token se muestra una sola vez al
+              generarlo: cópialo y guárdalo en un sitio seguro.
+            </p>
+
+            {revealedToken && (
+              <div className="ajustes-token" role="status" aria-live="polite">
+                <span className="ajustes-row__name">Tu token (se muestra una sola vez)</span>
+                <code className="ajustes-token__value">{revealedToken.token}</code>
+                <div style={{ display: 'flex', gap: 'var(--ds-s-sm)' }}>
+                  <button type="button" className="btn btn--secondary btn--sm" onClick={handleCopyToken}>
+                    {tokenCopied ? 'Copiado' : 'Copiar'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    onClick={() => setRevealedToken(null)}
+                  >
+                    Listo
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tokens.length > 0 ? (
+              <div className="ajustes-card">
+                {tokens.map((t) => {
+                  const active = t.revoked_at === null
+                  return (
+                    <div className="ajustes-row" key={t.id}>
+                      <div className="ajustes-row__text">
+                        <span className="ajustes-row__name">{active ? 'Token activo' : 'Token revocado'}</span>
+                        <span className="ajustes-row__role">Creado: {new Date(t.created_at).toLocaleString()}</span>
+                      </div>
+                      {active && (
+                        <div className="ajustes-row__actions">
+                          {revokingId === t.id ? (
+                            <div style={{ display: 'flex', gap: 'var(--ds-s-sm)', alignItems: 'center' }}>
+                              <span className="ajustes-row__role">¿Revocar?</span>
+                              <button
+                                type="button"
+                                className="btn btn--secondary btn--sm"
+                                onClick={() => handleRevokeToken(t.id)}
+                                disabled={revokeToken.isPending}
+                              >
+                                Sí
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn--secondary btn--sm"
+                                onClick={() => setRevokingId(null)}
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn--secondary btn--sm"
+                              onClick={() => setRevokingId(t.id)}
+                            >
+                              Revocar
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : tokensPending ? (
+              <p className="ajustes-section__desc" style={{ color: 'var(--ds-muted)' }}>
+                Cargando tokens…
+              </p>
+            ) : (
+              <p className="ajustes-section__desc" style={{ color: 'var(--ds-muted)' }}>
+                No tienes tokens. Genera uno para conectar Claude.
+              </p>
+            )}
           </section>
 
           {/* Apariencia */}

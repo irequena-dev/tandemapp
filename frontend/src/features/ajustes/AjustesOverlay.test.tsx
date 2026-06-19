@@ -48,8 +48,11 @@ function renderOverlay(onClose = vi.fn()) {
 beforeEach(() => {
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
-  // Default de Hijos (menor prioridad): un test puede override con el suyo.
-  server.use(http.get(`${API}/children`, () => HttpResponse.json([])))
+  // Defaults (menor prioridad): un test puede override con el suyo.
+  server.use(
+    http.get(`${API}/children`, () => HttpResponse.json([])),
+    http.get(`${API}/mcp-tokens`, () => HttpResponse.json([])),
+  )
 })
 
 describe('AjustesOverlay', () => {
@@ -253,6 +256,70 @@ describe('Hijos — gestión real (alta/editar/borrar)', () => {
     await screen.findByText('Sara')
     await user.click(screen.getByRole('button', { name: /eliminar a sara/i }))
     await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    await waitFor(() => expect(deleted).toHaveBeenCalledOnce())
+  })
+})
+
+/* ---------- Token MCP — generar y revocar ---------- */
+
+const activeToken = {
+  id: 'tok-1',
+  created_at: '2026-06-15T10:00:00Z',
+  revoked_at: null,
+}
+
+describe('Token MCP — generar y revocar', () => {
+  it('lista los tokens de la API y no muestra el valor mock mascarado', async () => {
+    server.use(http.get(`${API}/mcp-tokens`, () => HttpResponse.json([activeToken])))
+    renderOverlay()
+
+    expect(await screen.findByText('Token activo')).toBeTruthy()
+    // El placeholder estático mascarado ya no debe aparecer.
+    expect(screen.queryByText('mcp_tk_••••••••••••••••')).toBeNull()
+  })
+
+  it('genera un token y revela el valor en claro una sola vez (POST /mcp-tokens)', async () => {
+    const store: { id: string; created_at: string; revoked_at: string | null }[] = []
+    const created = vi.fn()
+    server.use(
+      http.get(`${API}/mcp-tokens`, () => HttpResponse.json(store)),
+      http.post(`${API}/mcp-tokens`, () => {
+        created()
+        store.unshift({ id: 'tok-new', created_at: '2026-06-15T10:00:00Z', revoked_at: null })
+        return HttpResponse.json(
+          { id: 'tok-new', token: 'tdm_live_SECRET_123', created_at: '2026-06-15T10:00:00Z' },
+          { status: 201 },
+        )
+      }),
+    )
+    const user = userEvent.setup()
+    renderOverlay()
+
+    await user.click(screen.getByRole('button', { name: /generar token/i }))
+
+    // El valor en claro se revela una sola vez al generar.
+    expect(await screen.findByText('tdm_live_SECRET_123')).toBeTruthy()
+    expect(created).toHaveBeenCalledOnce()
+    // La lista se reconcilia con la metadata del servidor.
+    expect(await screen.findByText('Token activo')).toBeTruthy()
+  })
+
+  it('revoca un token tras confirmar (DELETE /mcp-tokens/:id)', async () => {
+    const deleted = vi.fn()
+    server.use(
+      http.get(`${API}/mcp-tokens`, () => HttpResponse.json([activeToken])),
+      http.delete(`${API}/mcp-tokens/${activeToken.id}`, () => {
+        deleted()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderOverlay()
+
+    await screen.findByText('Token activo')
+    await user.click(screen.getByRole('button', { name: 'Revocar' }))
+    await user.click(screen.getByRole('button', { name: 'Sí' }))
 
     await waitFor(() => expect(deleted).toHaveBeenCalledOnce())
   })
