@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+// En desarrollo el backend corre en el mismo host que sirve la web (aunque sea
+// la IP de la red local), así que derivamos su host del origen actual. En prod
+// se fija con VITE_API_URL.
+const API_URL =
+  import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:8000`
 
 /** Error de una respuesta HTTP no satisfactoria, con su código de estado. */
 export class ApiError extends Error {

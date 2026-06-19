@@ -25,12 +25,19 @@ class Settings(BaseSettings):
     app_db_role: str = "tandem_app"
     app_db_password: str = "tandem_app"
 
-    # Origen del frontend, usado para CORS y como authorized party de Clerk
+    # Origen del frontend, usado para CORS y como authorized party de Clerk.
+    # Admite varios separados por comas, útil para probar en red local además
+    # de localhost (p. ej. http://localhost:5173,http://192.168.0.59:5173).
     frontend_origin: str = "http://localhost:5173"
 
     @property
+    def frontend_origins(self) -> list[str]:
+        """Lista de orígenes admitidos (CORS / Clerk authorized parties)."""
+        return [o.strip() for o in self.frontend_origin.split(",") if o.strip()]
+
+    @property
     def authorized_parties(self) -> list[str]:
-        return [self.frontend_origin]
+        return self.frontend_origins
 
     @property
     def app_database_url(self) -> str:
