@@ -117,6 +117,10 @@
   overflow: hidden;
 }
 
+.ajustes-card--form {
+  padding: var(--ds-s-lg);
+}
+
 /* Row items inside cards */
 .ajustes-row {
   display: flex;
@@ -204,7 +208,7 @@
   width: 100%;
   min-height: 48px;
   padding: 12px 14px;
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
   color: var(--ds-ink);

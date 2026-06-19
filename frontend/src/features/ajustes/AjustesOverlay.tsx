@@ -6,6 +6,7 @@ import { ChildForm } from '../children/ChildForm'
 import { ChildList } from '../children/ChildList'
 import { useMcpTokens, useCreateMcpToken, useRevokeMcpToken } from '../mcp-tokens/api'
 import type { McpTokenCreated } from '../mcp-tokens/types'
+import { copyToClipboard } from '../../lib/clipboard'
 import { useTheme, type Theme } from './useTheme'
 import './ajustes.css'
 import '../children/children.css'
@@ -113,12 +114,8 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
 
   const handleCopyToken = async () => {
     if (!revealedToken) return
-    try {
-      await navigator.clipboard.writeText(revealedToken.token)
-      setTokenCopied(true)
-    } catch {
-      setTokenCopied(false)
-    }
+    const ok = await copyToClipboard(revealedToken.token)
+    setTokenCopied(ok)
   }
 
   const handleRevokeToken = (id: string) => {
@@ -256,7 +253,7 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
             </p>
 
             {addingChild && (
-              <div className="ajustes-card" style={{ marginBottom: 'var(--ds-s-sm)' }}>
+              <div className="ajustes-card ajustes-card--form" style={{ marginBottom: 'var(--ds-s-sm)' }}>
                 <ChildForm
                   key={childFormKey}
                   submitLabel="Añadir"

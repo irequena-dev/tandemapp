@@ -101,11 +101,12 @@
 }
 
 .btn--secondary {
-  background: var(--ds-surface-2);
+  background: var(--ds-surface);
   color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
 }
 .btn--secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ds-surface-2), var(--ds-ink) 6%);
+  background: var(--ds-surface-2);
 }
 
 /* Light: white on dark-red (5.3:1). Dark: the danger token lightens, so the
@@ -210,7 +211,7 @@
   width: 100%;
   min-height: 48px;
   padding: 0 var(--ds-s-md);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);

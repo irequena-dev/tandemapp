@@ -46,7 +46,7 @@
   padding: 0 var(--ds-s-md);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-pill);
-  background: transparent;
+  background: var(--ds-surface);
   color: var(--ds-muted);
   font-family: inherit;
   font-size: 0.8125rem;
@@ -274,7 +274,7 @@
   padding: var(--ds-s-sm) var(--ds-s-md);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   font-family: inherit;
   font-size: 0.9375rem;

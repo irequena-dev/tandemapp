@@ -490,8 +490,9 @@
 }
 
 .visita-form__btn--secondary {
-  background: var(--ds-surface-2);
+  background: var(--ds-surface);
   color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
 }
 
 /* Visita date filter */
@@ -515,7 +516,7 @@
   padding: 6px 10px;
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-sm);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   font-size: 0.8125rem;
   min-height: 36px;
@@ -670,7 +671,7 @@
 .measurement-form__input {
   padding: var(--ds-s-sm) var(--ds-s-md);
   font-size: 0.9375rem;
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
   color: var(--ds-ink);
@@ -714,11 +715,12 @@
 }
 
 .measurement-form__btn--secondary {
-  background: var(--ds-surface-2);
+  background: var(--ds-surface);
   color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
 }
 .measurement-form__btn--secondary:hover {
-  background: var(--ds-border);
+  background: var(--ds-surface-2);
 }
 
 /* ---------- Growth row actions ---------- */

@@ -36,7 +36,7 @@
   flex: 1;
   min-height: 48px;
   padding: 0 var(--ds-s-md);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
@@ -157,6 +157,7 @@
   color: var(--ds-muted);
   flex: none;
   white-space: nowrap;
+  align-self: center;
 }
 
 /* Inline edit input */
@@ -166,7 +167,7 @@
   font-size: 0.9375rem;
   line-height: 1.4;
   color: var(--ds-ink);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   border: 1px solid var(--ds-primary);
   border-radius: var(--ds-r-sm);
   padding: 2px var(--ds-s-sm);
@@ -177,7 +178,7 @@
 /* Row action buttons */
 .compra-item__actions {
   display: flex;
-  gap: 2px;
+  gap: var(--ds-s-sm);
   flex: none;
   opacity: 0;
   transition: opacity var(--ds-dur-fast) var(--ds-ease);

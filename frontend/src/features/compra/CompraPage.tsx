@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   useShoppingItems,
   useCreateShoppingItem,
@@ -8,6 +8,7 @@ import {
   useBuyShoppingItem,
   useUndoShoppingItem,
 } from './api'
+import { useMembers } from '../members/api'
 import type { ShoppingItem } from './types'
 import './compra.css'
 
@@ -59,11 +60,13 @@ function PencilIcon() {
 
 function ItemRow({
   item,
+  boughtByName,
   onToggle,
   onEdit,
   onDelete,
 }: {
   item: ShoppingItem
+  boughtByName?: string
   onToggle: () => void
   onEdit: (text: string) => void
   onDelete: () => void
@@ -116,11 +119,10 @@ function ItemRow({
         <span className="compra-item__text">{item.text}</span>
       )}
 
-      {isBought && item.bought_by && (
-        <span className="compra-item__meta">{item.bought_by}</span>
-      )}
-
       <div className="compra-item__actions">
+        {isBought && boughtByName && (
+          <span className="compra-item__meta">{boughtByName}</span>
+        )}
         {isBought && (
           <button
             type="button"
@@ -156,6 +158,7 @@ function ItemRow({
 
 export function CompraPage() {
   const { data: items = [], isLoading } = useShoppingItems()
+  const { data: members = [] } = useMembers()
   const createItem = useCreateShoppingItem()
   const updateItem = useUpdateShoppingItem()
   const deleteItem = useDeleteShoppingItem()
@@ -164,6 +167,13 @@ export function CompraPage() {
   const undoItem = useUndoShoppingItem()
   const [newText, setNewText] = useState('')
   const [boughtOpen, setBoughtOpen] = useState(false)
+
+  // Resuelve bought_by (id de Clerk, p. ej. "user_xxx") al display_name del miembro.
+  const nameById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of members) map.set(m.id, m.display_name ?? m.id)
+    return map
+  }, [members])
 
   const pending = items.filter((i) => i.status === 'pending')
   const bought = items.filter((i) => i.status === 'bought')
@@ -225,6 +235,7 @@ export function CompraPage() {
               <ItemRow
                 key={item.id}
                 item={item}
+                boughtByName={item.bought_by ? nameById.get(item.bought_by) ?? item.bought_by : undefined}
                 onToggle={() => buyItem.mutate(item.id)}
                 onEdit={(text) => updateItem.mutate({ id: item.id, text })}
                 onDelete={() => deleteItem.mutate(item.id)}
@@ -261,6 +272,7 @@ export function CompraPage() {
                 <ItemRow
                   key={item.id}
                   item={item}
+                  boughtByName={item.bought_by ? nameById.get(item.bought_by) ?? item.bought_by : undefined}
                   onToggle={() => undoItem.mutate(item.id)}
                   onEdit={(text) => updateItem.mutate({ id: item.id, text })}
                   onDelete={() => deleteItem.mutate(item.id)}
