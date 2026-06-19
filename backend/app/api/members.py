@@ -33,7 +33,7 @@ async def update_my_display_name(
     member = result.scalar_one_or_none()
     if not member:
         raise ValueError("Miembro no encontrado")
-    
+
     member.display_name = body.display_name.strip()
     await session.commit()
     return member
