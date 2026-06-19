@@ -31,42 +31,6 @@ export const FAMILY: MockFamily = {
 
 export const CURRENT_MEMBER = FAMILY.members[0]
 
-/* ---------- Hijos ---------- */
-
-export type MockChild = {
-  id: string
-  name: string
-  birth_date: string
-  avatar_color: number
-  height_cm: number | null
-  weight_kg: number | null
-  talla: string | null
-  talla_calzado: string | null
-}
-
-export const CHILDREN: MockChild[] = [
-  {
-    id: 'hijo-mateo',
-    name: 'Mateo',
-    birth_date: '2020-03-15',
-    avatar_color: 1,
-    height_cm: 112,
-    weight_kg: 20,
-    talla: '5-6 años',
-    talla_calzado: '29',
-  },
-  {
-    id: 'hijo-lucia',
-    name: 'Lucía',
-    birth_date: '2023-11-08',
-    avatar_color: 0,
-    height_cm: 88,
-    weight_kg: 12.5,
-    talla: '24-36 meses',
-    talla_calzado: '22',
-  },
-]
-
 /* ---------- Compra ---------- */
 
 export type MockShoppingItem = {
@@ -288,10 +252,6 @@ export const MEDIDAS: MockMedida[] = [
 ]
 
 /* ---------- Helpers ---------- */
-
-export function childById(id: string): MockChild | undefined {
-  return CHILDREN.find((c) => c.id === id)
-}
 
 export function eventTypeById(id: string): MockEventType | undefined {
   return EVENT_TYPES.find((t) => t.id === id)
