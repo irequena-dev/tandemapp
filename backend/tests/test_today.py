@@ -525,7 +525,9 @@ async def test_today_grouping_uses_device_timezone(
     ahead_entries = [e for e in resp_ahead.json()["timeline"] if e["type"] == "event"]
     assert len(ahead_entries) == 1  # es "hoy" en la zona adelantada
 
-    resp_behind = await auth_client.get("/api/today?tz=Etc/GMT+12")
+    # El `+` de Etc/GMT+12 debe ir codificado (%2B): sin codificar, el query
+    # string lo vuelve espacio → zona inválida → el servidor caería a UTC.
+    resp_behind = await auth_client.get("/api/today?tz=Etc/GMT%2B12")
     behind_entries = [e for e in resp_behind.json()["timeline"] if e["type"] == "event"]
     assert behind_entries == []  # no es "hoy" en la zona atrasada
 
