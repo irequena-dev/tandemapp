@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { Administration, Pauta, PautaInput } from './types'
 
 /** Claves de caché de Pautas. */
@@ -59,7 +60,7 @@ export function useCreatePauta() {
       const ctx = await beginOptimistic(qc)
       const now = new Date()
       const optimistic: Pauta = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
         child_id: input.child_id,
         medication: input.medication,
@@ -132,7 +133,7 @@ export function useCreateAdministration() {
         old.map((p) => {
           if (p.id !== pautaId) return p
           const optimisticAdmin: Administration = {
-            id: `optimistic-${crypto.randomUUID()}`,
+            id: `optimistic-${randomId()}`,
             pauta_id: pautaId,
             administered_at: now,
             administered_by: 'optimistic',

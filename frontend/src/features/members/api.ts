@@ -85,3 +85,20 @@ export function useRevokeInvitation() {
     },
   })
 }
+
+/** Actualiza el display_name del Miembro autenticado. */
+export function useUpdateDisplayName() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { display_name: string }) =>
+      apiFetch<Member>('/members/me/display-name', {
+        method: 'PATCH',
+        token: await getToken(),
+        body: input,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: membersKeys.all })
+    },
+  })
+}

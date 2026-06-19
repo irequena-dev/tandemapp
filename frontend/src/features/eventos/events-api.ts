@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { EventCreate, EventOut, EventUpdate } from './types'
 
 /** Claves de caché de Eventos. */
@@ -59,7 +60,7 @@ export function useCreateEvent() {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
       const optimistic: EventOut = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
         title: input.title,
         date: input.date,

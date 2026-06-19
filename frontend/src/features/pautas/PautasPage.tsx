@@ -51,6 +51,18 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * Ventana de la guarda de duplicado del backend (DUPLICATE_GUARD_MINUTES).
+ * Si la última toma cae dentro, el POST devuelve la existente con 200 (no
+ * crea nada nuevo): bloqueamos el botón aquí para evitar el no-op silencioso.
+ */
+const DUPLICATE_GUARD_MINUTES = 15
+
+/** ¿La toma dada está dentro de la ventana de duplicado respecto a `now`? */
+function isRecentAdmin(iso: string, now: Date): boolean {
+  return now.getTime() - new Date(iso).getTime() < DUPLICATE_GUARD_MINUTES * 60_000
+}
+
 function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
   const [open, setOpen] = useState(false)
   const finishMutation = useFinishPauta()
@@ -64,6 +76,8 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
 
   const todaysAdmins = pauta.todays_administrations ?? []
   const lastAdmin = todaysAdmins.length > 0 ? todaysAdmins[todaysAdmins.length - 1] : null
+  // La última toma de hoy determina si estamos dentro de la guarda de duplicado.
+  const recentToma = lastAdmin !== null && isRecentAdmin(lastAdmin.administered_at, now)
 
   return (
     <div className={`pauta-card${pauta.status === 'finished' ? ' pauta-card--finalizada' : ''}`}>
@@ -191,7 +205,12 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
                 type="button"
                 className="btn btn--primary btn--sm"
                 onClick={() => createAdmin.mutate(pauta.id)}
-                disabled={createAdmin.isPending}
+                disabled={createAdmin.isPending || recentToma}
+                title={
+                  recentToma && lastAdmin
+                    ? `Ya hay una toma reciente (${formatTime(lastAdmin.administered_at)})`
+                    : undefined
+                }
               >
                 Marcar toma
               </button>
@@ -203,6 +222,11 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
               >
                 Finalizar Pauta
               </button>
+              {recentToma && lastAdmin && (
+                <span className="pauta-toma__hint">
+                  Toma reciente a las {formatTime(lastAdmin.administered_at)} · espera {DUPLICATE_GUARD_MINUTES} min entre tomas
+                </span>
+              )}
             </div>
           )}
         </div>

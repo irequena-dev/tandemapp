@@ -150,8 +150,35 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(screen.queryByText('Deshacer')).not.toBeNull()
   })
 
-  it('muestra siguiente toma desde next_dose_at del servidor', async () => {
-    renderPage([samplePauta])
+  it('bloquea "Marcar toma" cuando hay una toma reciente (<15 min) y muestra aviso', async () => {
+    const recentIso = new Date(Date.now() - 5 * 60_000).toISOString()
+    const recentAdmin: Administration = {
+      id: 'admin-recent',
+      pauta_id: 'pauta-1',
+      administered_at: recentIso,
+      administered_by: 'member-1',
+      member_name: 'Ana',
+      created_at: recentIso,
+    }
+    const pautaRecent: Pauta = {
+      ...samplePauta,
+      todays_administrations: [recentAdmin],
+    }
+
+    renderPage([pautaRecent])
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    const markBtn = screen.getByText('Marcar toma').closest('button')!
+    expect(markBtn.disabled).toBe(true)
+    expect(screen.queryByText(/Toma reciente/)).not.toBeNull()
+  })
+
+  it('muestra siguiente toma desde next_dose_at del servidor', async () => {    renderPage([samplePauta])
 
     await waitFor(() => {
       expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()

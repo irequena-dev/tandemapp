@@ -19,6 +19,7 @@ vi.mock('@clerk/react', () => ({
   OrganizationSwitcher: () => null,
   useUser: () => ({ user: { fullName: 'Test User' } }),
   useAuth: () => ({ getToken: async () => 'test-token' }),
+  useOrganizationList: () => ({ organizationList: [], setActive: async () => {} }),
 }))
 
 import App from './App'

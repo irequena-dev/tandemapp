@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -15,13 +16,21 @@ vi.mock('@clerk/react', () => ({
   OrganizationSwitcher: () => null,
   useUser: () => ({ user: null }),
   useAuth: () => ({ getToken: async () => null }),
+  useOrganizationList: () => ({ organizationList: [], setActive: async () => {} }),
 }))
 
 import App from './App'
 
 describe('App', () => {
   it('muestra la pantalla de bienvenida cuando no hay sesión', () => {
-    render(<App />)
+    // `App` lanza hooks de React Query (p. ej. `useDisplayNamePrompt`) aunque
+    // estemos en estado signed-out, así que necesita un `QueryClientProvider`.
+    const queryClient = new QueryClient()
+    render(
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>,
+    )
     expect(
       screen.getByText(/Comparte la carga mental de la crianza/i),
     ).toBeTruthy()

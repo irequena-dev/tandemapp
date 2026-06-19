@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type {
   CurrentMeasurements,
   Measurement,
@@ -93,7 +94,7 @@ export function useCreateMeasurement(childId: string) {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc, childId)
       const optimistic: Measurement = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         child_id: childId,
         recorded_by: 'optimistic',
         created_at: new Date().toISOString(),

@@ -38,7 +38,7 @@ async def create_token(
     return McpTokenCreated(id=token.id, token=plaintext, created_at=token.created_at)
 
 
-@router.get("/mcp-tokens")
+@router.get("/mcp-tokens", response_model=list[McpTokenOut])
 async def list_tokens(
     member_id: str = Depends(current_member_id),
     session: AsyncSession = Depends(family_session),

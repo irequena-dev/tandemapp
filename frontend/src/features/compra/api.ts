@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { ShoppingItem, ShoppingItemInput, ShoppingItemUpdate } from './types'
 
 /** Claves de caché de Ítems de compra (una sola lista por Familia activa). */
@@ -54,7 +55,7 @@ export function useCreateShoppingItem() {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
       const optimistic: ShoppingItem = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
         text: input.text,
         status: 'pending',

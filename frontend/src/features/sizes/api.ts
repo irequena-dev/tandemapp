@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { CurrentSizesOut, SizeCreate, SizeOut, SizeUpdate } from './types'
 
 /** Claves de caché para Tallas, acotadas por Hijo. */
@@ -69,7 +70,7 @@ export function useCreateSize(childId: string) {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc, childId)
       const optimistic: SizeOut = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         child_id: childId,
         recorded_by: 'optimistic',
         created_at: new Date().toISOString(),

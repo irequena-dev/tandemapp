@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { HealthVisit, HealthVisitInput, HealthVisitPatch } from './types'
 
 export const healthVisitKeys = {
@@ -54,7 +55,7 @@ export function useCreateHealthVisit(childId: string) {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc, childId)
       const optimistic: HealthVisit = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         child_id: childId,
         family_id: 'optimistic',
         visited_at: input.visited_at,

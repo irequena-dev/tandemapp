@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { Child, ChildInput, ChildPatch, ChildWithMetrics } from './types'
 
 /** Claves de caché de Hijos (una sola lista por Familia activa). */
@@ -71,7 +72,7 @@ export function useCreateChild() {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
       const optimistic: Child = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
         name: input.name,
         birth_date: input.birth_date,

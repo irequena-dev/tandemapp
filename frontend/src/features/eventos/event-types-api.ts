@@ -6,6 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
+import { randomId } from '../../lib/randomId'
 import type { EventTypeCreate, EventTypeOut, EventTypeUpdate } from './types'
 
 /** Claves de caché de Tipos de Evento (una lista por Familia activa). */
@@ -52,7 +53,7 @@ export function useCreateEventType() {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
       const optimistic: EventTypeOut = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
         name: input.name,
         icon: input.icon ?? 'circle',
