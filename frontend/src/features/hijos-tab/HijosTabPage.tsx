@@ -1,6 +1,7 @@
 import { Link } from 'react-router'
-import { CHILDREN } from '../../lib/mock-data'
+import { useChildrenWithMetrics } from '../children/api'
 import { formatAge } from '../children/age'
+import type { ChildWithMetrics } from '../children/types'
 import './hijos-tab.css'
 import '../children/children.css'
 
@@ -31,8 +32,62 @@ function PeopleIcon() {
   )
 }
 
+function ChildCard({ child }: { child: ChildWithMetrics }) {
+  return (
+    <Link to={`/hijos/${child.id}`} className="hijo-card">
+      <span className="hijo-card__avatar">
+        <span className="hijo-mono hijo-mono--lg" data-tone={toneOf(child.name)}>
+          {initialOf(child.name)}
+        </span>
+      </span>
+      <div className="hijo-card__info">
+        <span className="hijo-card__name">{child.name}</span>
+        <span className="hijo-card__age ds-nums">{formatAge(child.birth_date)}</span>
+        <div className="hijo-card__metrics">
+          {child.current_height_cm != null && (
+            <span className="hijo-card__metric">
+              <span className="hijo-card__metric-value">{child.current_height_cm} cm</span>
+              <span className="hijo-card__metric-label">Altura</span>
+            </span>
+          )}
+          {child.current_weight_kg != null && (
+            <span className="hijo-card__metric">
+              <span className="hijo-card__metric-value">{child.current_weight_kg} kg</span>
+              <span className="hijo-card__metric-label">Peso</span>
+            </span>
+          )}
+          {child.current_talla_calzado != null && (
+            <span className="hijo-card__metric">
+              <span className="hijo-card__metric-value">{child.current_talla_calzado}</span>
+              <span className="hijo-card__metric-label">Calzado</span>
+            </span>
+          )}
+          {child.current_talla != null && (
+            <span className="hijo-card__metric">
+              <span className="hijo-card__metric-value">{child.current_talla}</span>
+              <span className="hijo-card__metric-label">Talla</span>
+            </span>
+          )}
+        </div>
+      </div>
+      <ChevronRight />
+    </Link>
+  )
+}
+
 export function HijosTabPage() {
-  if (CHILDREN.length === 0) {
+  const { data: children, isPending, isError } = useChildrenWithMetrics()
+
+  if (isPending) {
+    return (
+      <div className="hijos-tab" aria-labelledby="hijos-tab-title">
+        <h1 className="hijos-tab__title" id="hijos-tab-title">Hijos</h1>
+        <p className="hijos-tab__empty-text">Cargando…</p>
+      </div>
+    )
+  }
+
+  if (isError || !children || children.length === 0) {
     return (
       <div className="hijos-tab" aria-labelledby="hijos-tab-title">
         <h1 className="hijos-tab__title" id="hijos-tab-title">Hijos</h1>
@@ -51,45 +106,8 @@ export function HijosTabPage() {
     <div className="hijos-tab" aria-labelledby="hijos-tab-title">
       <h1 className="hijos-tab__title" id="hijos-tab-title">Hijos</h1>
       <div className="hijos-tab__grid">
-        {CHILDREN.map((child) => (
-          <Link to={`/hijos/${child.id}`} className="hijo-card" key={child.id}>
-            <span className="hijo-card__avatar">
-              <span className="hijo-mono hijo-mono--lg" data-tone={toneOf(child.name)}>
-                {initialOf(child.name)}
-              </span>
-            </span>
-            <div className="hijo-card__info">
-              <span className="hijo-card__name">{child.name}</span>
-              <span className="hijo-card__age ds-nums">{formatAge(child.birth_date)}</span>
-              <div className="hijo-card__metrics">
-                {child.height_cm && (
-                  <span className="hijo-card__metric">
-                    <span className="hijo-card__metric-value">{child.height_cm} cm</span>
-                    <span className="hijo-card__metric-label">Altura</span>
-                  </span>
-                )}
-                {child.weight_kg && (
-                  <span className="hijo-card__metric">
-                    <span className="hijo-card__metric-value">{child.weight_kg} kg</span>
-                    <span className="hijo-card__metric-label">Peso</span>
-                  </span>
-                )}
-                {child.talla_calzado && (
-                  <span className="hijo-card__metric">
-                    <span className="hijo-card__metric-value">{child.talla_calzado}</span>
-                    <span className="hijo-card__metric-label">Calzado</span>
-                  </span>
-                )}
-                {child.talla && (
-                  <span className="hijo-card__metric">
-                    <span className="hijo-card__metric-value">{child.talla}</span>
-                    <span className="hijo-card__metric-label">Talla</span>
-                  </span>
-                )}
-              </div>
-            </div>
-            <ChevronRight />
-          </Link>
+        {children.map((child) => (
+          <ChildCard key={child.id} child={child} />
         ))}
       </div>
     </div>

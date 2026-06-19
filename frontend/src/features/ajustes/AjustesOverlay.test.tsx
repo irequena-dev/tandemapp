@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,6 +48,8 @@ function renderOverlay(onClose = vi.fn()) {
 beforeEach(() => {
   localStorage.clear()
   document.documentElement.removeAttribute('data-theme')
+  // Default de Hijos (menor prioridad): un test puede override con el suyo.
+  server.use(http.get(`${API}/children`, () => HttpResponse.json([])))
 })
 
 describe('AjustesOverlay', () => {
@@ -135,5 +137,123 @@ describe('Cuenta', () => {
     renderOverlay()
     const cuentaSection = screen.getByText('Cuenta').closest('section')!
     expect(within(cuentaSection).getByTestId('clerk-user-button')).toBeTruthy()
+  })
+})
+
+/* ---------- Hijos — gestión real (alta/editar/borrar) ---------- */
+
+const sara = {
+  id: 'child-sara',
+  family_id: 'fam-1',
+  name: 'Sara',
+  birth_date: '2021-09-03',
+  avatar_color: null,
+  current_height_cm: null,
+  current_weight_kg: null,
+  current_talla: null,
+  current_talla_calzado: null,
+}
+
+const MONTHS_FULL = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+]
+
+// El día 1 del mes en curso siempre está habilitado en el calendario (<= hoy)
+// y no requiere navegar meses: ideal para rellenar la fecha de nacimiento.
+function firstOfCurrentMonthLabel(): string {
+  const now = new Date()
+  return `1 de ${MONTHS_FULL[now.getMonth()]} de ${now.getFullYear()}`
+}
+function firstOfCurrentMonthISO(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+describe('Hijos — gestión real (alta/editar/borrar)', () => {
+  it('lista los Hijos de la API, no los datos mock', async () => {
+    server.use(http.get(`${API}/children`, () => HttpResponse.json([sara])))
+    renderOverlay()
+
+    expect(await screen.findByText('Sara')).toBeTruthy()
+    // Los Hijos del mock-data (Mateo / Lucía) ya no deben aparecer.
+    expect(screen.queryByText('Mateo')).toBeNull()
+    expect(screen.queryByText('Lucía')).toBeNull()
+  })
+
+  it('da de alta un Hijo al enviar el formulario (POST /children)', async () => {
+    const created = vi.fn()
+    server.use(
+      http.get(`${API}/children`, () => HttpResponse.json([])),
+      http.post(`${API}/children`, async ({ request }) => {
+        created(await request.json())
+        return HttpResponse.json(
+          { id: 'srv-new', family_id: 'fam-1', name: 'Sara', birth_date: firstOfCurrentMonthISO(), avatar_color: null },
+          { status: 201 },
+        )
+      }),
+    )
+    const user = userEvent.setup()
+    renderOverlay()
+
+    await user.click(screen.getByRole('button', { name: /añadir hijo/i }))
+    await user.type(screen.getByLabelText('Nombre'), 'Sara')
+
+    // Calendario custom: abrir y elegir el día 1 del mes en curso.
+    await user.click(screen.getByLabelText('Fecha de nacimiento'))
+    await user.click(screen.getByRole('gridcell', { name: firstOfCurrentMonthLabel() }))
+
+    await user.click(screen.getByRole('button', { name: 'Añadir' }))
+
+    await waitFor(() =>
+      expect(created).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Sara', birth_date: firstOfCurrentMonthISO() }),
+      ),
+    )
+  })
+
+  it('edita el nombre de un Hijo (PATCH /children/:id)', async () => {
+    const patched = vi.fn()
+    server.use(
+      http.get(`${API}/children`, () => HttpResponse.json([sara])),
+      http.patch(`${API}/children/${sara.id}`, async ({ request }) => {
+        patched(await request.json())
+        return HttpResponse.json({ ...sara, name: 'Sara Lúa' })
+      }),
+    )
+    const user = userEvent.setup()
+    renderOverlay()
+
+    await screen.findByText('Sara')
+    await user.click(screen.getByRole('button', { name: /editar a sara/i }))
+
+    // El formulario de edición viene relleno; cambiamos solo el nombre.
+    const nameInput = screen.getByLabelText('Nombre')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Sara Lúa')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() =>
+      expect(patched).toHaveBeenCalledWith(expect.objectContaining({ name: 'Sara Lúa' })),
+    )
+  })
+
+  it('elimina un Hijo tras confirmar (DELETE /children/:id)', async () => {
+    const deleted = vi.fn()
+    server.use(
+      http.get(`${API}/children`, () => HttpResponse.json([sara])),
+      http.delete(`${API}/children/${sara.id}`, () => {
+        deleted()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+    const user = userEvent.setup()
+    renderOverlay()
+
+    await screen.findByText('Sara')
+    await user.click(screen.getByRole('button', { name: /eliminar a sara/i }))
+    await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+    await waitFor(() => expect(deleted).toHaveBeenCalledOnce())
   })
 })

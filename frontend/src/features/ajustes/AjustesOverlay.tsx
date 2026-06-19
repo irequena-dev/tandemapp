@@ -1,8 +1,10 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { UserButton } from '@clerk/react'
 import { useMembers, useInvitations, useCreateInvitation, useRevokeInvitation } from '../members/api'
+import { useChildrenWithMetrics, useCreateChild } from '../children/api'
+import { ChildForm } from '../children/ChildForm'
+import { ChildList } from '../children/ChildList'
 import { useTheme, type Theme } from './useTheme'
-import { CHILDREN } from '../../lib/mock-data'
 import './ajustes.css'
 import '../children/children.css'
 
@@ -81,6 +83,13 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
   const { data: members = [] } = useMembers()
   const { data: invitations = [] } = useInvitations()
   const revokeInvitation = useRevokeInvitation()
+
+  // Hijos: gestión real (alta/editar/borrar) conectada a la API.
+  const { data: children = [], isPending: childrenPending } = useChildrenWithMetrics()
+  const createChild = useCreateChild()
+  const [addingChild, setAddingChild] = useState(false)
+  // Remontar el formulario tras un alta correcta limpia sus campos.
+  const [childFormKey, setChildFormKey] = useState(0)
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -194,51 +203,55 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
             )}
           </section>
 
-          {/* Hijos */}
+          {/* Hijos — gestión real (alta/editar/borrar) */}
           <section className="ajustes-section">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
               <h3 className="ajustes-section__title">Hijos</h3>
-              <button type="button" className="btn btn--primary btn--sm">Añadir Hijo</button>
+              {!addingChild && (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  onClick={() => setAddingChild(true)}
+                >
+                  Añadir Hijo
+                </button>
+              )}
             </div>
             <p className="ajustes-section__desc">
               Identidad de los Hijos de la Familia. Los datos de crecimiento y visitas se gestionan en cada ficha.
             </p>
-            <div className="ajustes-card">
-              {CHILDREN.length === 0 ? (
-                <div className="ajustes-row">
-                  <div className="ajustes-row__text">
-                    <span className="ajustes-row__name" style={{ color: 'var(--ds-muted)' }}>
-                      Aún no hay Hijos. Añade al primero para empezar.
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                CHILDREN.map((c) => (
-                  <div className="ajustes-row" key={c.id}>
-                    <span className="hijo-mono" data-tone={toneOf(c.name)} aria-hidden="true">
-                      {initialOf(c.name)}
-                    </span>
-                    <div className="ajustes-row__text">
-                      <span className="ajustes-row__name">{c.name}</span>
-                      <span className="ajustes-row__role">
-                        {new Date(c.birth_date).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                    <div className="ajustes-row__actions">
-                      <button type="button" className="icon-btn" aria-label={`Editar ${c.name}`} title="Editar">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+
+            {addingChild && (
+              <div className="ajustes-card" style={{ marginBottom: 'var(--ds-s-sm)' }}>
+                <ChildForm
+                  key={childFormKey}
+                  submitLabel="Añadir"
+                  pending={createChild.isPending}
+                  hasError={createChild.isError}
+                  onSubmit={(input) =>
+                    createChild.mutate(input, {
+                      onSuccess: () => {
+                        setAddingChild(false)
+                        setChildFormKey((k) => k + 1)
+                      },
+                    })
+                  }
+                  onCancel={() => setAddingChild(false)}
+                />
+              </div>
+            )}
+
+            {children.length > 0 ? (
+              <ChildList items={children} />
+            ) : childrenPending ? (
+              <p className="ajustes-section__desc" style={{ color: 'var(--ds-muted)' }}>
+                Cargando Hijos…
+              </p>
+            ) : (
+              <p className="ajustes-section__desc" style={{ color: 'var(--ds-muted)' }}>
+                Aún no hay Hijos. Añade al primero para empezar.
+              </p>
+            )}
           </section>
 
           {/* Token MCP */}
