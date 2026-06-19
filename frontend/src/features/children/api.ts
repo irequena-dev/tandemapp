@@ -6,11 +6,13 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
-import type { Child, ChildInput, ChildPatch } from './types'
+import { randomId } from '../../lib/randomId'
+import type { Child, ChildInput, ChildPatch, ChildWithMetrics } from './types'
 
 /** Claves de caché de Hijos (una sola lista por Familia activa). */
 export const childrenKeys = {
   all: ['children'] as const,
+  withMetrics: ['children', 'current_metrics'] as const,
 }
 
 /** Contexto que viaja entre `onMutate` y `onError` para poder revertir. */
@@ -44,6 +46,18 @@ export function useChildren() {
   })
 }
 
+/** Lista los Hijos con métricas actuales (?include=current_metrics). */
+export function useChildrenWithMetrics() {
+  const { getToken } = useAuth()
+  return useQuery({
+    queryKey: childrenKeys.withMetrics,
+    queryFn: async () =>
+      apiFetch<ChildWithMetrics[]>('/children?include=current_metrics', {
+        token: await getToken(),
+      }),
+  })
+}
+
 /** Alta de un Hijo con inserción optimista en la lista. */
 export function useCreateChild() {
   const { getToken } = useAuth()
@@ -58,9 +72,11 @@ export function useCreateChild() {
     onMutate: async (input) => {
       const ctx = await beginOptimistic(qc)
       const optimistic: Child = {
-        id: `optimistic-${crypto.randomUUID()}`,
+        id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
-        ...input,
+        name: input.name,
+        birth_date: input.birth_date,
+        avatar_color: input.avatar_color ?? null,
       }
       qc.setQueryData<Child[]>(childrenKeys.all, (old = []) => [...old, optimistic])
       return ctx

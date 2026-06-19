@@ -1,0 +1,119 @@
+.display-name-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.display-name-overlay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-lg);
+  box-shadow: var(--ds-shadow-lg);
+  max-width: 400px;
+  width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  z-index: 1001;
+}
+
+.display-name-overlay__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ds-s-lg) var(--ds-s-lg) var(--ds-s-md);
+  border-bottom: 1px solid var(--ds-border);
+}
+
+.display-name-overlay__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text);
+}
+
+.display-name-overlay__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--ds-muted);
+  border-radius: var(--ds-radius);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.display-name-overlay__close:hover {
+  background: var(--ds-surface-hover);
+  color: var(--ds-text);
+}
+
+.display-name-overlay__content {
+  padding: var(--ds-s-lg);
+}
+
+.display-name-overlay__desc {
+  margin: 0 0 var(--ds-s-lg);
+  color: var(--ds-muted);
+  line-height: 1.5;
+}
+
+.display-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.display-name-form__label {
+  font-weight: 500;
+  color: var(--ds-text);
+  font-size: 0.875rem;
+}
+
+.display-name-form__input {
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius);
+  font-size: 1rem;
+  background: var(--ds-surface);
+  color: var(--ds-text);
+  transition: border-color 0.2s ease;
+}
+
+.display-name-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px rgba(var(--ds-primary-rgb), 0.1);
+}
+
+.display-name-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  margin-top: var(--ds-s-sm);
+}
+
+.display-name-form__error {
+  margin: var(--ds-s-sm) 0 0 0;
+  color: var(--ds-error);
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .display-name-overlay {
+    background: var(--ds-surface-dark);
+  }
+  
+  .display-name-form__input {
+    background: var(--ds-surface-dark);
+    color: var(--ds-text-dark);
+  }
+}

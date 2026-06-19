@@ -101,11 +101,12 @@
 }
 
 .btn--secondary {
-  background: var(--ds-surface-2);
+  background: var(--ds-surface);
   color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
 }
 .btn--secondary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ds-surface-2), var(--ds-ink) 6%);
+  background: var(--ds-surface-2);
 }
 
 /* Light: white on dark-red (5.3:1). Dark: the danger token lightens, so the
@@ -210,7 +211,7 @@
   width: 100%;
   min-height: 48px;
   padding: 0 var(--ds-s-md);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
@@ -504,6 +505,35 @@
   color: var(--ds-muted);
 }
 
+/* ---------- Metric chips (current height/weight/talla/calzado) ---------- */
+.hijo-row__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs);
+  margin-top: 2px;
+}
+
+.hijo-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 8px;
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-pill);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.hijo-metric__label {
+  color: var(--ds-muted);
+  font-weight: 500;
+}
+
+.hijo-metric__value {
+  color: var(--ds-ink);
+  font-weight: 600;
+}
+
 .hijo-row__actions {
   display: flex;
   align-items: center;
@@ -587,6 +617,71 @@
   .hijo-mono[data-tone='5'] {
     --mono-bg: oklch(0.33 0.05 12);
     --mono-fg: oklch(0.85 0.08 14);
+  }
+}
+
+/* ---------- Avatar color picker ---------- */
+.color-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.color-picker__row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+}
+
+.color-picker__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-sm);
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: var(--ds-r-pill);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition:
+    border-color var(--ds-dur-fast) var(--ds-ease),
+    transform var(--ds-dur-fast) var(--ds-ease);
+  background: var(--mono-bg, var(--ds-surface-2));
+}
+.color-swatch:hover:not(.color-swatch--selected) {
+  transform: scale(1.1);
+}
+.color-swatch--selected {
+  border-color: var(--ds-ink);
+  box-shadow: 0 0 0 2px var(--ds-surface), 0 0 0 4px var(--ds-ink);
+}
+.color-swatch:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+/* Per-tone background for swatches (re-uses the monogram palette) */
+.color-swatch[data-tone='0'] { --mono-bg: oklch(0.91 0.045 50); }
+.color-swatch[data-tone='1'] { --mono-bg: oklch(0.91 0.045 135); }
+.color-swatch[data-tone='2'] { --mono-bg: oklch(0.92 0.05 85); }
+.color-swatch[data-tone='3'] { --mono-bg: oklch(0.91 0.05 30); }
+.color-swatch[data-tone='4'] { --mono-bg: oklch(0.91 0.045 110); }
+.color-swatch[data-tone='5'] { --mono-bg: oklch(0.9 0.045 10); }
+
+@media (prefers-color-scheme: dark) {
+  .color-swatch[data-tone='0'] { --mono-bg: oklch(0.33 0.05 50); }
+  .color-swatch[data-tone='1'] { --mono-bg: oklch(0.32 0.045 135); }
+  .color-swatch[data-tone='2'] { --mono-bg: oklch(0.33 0.05 85); }
+  .color-swatch[data-tone='3'] { --mono-bg: oklch(0.33 0.05 30); }
+  .color-swatch[data-tone='4'] { --mono-bg: oklch(0.32 0.045 110); }
+  .color-swatch[data-tone='5'] { --mono-bg: oklch(0.33 0.05 12); }
+
+  .color-swatch--selected {
+    border-color: var(--ds-ink);
+    box-shadow: 0 0 0 2px var(--ds-surface), 0 0 0 4px var(--ds-ink);
   }
 }
 

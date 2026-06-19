@@ -36,7 +36,7 @@
   flex: 1;
   min-height: 48px;
   padding: 0 var(--ds-s-md);
-  background: var(--ds-bg);
+  background: var(--ds-surface);
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
@@ -157,6 +157,77 @@
   color: var(--ds-muted);
   flex: none;
   white-space: nowrap;
+  align-self: center;
+}
+
+/* Inline edit input */
+.compra-item__edit-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--ds-ink);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-primary);
+  border-radius: var(--ds-r-sm);
+  padding: 2px var(--ds-s-sm);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
+}
+
+/* Row action buttons */
+.compra-item__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--ds-dur-fast) var(--ds-ease);
+}
+
+.compra-item:hover .compra-item__actions,
+.compra-item:focus-within .compra-item__actions {
+  opacity: 1;
+}
+
+.compra-item__action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: transparent;
+  color: var(--ds-muted);
+  cursor: pointer;
+  padding: 0;
+  transition:
+    color var(--ds-dur-fast) var(--ds-ease),
+    background-color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.compra-item__action:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+
+.compra-item__action--danger:hover {
+  color: var(--ds-danger);
+}
+
+/* Undo button (bought row) */
+.compra-item__undo {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--ds-r-sm);
+  transition: color var(--ds-dur-fast) var(--ds-ease);
+}
+.compra-item__undo:hover {
+  color: var(--ds-primary);
 }
 
 /* ---------- Bought section (collapsed) ---------- */

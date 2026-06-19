@@ -221,6 +221,12 @@
   display: flex;
   gap: var(--ds-s-sm);
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.pauta-toma__hint {
+  font-size: 0.8125rem;
+  color: var(--ds-muted);
 }
 
 /* ---------- Empty ---------- */

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Show } from '@clerk/react'
 import { Route, Routes } from 'react-router'
+import { useTheme } from './features/ajustes/useTheme'
 import { Shell } from './features/shell/Shell'
 import { HoyPage } from './features/hoy/HoyPage'
 import { CompraPage } from './features/compra/CompraPage'
@@ -9,10 +10,16 @@ import { HijosTabPage } from './features/hijos-tab/HijosTabPage'
 import { HijoDetailPage } from './features/hijos-tab/HijoDetailPage'
 import { PautasPage } from './features/pautas/PautasPage'
 import { AjustesOverlay } from './features/ajustes/AjustesOverlay'
+import { DisplayNameOverlay } from './features/members/DisplayNameOverlay'
+import { useDisplayNamePrompt } from './features/members/useDisplayNamePrompt'
 import { SignInPage } from './pages/SignInPage'
+import { useAutoActivateOrganization } from './lib/useAutoActivateOrganization'
 
 function App() {
   const [ajustesOpen, setAjustesOpen] = useState(false)
+  const { shouldPrompt: shouldShowDisplayNamePrompt, dismiss: dismissDisplayNamePrompt } = useDisplayNamePrompt()
+  useAutoActivateOrganization()
+  useTheme() // apply persisted theme on mount
 
   return (
     <>
@@ -31,6 +38,7 @@ function App() {
           </Route>
         </Routes>
         {ajustesOpen && <AjustesOverlay onClose={() => setAjustesOpen(false)} />}
+        {shouldShowDisplayNamePrompt && <DisplayNameOverlay onClose={dismissDisplayNamePrompt} />}
       </Show>
     </>
   )

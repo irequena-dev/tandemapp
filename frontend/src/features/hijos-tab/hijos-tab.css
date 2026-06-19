@@ -170,10 +170,34 @@
   gap: var(--ds-s-md);
 }
 
+.hijo-detail__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .hijo-detail__section-title {
   font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.hijo-detail__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: var(--ds-s-xs) var(--ds-s-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-primary);
+  background: var(--ds-surface-2);
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  min-height: 36px;
+}
+.hijo-detail__add-btn:hover {
+  background: var(--ds-border);
 }
 
 /* Growth chart */
@@ -285,19 +309,45 @@
 
 .visita-row {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--ds-s-md) var(--ds-s-lg);
+  align-items: center;
+  gap: var(--ds-s-sm);
+  padding: 0;
 }
 
 .visita-row + .visita-row {
   border-top: 1px solid var(--ds-border);
 }
 
+.visita-row__btn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.visita-row__btn:hover {
+  background: var(--ds-surface-2);
+}
+
+.visita-row__actions {
+  display: flex;
+  gap: 4px;
+  padding-right: var(--ds-s-sm);
+  flex-shrink: 0;
+}
+
 .visita-row__head {
   display: flex;
   align-items: center;
   gap: var(--ds-s-md);
+  width: 100%;
 }
 
 .visita-row__title {
@@ -318,6 +368,240 @@
   font-size: 0.8125rem;
   color: var(--ds-muted);
   line-height: 1.4;
+}
+
+/* Visita action buttons (inline) */
+.visita-action-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+  cursor: pointer;
+}
+.visita-action-btn:hover {
+  color: var(--ds-ink);
+}
+.visita-action-btn--danger:hover {
+  color: var(--ds-danger);
+}
+
+/* Section header with add button */
+.hijo-detail__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hijo-detail__add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--ds-r-md);
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 36px;
+}
+.hijo-detail__add-btn:hover {
+  background: var(--ds-primary-hover);
+}
+
+/* Visita form (inline) */
+.visita-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.visita-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+
+.visita-form__input {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-bg);
+  color: var(--ds-ink);
+  font-size: 0.9375rem;
+  min-height: 44px;
+}
+.visita-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px var(--ds-primary);
+}
+
+.visita-form__textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-bg);
+  color: var(--ds-ink);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+.visita-form__textarea:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px var(--ds-primary);
+}
+
+.visita-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.visita-form__btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--ds-r-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.visita-form__btn--primary {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.visita-form__btn--primary:hover {
+  background: var(--ds-primary-hover);
+}
+
+.visita-form__btn--secondary {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
+}
+
+/* Visita date filter */
+.visita-filter {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+
+.visita-filter__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+
+.visita-filter__input {
+  padding: 6px 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  font-size: 0.8125rem;
+  min-height: 36px;
+}
+
+.visita-filter__clear {
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+/* Visita detail view */
+.visita-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.visita-detail__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.visita-detail__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ds-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.visita-detail__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.visita-detail__date {
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ds-muted);
+}
+
+.visita-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.visita-detail__section-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+
+.visita-detail__text {
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ds-ink);
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.visita-detail__pautas-link {
+  font-size: 0.8125rem;
+  color: var(--ds-primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+.visita-detail__pautas-link:hover {
+  text-decoration: underline;
 }
 
 /* Empty states */
@@ -364,4 +648,103 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   max-width: 34ch;
+}
+
+/* ---------- Measurement form ---------- */
+.measurement-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+}
+
+.measurement-form__row {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+
+.measurement-form__select,
+.measurement-form__input {
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  font-size: 0.9375rem;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  color: var(--ds-ink);
+  min-height: 44px;
+  flex: 1;
+  min-width: 80px;
+}
+
+.measurement-form__select:focus,
+.measurement-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 25%, transparent);
+}
+
+.measurement-form__date {
+  flex: 1.2;
+}
+
+.measurement-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.measurement-form__btn {
+  padding: var(--ds-s-sm) var(--ds-s-lg);
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.measurement-form__btn--primary {
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+}
+.measurement-form__btn--primary:hover {
+  background: var(--ds-primary-hover);
+}
+
+.measurement-form__btn--secondary {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
+}
+.measurement-form__btn--secondary:hover {
+  background: var(--ds-surface-2);
+}
+
+/* ---------- Growth row actions ---------- */
+.growth-row__actions {
+  display: flex;
+  gap: var(--ds-s-xs);
+  flex: none;
+}
+
+.growth-row__action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: transparent;
+  color: var(--ds-muted);
+  cursor: pointer;
+}
+.growth-row__action:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.growth-row__action--danger:hover {
+  color: var(--ds-danger);
 }

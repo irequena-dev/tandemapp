@@ -26,6 +26,12 @@
   line-height: 1.1;
 }
 
+.eventos__head-actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  align-items: center;
+}
+
 /* ---------- Filters ---------- */
 .eventos__filters {
   display: flex;
@@ -40,7 +46,7 @@
   padding: 0 var(--ds-s-md);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-pill);
-  background: transparent;
+  background: var(--ds-surface);
   color: var(--ds-muted);
   font-family: inherit;
   font-size: 0.8125rem;
@@ -189,4 +195,198 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   max-width: 34ch;
+}
+
+/* ---------- Event Types Manager ---------- */
+.et-manager {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.et-manager__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.et-manager__title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.et-manager__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.et-manager__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-s-sm);
+  min-height: 44px;
+  padding: var(--ds-s-xs) 0;
+}
+
+.et-manager__item + .et-manager__item {
+  border-top: 1px solid var(--ds-border);
+}
+
+.et-manager__item-name {
+  font-size: 0.9375rem;
+  color: var(--ds-ink);
+}
+
+.et-manager__badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  padding: 2px 8px;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+}
+
+.et-manager__item-actions {
+  display: flex;
+  gap: var(--ds-s-xs);
+}
+
+.et-manager__add-form,
+.et-manager__edit-form {
+  display: flex;
+  gap: var(--ds-s-sm);
+  align-items: center;
+  width: 100%;
+}
+
+.et-manager__input {
+  flex: 1;
+  min-height: 40px;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  font-family: inherit;
+  font-size: 0.9375rem;
+}
+
+.et-manager__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 25%, transparent);
+}
+
+.et-manager__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  padding: var(--ds-s-lg);
+  color: var(--ds-muted);
+  text-align: center;
+}
+
+.et-manager__empty-icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  color: var(--ds-primary);
+}
+
+/* ---------- Event Form ---------- */
+.evento-form {
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.evento-form__input {
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  min-height: 40px;
+  flex: 1;
+}
+.evento-form__input:focus {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: -1px;
+}
+
+.evento-form__row {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.evento-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  justify-content: flex-end;
+}
+
+/* ---------- Series recurrentes ---------- */
+
+.evento-form--serie {
+  border-top: 2px solid var(--ds-primary);
+}
+
+.evento-form__preview {
+  list-style: none;
+  margin: 0;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  background: var(--ds-surface-muted, var(--ds-surface));
+  border: 1px dashed var(--ds-border);
+  border-radius: var(--ds-r-md);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs) var(--ds-s-sm);
+  max-height: 9.5rem;
+  overflow-y: auto;
+}
+
+.evento-form__preview li {
+  font-size: 0.8125rem;
+  color: var(--ds-ink-soft, var(--ds-ink));
+  white-space: nowrap;
+}
+
+.evento-form__preview-more {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.evento-item__serie-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: var(--ds-s-xs);
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--ds-primary);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.evento-item__serie-link:hover {
+  opacity: 0.8;
 }

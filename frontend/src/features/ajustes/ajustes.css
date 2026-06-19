@@ -117,6 +117,10 @@
   overflow: hidden;
 }
 
+.ajustes-card--form {
+  padding: var(--ds-s-lg);
+}
+
 /* Row items inside cards */
 .ajustes-row {
   display: flex;
@@ -193,6 +197,41 @@
   font-weight: 600;
 }
 
+/* Invite form */
+.invite-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.invite-form__input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  color: var(--ds-ink);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.invite-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 25%, transparent);
+}
+
+.invite-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+
+.invite-form__error {
+  font-size: 0.8125rem;
+  color: var(--ds-danger);
+}
+
 /* Token section */
 .ajustes-token {
   display: flex;
@@ -212,4 +251,18 @@
   padding: var(--ds-s-sm) var(--ds-s-md);
   background: var(--ds-surface-2);
   border-radius: var(--ds-r-sm);
+}
+
+/* Cuenta — Clerk UserButton wrapper */
+.ajustes-cuenta {
+  padding: var(--ds-s-md) 0;
+}
+
+.ajustes-clerk-root {
+  width: 100%;
+}
+
+.ajustes-clerk-avatar {
+  width: 40px;
+  height: 40px;
 }
