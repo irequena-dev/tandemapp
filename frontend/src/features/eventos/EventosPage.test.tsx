@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
+import { ToastProvider } from '../toasts/toasts'
 import { EventosPage } from './EventosPage'
 
 vi.mock('@clerk/react', () => ({
@@ -32,7 +33,9 @@ function makeWrapper() {
     },
   })
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    <QueryClientProvider client={qc}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
   )
 }
 
@@ -44,8 +47,14 @@ function seed(handlers: ReturnType<typeof http.get>[] = []) {
   )
 }
 
+function isoOffset(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 describe('EventosPage — Series recurrentes', () => {
-  it('muestra "Borrar futuras" en un Evento de Serie y lo borra al pulsar', async () => {
+  it('muestra "Borrar futuras" en un Evento de Serie y pide confirmación antes de borrar', async () => {
     let deletedId: string | null = null
     seed([
       http.get(EVENTS_URL, () =>
@@ -79,8 +88,13 @@ describe('EventosPage — Series recurrentes', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Borrar futuras/ })).toBeTruthy(),
     )
+    // Un primer toque no destruye: abre la confirmación inline (anti-resbalón).
     fireEvent.click(screen.getByRole('button', { name: /Borrar futuras/ }))
+    expect(screen.getByText('¿Borrar las futuras?')).toBeTruthy()
+    expect(deletedId).toBeNull()
 
+    // Solo tras confirmar se ejecuta el borrado bulk.
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar' }))
     await waitFor(() => expect(deletedId).toBe('ser-1'))
   })
 
@@ -113,5 +127,119 @@ describe('EventosPage — Series recurrentes', () => {
 
     await waitFor(() => expect(created.body).toBeDefined())
     expect(created.body?.title).toBe('Cole')
+  })
+})
+
+describe('EventosPage — agrupación temporal', () => {
+  it('reparte los eventos en Atrasados / Hoy / Próximos según la fecha', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-past',
+            family_id: 'f', title: 'Cita pasada', date: isoOffset(-3), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: true, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev-today',
+            family_id: 'f', title: 'Cole hoy', date: isoOffset(0), time: '09:00',
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev-future',
+            family_id: 'f', title: 'Vacaciones', date: isoOffset(10), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('Cita pasada')).toBeTruthy())
+
+    // Cada urgencia tiene su propio encabezado de sección.
+    expect(screen.getByRole('heading', { name: /Atrasados/ })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /^Hoy/ })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Próximos/ })).toBeTruthy()
+
+    // La fecha de hoy muestra la etiqueta relativa "Hoy" como chip relativo.
+    expect(screen.getAllByText('Hoy').length).toBeGreaterThan(0)
+  })
+
+  it('retira los hechos a una sección "Hechos" colapsable, fuera de la vista principal', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-done',
+            family_id: 'f', title: 'Ya hecho', date: isoOffset(0), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'done', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+
+    // El hecho no aparece en la vista principal (está colapsado).
+    await waitFor(() => expect(screen.getByText('Hechos')).toBeTruthy())
+    expect(screen.queryByText('Ya hecho')).toBeNull()
+
+    // Al desplegar, aparece.
+    fireEvent.click(screen.getByRole('button', { name: /Hechos/ }))
+    await waitFor(() => expect(screen.getByText('Ya hecho')).toBeTruthy())
+  })
+})
+
+describe('EventosPage — borrado con deshacer', () => {
+  it('borra un Evento y ofrece "Deshacer" que lo re-crea', async () => {
+    const deletedIds: string[] = []
+    const created: { title?: string }[] = []
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-del',
+            family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+      http.delete('http://localhost:8000/events/ev-del', () => {
+        deletedIds.push('ev-del')
+        return new HttpResponse(null, { status: 204 })
+      }),
+      http.post(EVENTS_URL, async ({ request }) => {
+        created.push((await request.json()) as { title?: string })
+        return HttpResponse.json(
+          { id: 'ev-restored', family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null, event_type_id: 't1', event_type: type1, child_id: null, child: null, status: 'pending', is_overdue: false, series_id: null, created_by: 'm1', created_at: '2026-06-17T10:00:00Z' },
+          { status: 201 },
+        )
+      }),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Trámite')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: /Borrar Trámite/ }))
+    await waitFor(() => expect(deletedIds).toContain('ev-del'))
+
+    // El toast de deshacer aparece.
+    const undo = await screen.findByRole('button', { name: 'Deshacer' })
+    fireEvent.click(undo)
+
+    await waitFor(() => expect(created.length).toBe(1))
+    expect(created[0].title).toBe('Trámite')
   })
 })

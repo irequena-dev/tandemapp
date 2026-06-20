@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
 import { useCreateSeries, useDeleteSeriesFuture } from './series-api'
+import { useToast } from '../toasts/toasts'
 import { EventTypesManager } from './EventTypesManager'
 import { SeriesForm } from './SeriesForm'
 import type { EventOut, EventTypeOut } from './types'
@@ -22,7 +23,8 @@ function eventIcon(iconName: string) {
     case 'file':
       return <svg {...props}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /></svg>
     default:
-      return <svg {...props}><circle cx="12" cy="12" r="10" /></svg>
+      // Default recognisable: a calendar tick — reads as "an event", not a placeholder dot.
+      return <svg {...props}><rect x="3" y="4.5" width="18" height="16" rx="2.5" /><path d="M3 9h18M8 2.5v4M16 2.5v4" /><path d="M8 14h3" /></svg>
   }
 }
 
@@ -44,7 +46,7 @@ function ClockSmall() {
 
 function AlertSmall() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
     </svg>
   )
@@ -74,6 +76,51 @@ function XIcon() {
   )
 }
 
+function PlusIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg className="eventos__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : 'none' }}>
+      <polyline points="9 6 15 12 9 18" />
+    </svg>
+  )
+}
+
+/* ---------- Dates ---------- */
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+function todayISO(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function shiftISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  const r = new Date(y, m - 1, d)
+  r.setDate(r.getDate() + days)
+  return `${r.getFullYear()}-${pad(r.getMonth() + 1)}-${pad(r.getDate())}`
+}
+
+/** Etiqueta relativa legible para la superficie de consulta. Reduce la carga
+ *  de parsear fechas absolutas en un vistazo ("Hoy", "Mañana", "Ayer"…). */
+function relativeDay(iso: string, today: string): string | null {
+  if (iso === today) return 'Hoy'
+  if (iso === shiftISO(today, 1)) return 'Mañana'
+  if (iso === shiftISO(today, 2)) return 'Pasado mañana'
+  if (iso === shiftISO(today, -1)) return 'Ayer'
+  if (iso === shiftISO(today, -2)) return 'Anteayer'
+  return null
+}
+
 function formatDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('es-ES', {
     weekday: 'short',
@@ -84,6 +131,24 @@ function formatDate(iso: string): string {
 
 function formatTime(t: string): string {
   return t.slice(0, 5)
+}
+
+type EventDraft = {
+  title: string
+  date: string
+  time: string | null
+  event_type_id: string
+  child_id: string | null
+}
+
+function toDraft(ev: EventOut): EventDraft {
+  return {
+    title: ev.title,
+    date: ev.date,
+    time: ev.time,
+    event_type_id: ev.event_type_id,
+    child_id: ev.child_id,
+  }
 }
 
 function statusVisual(ev: EventOut) {
@@ -102,7 +167,7 @@ type EventFormProps = {
   types: EventTypeOut[]
   children: { id: string; name: string }[]
   initial?: { title: string; date: string; time: string; event_type_id: string; child_id: string }
-  onSubmit: (data: { title: string; date: string; time: string | null; event_type_id: string; child_id: string | null }) => void
+  onSubmit: (data: EventDraft) => void
   onCancel: () => void
   submitLabel: string
 }
@@ -160,17 +225,23 @@ function EventForm({ types, children, initial, onSubmit, onCancel, submitLabel }
 
 /* ---------- Main ---------- */
 
+type SectionKey = 'atrasados' | 'hoy' | 'proximos'
+
 export function EventosPage() {
   const [typeFilter, setTypeFilter] = useState<string | null>(null)
   const [childFilter, setChildFilter] = useState<string | null>(null)
   const [showTypes, setShowTypes] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [showSeries, setShowSeries] = useState(false)
+  const [showDone, setShowDone] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  // Serie cuyo "Borrar futuras" está pidiendo confirmación inline (destructivo
+  // bulk): null = ninguna. Espeja el patrón de confirmación por-fila de Pautas.
+  const [confirmingSeriesId, setConfirmingSeriesId] = useState<string | null>(null)
 
   const { data: eventTypes } = useEventTypes()
   const { data: childrenData } = useChildren()
-  const { data: events } = useEvents()
+  const { data: events, isLoading: eventsLoading, error: eventsError, refetch } = useEvents()
   const createMut = useCreateEvent()
   const updateMut = useUpdateEvent()
   const deleteMut = useDeleteEvent()
@@ -178,27 +249,208 @@ export function EventosPage() {
   const undoMut = useUndoEvent()
   const createSeriesMut = useCreateSeries()
   const deleteSeriesFutureMut = useDeleteSeriesFuture()
+  const toast = useToast()
 
   const types = eventTypes ?? []
   const kids = childrenData ?? []
   const allEvents = events ?? []
+  const today = todayISO()
 
-  const filtered = allEvents
-    .filter((e) => !typeFilter || e.event_type_id === typeFilter)
-    .filter((e) => !childFilter || e.child_id === childFilter)
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const filtered = useMemo(
+    () =>
+      allEvents
+        .filter((e) => !typeFilter || e.event_type_id === typeFilter)
+        .filter((e) => !childFilter || e.child_id === childFilter),
+    [allEvents, typeFilter, childFilter],
+  )
 
-  const handleCreate = (data: { title: string; date: string; time: string | null; event_type_id: string; child_id: string | null }) => {
-    createMut.mutate(data)
+  // La ruta de lectura agrupa por urgencia temporal (Atrasados → Hoy → Próximos)
+  // y retira los hechos a una sección colapsable: la mirada de 3 segundos
+  // devuelve lo que importa ahora, no un volcado ascendente por fecha.
+  const { sections, done } = useMemo(() => {
+    const pending = filtered.filter((e) => e.status !== 'done')
+    const done = filtered
+      .filter((e) => e.status === 'done')
+      .sort((a, b) => b.date.localeCompare(a.date))
+    const byDateAsc = (a: EventOut, b: EventOut) =>
+      a.date.localeCompare(b.date) || (a.time ?? '').localeCompare(b.time ?? '')
+
+    const atrasados = pending.filter((e) => e.date < today).sort(byDateAsc)
+    const hoy = pending.filter((e) => e.date === today).sort(byDateAsc)
+    const proximos = pending.filter((e) => e.date > today).sort(byDateAsc)
+
+    const sections: { key: SectionKey; title: string; overdue?: boolean; items: EventOut[] }[] = [
+      { key: 'atrasados', title: 'Atrasados', overdue: true, items: atrasados },
+      { key: 'hoy', title: 'Hoy', items: hoy },
+      { key: 'proximos', title: 'Próximos', items: proximos },
+    ].filter((s) => s.items.length > 0)
+    return { sections, done }
+  }, [filtered, today])
+
+  const handleCreate = (data: EventDraft) => {
+    createMut.mutate(data, {
+      onSuccess: () => toast.success('Evento creado'),
+      onError: () => toast.error('No se pudo crear el evento'),
+    })
     setShowCreate(false)
   }
 
-  const handleUpdate = (id: string, data: { title: string; date: string; time: string | null; event_type_id: string; child_id: string | null }) => {
-    updateMut.mutate({ id, patch: data })
+  const handleUpdate = (id: string, data: EventDraft) => {
+    updateMut.mutate({ id, patch: data }, {
+      onSuccess: () => toast.success('Evento actualizado'),
+      onError: () => toast.error('No se pudo guardar el evento'),
+    })
     setEditingId(null)
   }
 
+  // Borrado con deshacer: la eliminación es optimista (ya desaparece de la
+  // lista) y ofrecemos un toast con "Deshacer" que re-crea el Evento. Así un
+  // resbalón de pulgar nunca es irreversible. Ver STATE-NEVER-COLOR-ALONE:
+  // el toast confirma con icono + palabra, no solo color.
+  const handleDelete = (ev: EventOut) => {
+    deleteMut.mutate(ev.id, {
+      onError: () => toast.error('No se pudo borrar el evento'),
+      onSuccess: () => {
+        toast.info(
+          <>
+            <strong>Evento eliminado.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() =>
+                createMut.mutate(toDraft(ev), {
+                  onError: () => toast.error('No se pudo restaurar el evento'),
+                })
+              }
+            >
+              Deshacer
+            </button>
+          </>,
+          { duration: 6000 },
+        )
+      },
+    })
+  }
+
+  const handleDone = (ev: EventOut) => {
+    doneMut.mutate(ev.id, {
+      onError: () => toast.error('No se pudo marcar como hecho'),
+    })
+  }
+
+  const handleUndo = (ev: EventOut) => {
+    undoMut.mutate(ev.id, {
+      onError: () => toast.error('No se pudo deshacer'),
+    })
+  }
+
+  // "Borrar futuras" es un borrado bulk de toda la serie futura: lo gatingamos
+  // tras una confirmación inline (patrón de Pautas) y avisamos del resultado.
+  const handleConfirmDeleteSeriesFuture = (seriesId: string) => {
+    deleteSeriesFutureMut.mutate(seriesId, {
+      onSuccess: () => toast.success('Ocurrencias futuras borradas'),
+      onError: () => toast.error('No se pudieron borrar las futuras'),
+    })
+    setConfirmingSeriesId(null)
+  }
+
   const editingEvent = editingId ? allEvents.find((e) => e.id === editingId) : null
+
+  // ¿Tiene un Evento una mutación en curso? Deshabilita su botón para evitar
+  // doble-disparo y deja ver el estado pendiente por fila.
+  const isBusy = (ev: EventOut) =>
+    (deleteMut.isPending && deleteMut.variables === ev.id) ||
+    (doneMut.isPending && doneMut.variables === ev.id) ||
+    (undoMut.isPending && undoMut.variables === ev.id)
+
+  const renderItem = (ev: EventOut, opts: { done?: boolean } = {}) => {
+    const rel = relativeDay(ev.date, today)
+    return (
+      <li className={`evento-item${opts.done ? ' evento-item--done' : ''}`} key={ev.id}>
+        <div className="evento-item__titlerow">
+          <span className="evento-item__title">{ev.title}</span>
+        </div>
+        <div className="evento-item__metarow">
+          <span className="evento-item__icon" aria-hidden="true">{eventIcon(ev.event_type?.icon ?? 'calendar')}</span>
+          <div className="evento-item__meta">
+            <span className="evento-chip evento-chip--date ds-nums">
+              {rel && <span className="evento-chip__rel">{rel}</span>}
+              <span className="evento-chip__abs">{formatDate(ev.date)}</span>
+            </span>
+            {ev.time && (
+              <span className="evento-chip evento-chip--time ds-nums">{formatTime(ev.time)}</span>
+            )}
+            {ev.event_type && <span className="evento-chip">{ev.event_type.name}</span>}
+            {ev.child && <span className="evento-chip">{ev.child.name}</span>}
+          </div>
+        </div>
+        {ev.series_id && (
+          <SeriesFutureAction
+            seriesId={ev.series_id}
+            title={ev.title}
+            confirming={confirmingSeriesId === ev.series_id}
+            onAskConfirm={() => setConfirmingSeriesId(ev.series_id)}
+            onCancelConfirm={() => setConfirmingSeriesId(null)}
+            onConfirm={() => handleConfirmDeleteSeriesFuture(ev.series_id!)}
+            pending={deleteSeriesFutureMut.isPending && deleteSeriesFutureMut.variables === ev.series_id}
+          />
+        )}
+        <div className="evento-item__footer">
+          {statusVisual(ev)}
+          <div className="evento-item__actions">
+            {ev.status === 'done' ? (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Deshacer ${ev.title}`}
+              title="Deshacer"
+              disabled={isBusy(ev)}
+              onClick={() => handleUndo(ev)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-7" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Marcar ${ev.title} como hecho`}
+              title="Marcar hecho"
+              disabled={isBusy(ev)}
+              onClick={() => handleDone(ev)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+          )}
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={`Editar ${ev.title}`}
+            title="Editar"
+            onClick={() => { setEditingId(ev.id); setShowCreate(false); setShowSeries(false) }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--danger"
+            aria-label={`Borrar ${ev.title}`}
+            title="Borrar"
+            disabled={isBusy(ev)}
+            onClick={() => handleDelete(ev)}
+          >
+            <TrashIcon />
+          </button>
+          </div>
+        </div>
+      </li>
+    )
+  }
 
   return (
     <div className="eventos" aria-labelledby="eventos-title">
@@ -207,28 +459,23 @@ export function EventosPage() {
         <div className="eventos__head-actions">
           <button
             type="button"
-            className="btn btn--secondary btn--sm"
+            aria-pressed={showTypes}
+            className={`eventos__toggle${showTypes ? ' eventos__toggle--active' : ''}`}
             onClick={() => setShowTypes((v) => !v)}
           >
-            {showTypes ? 'Cerrar tipos' : 'Gestionar tipos'}
+            Gestionar tipos
           </button>
           <button
             type="button"
-            className="btn btn--secondary btn--sm"
+            aria-pressed={showSeries}
+            className={`eventos__toggle${showSeries ? ' eventos__toggle--active' : ''}`}
             onClick={() => {
               setShowSeries((v) => !v)
               setShowCreate(false)
               setEditingId(null)
             }}
           >
-            {showSeries ? 'Cerrar Serie' : 'Crear Serie'}
-          </button>
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            onClick={() => { setShowCreate((v) => !v); setEditingId(null); setShowSeries(false) }}
-          >
-            {showCreate ? 'Cancelar' : 'Crear Evento'}
+            Crear Serie
           </button>
         </div>
       </div>
@@ -240,7 +487,10 @@ export function EventosPage() {
           types={types}
           children={kids}
           onSubmit={(data) => {
-            createSeriesMut.mutate(data)
+            createSeriesMut.mutate(data, {
+              onSuccess: (out) => toast.success(`${out.events_created} eventos creados`),
+              onError: () => toast.error('No se pudo crear la Serie'),
+            })
             setShowSeries(false)
           }}
           onCancel={() => setShowSeries(false)}
@@ -274,37 +524,74 @@ export function EventosPage() {
         />
       )}
 
-      <div className="eventos__filters" role="group" aria-label="Filtros">
-        <button
-          type="button"
-          className={`eventos__filter${!typeFilter && !childFilter ? ' eventos__filter--active' : ''}`}
-          onClick={() => { setTypeFilter(null); setChildFilter(null) }}
-        >
-          Todos
-        </button>
-        {types.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`eventos__filter${typeFilter === t.id ? ' eventos__filter--active' : ''}`}
-            onClick={() => setTypeFilter(typeFilter === t.id ? null : t.id)}
-          >
-            {t.name}
-          </button>
-        ))}
-        {kids.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            className={`eventos__filter${childFilter === c.id ? ' eventos__filter--active' : ''}`}
-            onClick={() => setChildFilter(childFilter === c.id ? null : c.id)}
-          >
-            {c.name}
-          </button>
-        ))}
+      {/* Filtros separados en dos taxonomías etiquetadas: antes era una fila
+          plana que mezclaba Tipo y Hijo con un AND implícito (>4 opciones en
+          un punto de decisión). Ahora cada dimensión es explícita. */}
+      <div className="eventos__filters">
+        <div className="eventos__filter-group">
+          <span className="eventos__filter-label" id="ev-filter-tipo">Por tipo</span>
+          <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-tipo">
+            <button
+              type="button"
+              aria-pressed={!typeFilter}
+              className={`eventos__filter${!typeFilter ? ' eventos__filter--active' : ''}`}
+              onClick={() => setTypeFilter(null)}
+            >
+              Todos
+            </button>
+            {types.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                aria-pressed={typeFilter === t.id}
+                className={`eventos__filter${typeFilter === t.id ? ' eventos__filter--active' : ''}`}
+                onClick={() => setTypeFilter(typeFilter === t.id ? null : t.id)}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        {kids.length > 0 && (
+          <div className="eventos__filter-group">
+            <span className="eventos__filter-label" id="ev-filter-hijo">Por Hijo</span>
+            <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-hijo">
+              <button
+                type="button"
+                aria-pressed={!childFilter}
+                className={`eventos__filter${!childFilter ? ' eventos__filter--active' : ''}`}
+                onClick={() => setChildFilter(null)}
+              >
+                Todos
+              </button>
+              {kids.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  aria-pressed={childFilter === c.id}
+                  className={`eventos__filter${childFilter === c.id ? ' eventos__filter--active' : ''}`}
+                  onClick={() => setChildFilter(childFilter === c.id ? null : c.id)}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {filtered.length === 0 && (
+      {eventsLoading && <EventListSkeleton />}
+
+      {eventsError && !eventsLoading && (
+        <div className="eventos__error" role="alert">
+          <p>No se pudieron cargar los eventos.</p>
+          <button type="button" className="btn btn--secondary btn--sm" onClick={() => refetch()}>
+            Reintentar
+          </button>
+        </div>
+      )}
+
+      {!eventsLoading && !eventsError && filtered.length === 0 && (
         <div className="eventos__empty">
           <span className="eventos__empty-icon" aria-hidden="true"><CalendarIcon /></span>
           <p className="eventos__empty-title">Sin eventos próximos</p>
@@ -314,81 +601,129 @@ export function EventosPage() {
         </div>
       )}
 
-      {filtered.length > 0 && (
-        <ul className="eventos__list">
-          {filtered.map((ev) => (
-            <li className="evento-item" key={ev.id}>
-              <span className="evento-item__icon">{eventIcon(ev.event_type?.icon ?? 'circle')}</span>
-              <div className="evento-item__body">
-                <span className="evento-item__title">{ev.title}</span>
-                <span className="evento-item__meta">
-                  {formatDate(ev.date)}
-                  {ev.time && ` · ${formatTime(ev.time)}`}
-                  {ev.event_type && ` · ${ev.event_type.name}`}
-                  {ev.child && ` · ${ev.child.name}`}
-                </span>
-                {ev.series_id && (
-                  <button
-                    type="button"
-                    className="evento-item__serie-link"
-                    aria-label={`Borrar futuras de ${ev.title}`}
-                    title="Borrar ocurrencias futuras de esta serie"
-                    onClick={() => deleteSeriesFutureMut.mutate(ev.series_id!)}
-                  >
-                    Borrar futuras
-                  </button>
-                )}
-              </div>
-              <div className="evento-item__actions">
-                {statusVisual(ev)}
-                {ev.status === 'done' ? (
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={`Deshacer ${ev.title}`}
-                    title="Deshacer"
-                    onClick={() => undoMut.mutate(ev.id)}
-                  >
-                    <XIcon />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label={`Marcar ${ev.title} como hecho`}
-                    title="Marcar hecho"
-                    onClick={() => doneMut.mutate(ev.id)}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label={`Editar ${ev.title}`}
-                  title="Editar"
-                  onClick={() => { setEditingId(ev.id); setShowCreate(false) }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  aria-label={`Borrar ${ev.title}`}
-                  title="Borrar"
-                  onClick={() => deleteMut.mutate(ev.id)}
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      {!eventsLoading && !eventsError && sections.map((s) => (
+        <section key={s.key} className="eventos__section">
+          <h2
+            className={`eventos__section-title${s.overdue ? ' eventos__section-title--overdue' : ''}`}
+          >
+            {s.overdue && <AlertSmall />}
+            <span>{s.title}</span>
+            <span className="eventos__section-count ds-nums">{s.items.length}</span>
+          </h2>
+          <ul className="eventos__list">
+            {s.items.map((ev) => renderItem(ev))}
+          </ul>
+        </section>
+      ))}
+
+      {!eventsLoading && !eventsError && done.length > 0 && (
+        <section className="eventos__section eventos__section--done">
+          <button
+            type="button"
+            className="eventos__section-toggle"
+            aria-expanded={showDone}
+            onClick={() => setShowDone((v) => !v)}
+          >
+            <ChevronIcon open={showDone} />
+            <span>Hechos</span>
+            <span className="eventos__section-count ds-nums">{done.length}</span>
+          </button>
+          {showDone && (
+            <ul className="eventos__list eventos__list--muted">
+              {done.map((ev) => renderItem(ev, { done: true }))}
+            </ul>
+          )}
+        </section>
       )}
+
+      <button
+        type="button"
+        className={`eventos__fab${showCreate ? ' eventos__fab--open' : ''}`}
+        aria-label="Crear evento"
+        aria-haspopup="dialog"
+        aria-expanded={showCreate}
+        onClick={() => {
+          setShowCreate((v) => !v)
+          setEditingId(null)
+          setShowSeries(false)
+        }}
+      >
+        {showCreate ? <XIcon /> : <PlusIcon />}
+      </button>
     </div>
+  )
+}
+
+/* ---------- Series future delete (inline confirm) ---------- */
+
+function SeriesFutureAction({
+  seriesId,
+  title,
+  confirming,
+  pending,
+  onAskConfirm,
+  onCancelConfirm,
+  onConfirm,
+}: {
+  seriesId: string
+  title: string
+  confirming: boolean
+  pending: boolean
+  onAskConfirm: () => void
+  onCancelConfirm: () => void
+  onConfirm: () => void
+}) {
+  if (confirming) {
+    return (
+      <div className="evento-item__serie-confirm" role="group" aria-label={`Confirmar borrado de futuras de ${title}`}>
+        <span className="evento-item__serie-confirm-text">¿Borrar las futuras?</span>
+        <button
+          type="button"
+          className="evento-item__serie-btn evento-item__serie-btn--danger"
+          disabled={pending}
+          onClick={onConfirm}
+          data-series={seriesId}
+        >
+          Borrar
+        </button>
+        <button
+          type="button"
+          className="evento-item__serie-btn"
+          disabled={pending}
+          onClick={onCancelConfirm}
+        >
+          Cancelar
+        </button>
+      </div>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className="evento-item__serie-link"
+      aria-label={`Borrar futuras de ${title}`}
+      title="Borrar ocurrencias futuras de esta serie"
+      onClick={onAskConfirm}
+    >
+      Borrar futuras
+    </button>
+  )
+}
+
+/* ---------- Skeleton ---------- */
+
+function EventListSkeleton() {
+  return (
+    <ul className="eventos__list" aria-busy="true" aria-label="Cargando eventos">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <li className="evento-item evento-item--skeleton" key={i} aria-hidden="true">
+          <span className="evento-skeleton__icon" />
+          <div className="evento-item__body">
+            <span className="evento-skeleton__line evento-skeleton__line--title" />
+            <span className="evento-skeleton__line evento-skeleton__line--meta" />
+          </div>
+        </li>
+      ))}
+    </ul>
   )
 }

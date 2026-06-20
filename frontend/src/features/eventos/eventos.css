@@ -1,10 +1,11 @@
-/* Eventos — upcoming events list with filters. See pantallas.md § Eventos. */
+/* Eventos — upcoming events grouped by temporal urgency with filters.
+   See PRODUCT.md / DESIGN.md (warm sage system, DESIGN-V2). */
 
 .eventos {
   width: 100%;
   max-width: 40rem;
   margin: 0 auto;
-  padding: var(--ds-s-xl) var(--ds-s-lg) var(--ds-s-2xl);
+  padding: var(--ds-s-xl) var(--ds-s-lg) calc(var(--ds-s-3xl) + var(--ds-s-2xl));
   display: flex;
   flex-direction: column;
   gap: var(--ds-s-xl);
@@ -30,10 +31,69 @@
   display: flex;
   gap: var(--ds-s-sm);
   align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Header toggles: stable primary label + aria-pressed; "open" is conveyed
+   visually (sage tint), not lexically. Matches the filter active treatment. */
+.eventos__toggle {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--ds-s-md);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface);
+  color: var(--ds-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease),
+    border-color var(--ds-dur-fast) var(--ds-ease);
+}
+.eventos__toggle:hover {
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+}
+.eventos__toggle--active {
+  background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
+  color: var(--ds-primary);
+  border-color: var(--ds-primary);
+  font-weight: 600;
+}
+.eventos__toggle:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
 }
 
 /* ---------- Filters ---------- */
+/* Two labelled taxonomies (Por tipo / Por Hijo) instead of one flat row that
+   conflated them with implicit AND-logic and >4 options per decision point. */
 .eventos__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.eventos__filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-xs);
+}
+
+.eventos__filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ds-muted);
+  padding-left: 2px;
+}
+
+.eventos__filter-pills {
   display: flex;
   gap: var(--ds-s-sm);
   flex-wrap: wrap;
@@ -42,14 +102,14 @@
 .eventos__filter {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: 44px; /* tap-target floor: matches .icon-btn + DESIGN.md */
   padding: 0 var(--ds-s-md);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-pill);
   background: var(--ds-surface);
   color: var(--ds-muted);
   font-family: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition:
@@ -61,11 +121,78 @@
   background: var(--ds-surface-2);
   color: var(--ds-ink);
 }
+.eventos__filter:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
 .eventos__filter--active {
   background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
   color: var(--ds-primary);
   border-color: var(--ds-primary);
   font-weight: 600;
+}
+
+/* ---------- Sections (temporal grouping) ---------- */
+.eventos__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.eventos__section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ds-muted);
+  padding: 0 var(--ds-s-xs);
+}
+
+/* Overdue is elevated to its own section, not just a pill: the heading itself
+   borrows the danger vocabulary so "needs you now" reads at a glance. */
+.eventos__section-title--overdue {
+  color: var(--ds-danger);
+}
+
+.eventos__section-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ds-muted);
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-pill);
+  padding: 1px 8px;
+}
+
+/* Collapsible "Hechos" — completed events recede out of the primary view. */
+.eventos__section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  min-height: 44px;
+  padding: 0 var(--ds-s-xs);
+  border: none;
+  background: none;
+  color: var(--ds-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  border-radius: var(--ds-r-md);
+  transition: color var(--ds-dur-fast) var(--ds-ease);
+}
+.eventos__section-toggle:hover {
+  color: var(--ds-ink);
+}
+.eventos__section-toggle:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.eventos__chevron {
+  transition: transform var(--ds-dur-fast) var(--ds-ease);
 }
 
 /* ---------- Event list ---------- */
@@ -81,10 +208,9 @@
 
 .evento-item {
   display: flex;
-  align-items: center;
-  gap: var(--ds-s-md);
+  flex-direction: column;
+  gap: var(--ds-s-sm);
   padding: var(--ds-s-md) var(--ds-s-lg);
-  min-height: 64px;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
@@ -96,36 +222,89 @@
   background: var(--ds-surface-2);
 }
 
-.evento-item__icon {
-  flex: none;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--ds-r-md);
-  background: var(--ds-surface-2);
+/* Completed: muted, struck-through — recedes without disappearing. */
+.evento-item--done .evento-item__title {
   color: var(--ds-muted);
+  text-decoration: line-through;
+}
+.evento-item--done .evento-item__icon {
+  opacity: 0.6;
 }
 
-.evento-item__body {
-  flex: 1;
+/* Row 1 — title gets the full card width so it never compresses under the
+   action cluster. */
+.evento-item__titlerow {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 
 .evento-item__title {
+  display: block;
   font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.3;
   color: var(--ds-ink);
+  overflow-wrap: anywhere;
 }
 
-.evento-item__meta {
-  font-size: 0.8125rem;
-  line-height: 1.3;
+/* Row 2 — type icon + scannable chips (date/time/type/child). */
+.evento-item__metarow {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  min-width: 0;
+}
+
+.evento-item__icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface-2);
   color: var(--ds-muted);
+}
+
+/* Meta as scannable chips instead of one wrapping inline string. The date
+   carries a relative word (Hoy/Mañana/Ayer…) plus the absolute date. */
+.evento-item__meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-s-xs);
+}
+
+/* Row 3 — status (left) + actions (right), balanced. */
+.evento-item__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-s-sm);
+}
+
+.evento-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--ds-muted);
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-sm);
+  padding: 3px var(--ds-s-sm);
+  white-space: nowrap;
+}
+
+.evento-chip--date {
+  font-weight: 500;
+  color: var(--ds-ink);
+}
+
+.evento-chip__rel {
+  font-weight: 600;
+  color: var(--ds-primary);
 }
 
 .evento-item__actions {
@@ -162,7 +341,72 @@
   color: var(--ds-danger);
 }
 
-/* ---------- Empty ---------- */
+/* ---------- Series: delete-future (inline confirm, danger vocabulary) ---------- */
+.evento-item__serie-link {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-family: inherit;
+  color: var(--ds-danger);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.evento-item__serie-link:hover {
+  opacity: 0.8;
+}
+.evento-item__serie-link:focus-visible {
+  outline: 2px solid var(--ds-danger);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.evento-item__serie-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  margin-top: 2px;
+  padding: var(--ds-s-xs) var(--ds-s-sm);
+  background: color-mix(in srgb, var(--ds-danger) 8%, var(--ds-surface));
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 24%, var(--ds-border));
+  border-radius: var(--ds-r-md);
+}
+
+.evento-item__serie-confirm-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ds-ink);
+}
+
+.evento-item__serie-btn {
+  min-height: 32px;
+  padding: 0 var(--ds-s-sm);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.evento-item__serie-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.evento-item__serie-btn--danger {
+  background: var(--ds-danger);
+  border-color: var(--ds-danger);
+  color: #fff;
+}
+.evento-item__serie-btn:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Empty / Error ---------- */
 .eventos__empty {
   display: flex;
   flex-direction: column;
@@ -195,6 +439,109 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   max-width: 34ch;
+}
+
+.eventos__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ds-s-sm);
+  padding: var(--ds-s-lg);
+  background: color-mix(in srgb, var(--ds-danger) 6%, var(--ds-surface));
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 24%, var(--ds-border));
+  border-radius: var(--ds-r-lg);
+  color: var(--ds-ink);
+}
+
+/* ---------- Skeleton ---------- */
+.evento-item--skeleton {
+  pointer-events: none;
+}
+
+.evento-skeleton__icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--ds-r-md);
+  background: var(--ds-surface-2);
+}
+
+.evento-skeleton__line {
+  display: block;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+}
+
+.evento-skeleton__line--title {
+  height: 12px;
+  width: 55%;
+}
+
+.evento-skeleton__line--meta {
+  height: 10px;
+  width: 38%;
+  margin-top: var(--ds-s-xs);
+}
+
+.evento-item--skeleton,
+.evento-skeleton__icon,
+.evento-skeleton__line {
+  animation: eventos-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes eventos-skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evento-item--skeleton,
+  .evento-skeleton__icon,
+  .evento-skeleton__line {
+    animation: none;
+  }
+}
+
+/* ---------- FAB (thumb-zone create affordance) ---------- */
+/* Sits above the fixed bottom tab bar (64px + safe-area), never under it. */
+.eventos__fab {
+  position: fixed;
+  right: max(var(--ds-s-lg), env(safe-area-inset-right));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--ds-s-md));
+  z-index: calc(var(--ds-z-sticky) + 1);
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-primary);
+  color: var(--ds-on-primary);
+  box-shadow: var(--ds-shadow-floating);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    transform var(--ds-dur-fast) var(--ds-ease);
+}
+.eventos__fab:hover {
+  background: var(--ds-primary-hover);
+}
+.eventos__fab:active {
+  transform: scale(0.96);
+}
+.eventos__fab:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 3px;
+}
+.eventos__fab--open {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-floating);
 }
 
 /* ---------- Event Types Manager ---------- */
@@ -270,7 +617,7 @@
 
 .et-manager__input {
   flex: 1;
-  min-height: 40px;
+  min-height: 44px; /* tap-target floor */
   padding: var(--ds-s-sm) var(--ds-s-md);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-md);
@@ -306,6 +653,29 @@
   color: var(--ds-primary);
 }
 
+.et-manager__skeleton {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.et-manager__skeleton-row {
+  display: block;
+  height: 16px;
+  margin: var(--ds-s-sm) 0;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  animation: eventos-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .et-manager__skeleton-row {
+    animation: none;
+  }
+}
+
 /* ---------- Event Form ---------- */
 .evento-form {
   background: var(--ds-surface);
@@ -325,7 +695,7 @@
   border-radius: var(--ds-r-md);
   background: var(--ds-surface);
   color: var(--ds-ink);
-  min-height: 40px;
+  min-height: 44px; /* tap-target floor */
   flex: 1;
 }
 .evento-form__input:focus {
@@ -373,20 +743,4 @@
 .evento-form__preview-more {
   font-style: italic;
   opacity: 0.7;
-}
-
-.evento-item__serie-link {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-top: var(--ds-s-xs);
-  font-size: 0.75rem;
-  font-family: inherit;
-  color: var(--ds-primary);
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-.evento-item__serie-link:hover {
-  opacity: 0.8;
 }

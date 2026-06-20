@@ -53,8 +53,30 @@
   min-width: 0;
 }
 
-.toast__text b {
+.toast__text b,
+.toast__text strong {
   font-weight: 600;
+}
+
+/* Inline action (e.g. "Deshacer" on an optimistic delete). Stays in ink so the
+   toast reads calm; the affordance is the underlined label, not color. */
+.toast__action {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ds-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.toast__action:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 /* Success → sage. Error → danger. info se queda neutro (sin acento de color). */
