@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
+import { ToastProvider } from '../toasts/toasts'
 import { HoyPage } from './HoyPage'
 import type { TodayOut } from './types'
 
@@ -23,7 +24,9 @@ function makeWrapper() {
   })
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <MemoryRouter>
+        <ToastProvider>{children}</ToastProvider>
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -36,7 +39,7 @@ const CALM_RESPONSE: TodayOut = {
     pautas_active_count: 0,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -113,7 +116,7 @@ describe('HoyPage — tarjeta Compra', () => {
         pautas_active_count: 0,
         pautas_finished_count: 0,
         next_medical_event: null,
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))
@@ -164,7 +167,7 @@ const HERO_PAUTA: TodayOut = {
     pautas_active_count: 1,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -239,7 +242,7 @@ describe('HoyPage — timeline de tomas', () => {
         pautas_active_count: 1,
         pautas_finished_count: 0,
         next_medical_event: null,
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))
@@ -271,7 +274,7 @@ const HERO_EVENT: TodayOut = {
     pautas_active_count: 0,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -339,7 +342,7 @@ describe('HoyPage — tarjeta Próxima cita', () => {
           created_by: 'm1',
           created_at: '2026-06-17T10:00:00Z',
         },
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))
