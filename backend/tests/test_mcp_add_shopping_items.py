@@ -16,49 +16,9 @@ def _as(identity: dict, org_id: str, user_id: str) -> None:
     identity.update({"org_id": org_id, "sub": user_id})
 
 
-def _asgi_factory(app):
-    from httpx import ASGITransport, AsyncClient
-
-    def factory(headers=None, timeout=None, auth=None, **_):
-        kwargs: dict = {"transport": ASGITransport(app=app), "follow_redirects": True}
-        if headers is not None:
-            kwargs["headers"] = headers
-        if auth is not None:
-            kwargs["auth"] = auth
-        return AsyncClient(**kwargs)
-
-    return factory
-
-
 @asynccontextmanager
 async def _lifespan(app) -> AsyncIterator[None]:
-    import asyncio
-
-    queue: asyncio.Queue = asyncio.Queue()
-    started = asyncio.Event()
-
-    async def receive():
-        return await queue.get()
-
-    async def send(message):
-        if message["type"] == "lifespan.startup.failed":
-            raise RuntimeError(f"Startup falló: {message.get('message')}")
-        if message["type"] == "lifespan.startup.complete":
-            started.set()
-
-    task = asyncio.create_task(  # noqa: RUF006
-        app({"type": "lifespan"}, receive, send)
-    )
-    try:
-        await queue.put({"type": "lifespan", "message": "lifespan.startup"})
-        await asyncio.wait_for(started.wait(), timeout=5)
-        yield
-    finally:
-        await queue.put({"type": "lifespan", "message": "lifespan.shutdown"})
-        try:
-            await asyncio.wait_for(task, timeout=5)
-        except (TimeoutError, asyncio.CancelledError):
-            task.cancel()
+    yield
 
 
 async def _seed_token(
@@ -88,22 +48,13 @@ def _tool_result(result) -> list | dict | str:
 
 
 async def test_add_shopping_items_inserts_pending_items(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token(auth_client, identity, "org_shop_add", "user_shop_add")
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "add_shopping_items", {"items": ["pañales talla 4", "leche", "pan"]}
             )
@@ -131,12 +82,8 @@ async def test_add_shopping_items_inserts_pending_items(
 
 
 async def test_add_shopping_items_isolation_between_families(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token_a = await _seed_token(
         auth_client, identity, "org_shop_iso_a", "user_shop_iso_a"
@@ -145,23 +92,13 @@ async def test_add_shopping_items_isolation_between_families(
         auth_client, identity, "org_shop_iso_b", "user_shop_iso_b"
     )
 
-    async with _lifespan(app):
+    async with _lifespan(None):
         # Familia A añade ítems.
-        tr_a = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_a}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_a) as c:
+        async with mcp_client_factory(token_a) as c:
             await c.call_tool("add_shopping_items", {"items": ["leche A", "pan A"]})
 
         # Familia B añade ítems distintos.
-        tr_b = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_b}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_b) as c:
+        async with mcp_client_factory(token_b) as c:
             await c.call_tool("add_shopping_items", {"items": ["agua B"]})
 
     # REST: Familia A solo ve los suyos.
@@ -186,8 +123,8 @@ async def test_add_shopping_items_isolation_between_families(
 async def test_add_shopping_items_rejects_invalid_bearer(
     client: AsyncClient,
 ) -> None:
-    resp = await client.post(
-        "/mcp/", headers={"Authorization": "Bearer tdm_live_bogus"}
+    resp = await client.get(
+        "/mcp/sse", headers={"Authorization": "Bearer tdm_live_bogus"}
     )
     assert resp.status_code == 401
 
@@ -196,25 +133,16 @@ async def test_add_shopping_items_rejects_invalid_bearer(
 
 
 async def test_no_toggle_or_clear_tools_exposed(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token(
         auth_client, identity, "org_shop_no_toggle", "user_shop_no_toggle"
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
-            tools = await c.list_tools()
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            tools = (await c.list_tools()).tools
             tool_names = [t.name for t in tools]
 
     forbidden = {"toggle_shopping_item", "clear_bought_items", "delete_shopping_item"}

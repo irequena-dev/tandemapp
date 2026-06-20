@@ -2,28 +2,33 @@
 
 El flujo es:
 1. La app FastAPI monta en `/mcp` un ASGI wrapper (`with_bearer_auth`) que
-   envuelve al `http_app()` de FastMCP.
+   envuelve a la app Starlette del transport SSE.
 2. El wrapper resuelve el `Authorization: Bearer` a (Miembro, Familia) vía
    `resolve_token` (SECURITY DEFINER; válido sin variable RLS). Si falla, corta
-   con un 401 real ANTES de llegar a FastMCP.
-3. La identidad resuelta se deposita en `scope["state"]`, de donde la lee la
-   herramienta `list_children` a través de `get_http_request().scope`.
-4. La herramienta abre su propia transacción y fija la variable RLS de la
+   con un 401 real.
+3. El wrapper también soporta autenticación por `session_id` en peticiones POST.
+4. La identidad resuelta se deposita en `scope["state"]`, de donde la lee la
+   herramienta a través de `request_ctx.get().request.scope`.
+5. La herramienta abre su propia transacción y fija la variable RLS de la
    Familia antes de consultar.
-
-Montaje: ver `app.main.create_app`.
 
 Rate limiting estricto por token: es responsabilidad del proxy inverso (fuera
 del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
+from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
+from urllib.parse import parse_qs
 
-from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_request
+from mcp.server import Server
+from mcp.server.lowlevel.server import request_ctx
+from mcp.server.sse import SseServerTransport
+from mcp.types import TextContent, Tool
 from sqlalchemy import func, select, text
+from starlette.applications import Starlette
+from starlette.routing import Route
 
 from ..database import get_sessionmaker
 from ..models import (
@@ -48,17 +53,54 @@ MCP_IDENTITY_KEY = "tandem_mcp_identity"
 VALID_MEASUREMENT_TYPES = frozenset({"height", "weight"})
 VALID_SIZE_TYPES = frozenset({"clothing", "footwear"})
 
-mcp = FastMCP("Tándem")
+
+# 1. Transport personalizado para registrar e identificar sesiones SSE
+class TandemSseServerTransport(SseServerTransport):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_identities = {}
+
+    @asynccontextmanager
+    async def connect_sse(self, scope, receive, send):
+        async with super().connect_sse(scope, receive, send) as (
+            read_stream,
+            write_stream,
+        ):
+            # Interceptar la sesión recién creada
+            new_session_ids = [
+                sid
+                for sid in self._read_stream_writers
+                if sid not in self.session_identities
+            ]
+            if new_session_ids:
+                identity = scope.get("state", {}).get(MCP_IDENTITY_KEY)
+                if identity:
+                    for sid in new_session_ids:
+                        self.session_identities[sid] = identity
+            try:
+                yield (read_stream, write_stream)
+            finally:
+                # Limpiar al desconectar
+                for sid in list(self.session_identities.keys()):
+                    if sid not in self._read_stream_writers:
+                        self.session_identities.pop(sid, None)
 
 
-@mcp.tool
-async def list_children() -> list[dict[str, str]]:
-    """Lista los Hijos de la Familia del token MCP (orden: nacimiento, nombre).
+# 2. Inicializar el servidor MCP y el transport
+mcp_server = Server("Tándem")
+sse_transport = TandemSseServerTransport("/messages/")
 
-    La identidad (Miembro, Familia) llega desde la puerta Bearer a través de
-    `scope["state"]` (mismo scope ASGI que muta el wrapper). Aquí abrimos una
-    transacción propia y fijamos la variable RLS de la Familia antes de leer.
-    """
+
+def get_http_request():
+    """Obtiene la petición HTTP actual del contexto MCP."""
+    try:
+        return request_ctx.get().request
+    except LookupError as err:
+        raise RuntimeError("No active HTTP request found.") from err
+
+
+# 3. Helpers con la lógica de negocio de las herramientas
+async def do_list_children() -> list[dict[str, str]]:
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     async with get_sessionmaker()() as session:
@@ -86,13 +128,7 @@ async def list_children() -> list[dict[str, str]]:
             ]
 
 
-@mcp.tool
-async def add_shopping_items(items: list[str]) -> list[dict[str, str]]:
-    """Añade varios Ítems de compra a la lista de la Familia del token MCP.
-
-    Cada string se inserta como un Ítem en estado `pending`. Devuelve la lista
-    de Ítems creados con su id, texto y estado.
-    """
+async def do_add_shopping_items(items: list[str]) -> list[dict[str, str]]:
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     now = datetime.now(UTC)
@@ -140,20 +176,12 @@ def _child_match_error_response(err: ChildMatchError) -> dict[str, Any]:
     }
 
 
-@mcp.tool
-async def record_health_visit(
+async def do_record_health_visit(
     child_name: str,
     visited_at: str,
     diagnosis: str,
     notes: str | None = None,
 ) -> dict[str, Any]:
-    """Registra una Visita médica para un Hijo (historial de salud).
-
-    `child_name` se resuelve por matching estricto (case-insensitive). Si no
-    coincide, devuelve error estructurado con la lista de Hijos válidos.
-    `visited_at` es la fecha de la visita (YYYY-MM-DD). `notes` es texto libre
-    opcional (tratamiento, observaciones).
-    """
     from datetime import date as date_type
 
     request = get_http_request()
@@ -189,20 +217,13 @@ async def record_health_visit(
             }
 
 
-@mcp.tool
-async def start_pauta(
+async def do_start_pauta(
     child_name: str,
     medication: str,
     dose: str,
     interval: int,
     duration: int,
 ) -> dict[str, Any]:
-    """Inicia una Pauta (tratamiento) para un Hijo.
-
-    `child_name`: matching estricto. `medication`: nombre del medicamento.
-    `dose`: cantidad (ej. "5 ml"). `interval`: horas entre tomas.
-    `duration`: días de duración del tratamiento.
-    """
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     async with get_sessionmaker()() as session:
@@ -243,14 +264,7 @@ async def start_pauta(
             }
 
 
-@mcp.tool
-async def record_administration(pauta_id: str) -> dict[str, Any]:
-    """Registra que se ha dado una dosis de una Pauta (Administración).
-
-    Guarda de duplicado: si ya existe una Administración de la misma Pauta
-    dentro de la ventana corta (~15 min), no crea otra y devuelve la existente.
-    La Administración se atribuye al Miembro del token MCP.
-    """
+async def do_record_administration(pauta_id: str) -> dict[str, Any]:
     import uuid
 
     request = get_http_request()
@@ -306,12 +320,7 @@ async def record_administration(pauta_id: str) -> dict[str, Any]:
             }
 
 
-@mcp.tool
-async def finish_pauta(pauta_id: str) -> dict[str, Any]:
-    """Finaliza manualmente una Pauta activa (cortar el tratamiento).
-
-    Devuelve error estructurado si la Pauta no existe o ya está finalizada.
-    """
+async def do_finish_pauta(pauta_id: str) -> dict[str, Any]:
     import uuid
 
     request = get_http_request()
@@ -342,14 +351,7 @@ async def finish_pauta(pauta_id: str) -> dict[str, Any]:
             }
 
 
-@mcp.tool
-async def list_active_pautas(child_name: str | None = None) -> list[dict[str, Any]]:
-    """Lista las Pautas activas de la Familia (lectura mínima).
-
-    Filtrable por `child_name` (matching estricto). Devuelve solo Pautas con
-    status=active para que el cliente MCP elija la correcta antes de
-    registrar una Administración o finalizar.
-    """
+async def do_list_active_pautas(child_name: str | None = None) -> list[dict[str, Any]]:
     request = get_http_request()
     _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     async with get_sessionmaker()() as session:
@@ -381,16 +383,9 @@ async def list_active_pautas(child_name: str | None = None) -> list[dict[str, An
             ]
 
 
-@mcp.tool
-async def record_measurement(
+async def do_record_measurement(
     child_name: str, type: str, value: float, unit: str
 ) -> dict:
-    """Registra una Medida (height/weight) para un Hijo de la Familia.
-
-    `type` debe ser 'height' o 'weight'. `child_name` se resuelve por matching
-    estricto (case-insensitive). Si el tipo es inválido o el Hijo no se
-    encuentra/es ambiguo, devuelve un error estructurado.
-    """
     if type not in VALID_MEASUREMENT_TYPES:
         raise ValueError(
             json.dumps(
@@ -436,14 +431,7 @@ async def record_measurement(
             }
 
 
-@mcp.tool
-async def record_size(child_name: str, type: str, label: str) -> dict:
-    """Registra una Talla (clothing/footwear) para un Hijo de la Familia.
-
-    `type` debe ser 'clothing' o 'footwear'. `child_name` se resuelve por
-    matching estricto (case-insensitive). Si el tipo es inválido o el Hijo no se
-    encuentra/es ambiguo, devuelve un error estructurado.
-    """
+async def do_record_size(child_name: str, type: str, label: str) -> dict:
     if type not in VALID_SIZE_TYPES:
         raise ValueError(
             json.dumps(
@@ -487,12 +475,7 @@ async def record_size(child_name: str, type: str, label: str) -> dict:
             }
 
 
-@mcp.tool
-async def list_event_types() -> list[dict[str, str]]:
-    """Lista los Tipos de Evento visibles: base del sistema + propios de la Familia.
-
-    Lectura mínima para que la IA elija un tipo válido al crear un Evento.
-    """
+async def do_list_event_types() -> list[dict[str, str]]:
     request = get_http_request()
     _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     async with get_sessionmaker()() as session:
@@ -509,21 +492,13 @@ async def list_event_types() -> list[dict[str, str]]:
             return [{"id": str(et.id), "name": et.name, "icon": et.icon} for et in rows]
 
 
-@mcp.tool
-async def create_event(
+async def do_create_event(
     title: str,
-    date: date,
-    type: str,
-    time: time | None = None,
+    date_val: date,
+    type_name: str,
+    time_val: time | None = None,
     child_name: str | None = None,
-) -> dict[str, str | None]:
-    """Crea un Evento suelto en la agenda de la Familia.
-
-    - `type`: nombre del Tipo de Evento; si no encaja con ninguno existente se
-      usa "Otros" (fallback).
-    - `child_name`: nombre exacto del Hijo (opcional); matching estricto.
-    - No se permite recurrencia por voz (las Series son solo PWA).
-    """
+) -> dict[str, Any]:
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
     async with get_sessionmaker()() as session:
@@ -538,7 +513,7 @@ async def create_event(
                 (
                     await session.execute(
                         select(EventType).where(
-                            func.lower(EventType.name) == func.lower(type)
+                            func.lower(EventType.name) == func.lower(type_name)
                         )
                     )
                 )
@@ -580,8 +555,8 @@ async def create_event(
                 child_id=child_id,
                 title=title,
                 event_type_id=matched_type.id,
-                date=date,
-                time=time,
+                date=date_val,
+                time=time_val,
                 status="pending",
                 created_by=member_id,
             )
@@ -600,8 +575,311 @@ async def create_event(
             }
 
 
+# 4. Registrar herramientas nativas en mcp_server
+@mcp_server.list_tools()
+async def handle_list_tools() -> list[Tool]:
+    """Lista las herramientas disponibles para Tándem."""
+    return [
+        Tool(
+            name="list_children",
+            description=(
+                "Lista los Hijos de la Familia del token MCP "
+                "(orden: nacimiento, nombre)."
+            ),
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="add_shopping_items",
+            description=(
+                "Añade varios Ítems de compra a la lista de la Familia del token MCP."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Lista de textos de los ítems de compra a añadir"
+                        ),
+                    }
+                },
+                "required": ["items"],
+            },
+        ),
+        Tool(
+            name="record_health_visit",
+            description="Registra una Visita médica para un Hijo (historial de salud).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {
+                        "type": "string",
+                        "description": "Nombre del hijo/paciente",
+                    },
+                    "visited_at": {
+                        "type": "string",
+                        "description": "Fecha de la visita (YYYY-MM-DD)",
+                    },
+                    "diagnosis": {
+                        "type": "string",
+                        "description": "Diagnóstico principal",
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notas opcionales (tratamiento, observaciones)",
+                    },
+                },
+                "required": ["child_name", "visited_at", "diagnosis"],
+            },
+        ),
+        Tool(
+            name="start_pauta",
+            description="Inicia una Pauta (tratamiento) para un Hijo.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {
+                        "type": "string",
+                        "description": "Nombre del hijo",
+                    },
+                    "medication": {
+                        "type": "string",
+                        "description": "Nombre del medicamento",
+                    },
+                    "dose": {
+                        "type": "string",
+                        "description": "Dosis (ej. '5 ml', '1 comprimido')",
+                    },
+                    "interval": {
+                        "type": "integer",
+                        "description": "Intervalo en horas entre tomas",
+                    },
+                    "duration": {
+                        "type": "integer",
+                        "description": "Duración total en días",
+                    },
+                },
+                "required": [
+                    "child_name",
+                    "medication",
+                    "dose",
+                    "interval",
+                    "duration",
+                ],
+            },
+        ),
+        Tool(
+            name="record_administration",
+            description=(
+                "Registra que se ha dado una dosis de una Pauta (Administración)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pauta_id": {
+                        "type": "string",
+                        "description": "UUID de la pauta",
+                    }
+                },
+                "required": ["pauta_id"],
+            },
+        ),
+        Tool(
+            name="finish_pauta",
+            description=(
+                "Finaliza manualmente una Pauta activa (cortar el tratamiento)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pauta_id": {
+                        "type": "string",
+                        "description": "UUID de la pauta",
+                    }
+                },
+                "required": ["pauta_id"],
+            },
+        ),
+        Tool(
+            name="list_active_pautas",
+            description="Lista las Pautas activas de la Familia (lectura mínima).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {
+                        "type": "string",
+                        "description": "Filtro opcional por nombre de hijo",
+                    }
+                },
+            },
+        ),
+        Tool(
+            name="record_measurement",
+            description=(
+                "Registra una Medida (height/weight) para un Hijo de la Familia."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {
+                        "type": "string",
+                        "description": "Nombre del hijo",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Tipo de medida ('height' o 'weight')",
+                    },
+                    "value": {
+                        "type": "number",
+                        "description": "Valor numérico de la medida",
+                    },
+                    "unit": {
+                        "type": "string",
+                        "description": "Unidad de medida (ej. 'cm', 'kg')",
+                    },
+                },
+                "required": ["child_name", "type", "value", "unit"],
+            },
+        ),
+        Tool(
+            name="record_size",
+            description=(
+                "Registra una Talla (clothing/footwear) para un Hijo de la Familia."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {
+                        "type": "string",
+                        "description": "Nombre del hijo",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Tipo de talla ('clothing' o 'footwear')",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Etiqueta de la talla (ej. '5-6 años', '26')",
+                    },
+                },
+                "required": ["child_name", "type", "label"],
+            },
+        ),
+        Tool(
+            name="list_event_types",
+            description=(
+                "Lista los Tipos de Evento visibles: "
+                "base del sistema + propios de la Familia."
+            ),
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="create_event",
+            description="Crea un Evento suelto en la agenda de la Familia.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "description": "Título del evento",
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "Fecha del evento (YYYY-MM-DD)",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "Nombre de la categoría/tipo de evento",
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": "Hora opcional del evento (HH:MM:SS)",
+                    },
+                    "child_name": {
+                        "type": "string",
+                        "description": "Nombre opcional del hijo asociado",
+                    },
+                },
+                "required": ["title", "date", "type"],
+            },
+        ),
+    ]
+
+
+@mcp_server.call_tool()
+async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
+    """Llama a la herramienta correspondiente con sus parámetros."""
+    try:
+        if name == "list_children":
+            res = await do_list_children()
+        elif name == "add_shopping_items":
+            res = await do_add_shopping_items(arguments["items"])
+        elif name == "record_health_visit":
+            res = await do_record_health_visit(
+                child_name=arguments["child_name"],
+                visited_at=arguments["visited_at"],
+                diagnosis=arguments["diagnosis"],
+                notes=arguments.get("notes"),
+            )
+        elif name == "start_pauta":
+            res = await do_start_pauta(
+                child_name=arguments["child_name"],
+                medication=arguments["medication"],
+                dose=arguments["dose"],
+                interval=arguments["interval"],
+                duration=arguments["duration"],
+            )
+        elif name == "record_administration":
+            res = await do_record_administration(pauta_id=arguments["pauta_id"])
+        elif name == "finish_pauta":
+            res = await do_finish_pauta(pauta_id=arguments["pauta_id"])
+        elif name == "list_active_pautas":
+            res = await do_list_active_pautas(child_name=arguments.get("child_name"))
+        elif name == "record_measurement":
+            res = await do_record_measurement(
+                child_name=arguments["child_name"],
+                type=arguments["type"],
+                value=float(arguments["value"]),
+                unit=arguments["unit"],
+            )
+        elif name == "record_size":
+            res = await do_record_size(
+                child_name=arguments["child_name"],
+                type=arguments["type"],
+                label=arguments["label"],
+            )
+        elif name == "list_event_types":
+            res = await do_list_event_types()
+        elif name == "create_event":
+            from datetime import date as date_type
+            from datetime import time as time_type
+
+            d_val = date_type.fromisoformat(arguments["date"])
+            t_val = (
+                time_type.fromisoformat(arguments["time"])
+                if arguments.get("time")
+                else None
+            )
+            res = await do_create_event(
+                title=arguments["title"],
+                date_val=d_val,
+                type_name=arguments["type"],
+                time_val=t_val,
+                child_name=arguments.get("child_name"),
+            )
+        else:
+            raise ValueError(f"Herramienta no encontrada: {name}")
+
+        return [TextContent(type="text", text=json.dumps(res, ensure_ascii=False))]
+    except ValueError as e:
+        raise ValueError(str(e)) from e
+
+
+# 5. Respuestas y enrutamiento ASGI Starlette
 async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") -> None:
-    """Respuesta HTTP 401 real (sin delegar a FastMCP)."""
+    """Respuesta HTTP 401 real."""
+    print(f"BARRER AUTH: Unauthorized {detail}", flush=True)
     body = json.dumps({"detail": detail}).encode()
     await send(
         {
@@ -616,12 +894,40 @@ async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") ->
     await send({"type": "http.response.body", "body": body})
 
 
-def with_bearer_auth(mcp_app: Any) -> Any:
-    """Envuelve la app MCP exigiendo un Bearer válido; 401 real si no aplica.
+class SseHandler:
+    def __init__(self, transport: TandemSseServerTransport, server: Server):
+        self.transport = transport
+        self.server = server
 
-    Pasa de largo los mensajes no-HTTP (lifespan, websocket). Resuelve el token
-    vía la función SECURITY DEFINER (no requiere variable RLS) y, si es válido,
-    deposita la identidad en `scope["state"]` para que la herramienta la lea.
+    async def __call__(self, scope, receive, send):
+        print("SSE HANDLER: SseHandler __call__ started", flush=True)
+        async with self.transport.connect_sse(scope, receive, send) as (
+            read_stream,
+            write_stream,
+        ):
+            print("SSE HANDLER: connect_sse entered, running server...", flush=True)
+            await self.server.run(
+                read_stream,
+                write_stream,
+                self.server.create_initialization_options(),
+            )
+            print("SSE HANDLER: server.run completed", flush=True)
+
+
+class MessagesHandler:
+    def __init__(self, transport: TandemSseServerTransport):
+        self.transport = transport
+
+    async def __call__(self, scope, receive, send):
+        print("MESSAGES HANDLER: MessagesHandler __call__ started", flush=True)
+        await self.transport.handle_post_message(scope, receive, send)
+        print("MESSAGES HANDLER: handle_post_message completed", flush=True)
+
+
+def with_bearer_auth(mcp_app: Any, transport: TandemSseServerTransport) -> Any:
+    """Gated middleware para exigir token Bearer en el primer GET /sse,
+
+    y validar el session_id en subsecuentes llamadas POST /messages/.
     """
 
     async def asgi(scope, receive, send):
@@ -629,26 +935,70 @@ def with_bearer_auth(mcp_app: Any) -> Any:
             await mcp_app(scope, receive, send)
             return
 
+        print(
+            f"MIDDLEWARE: Request path={scope['path']} "
+            f"query={scope.get('query_string', b'').decode()}",
+            flush=True,
+        )
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         bearer = extract_bearer(headers)
         identity = None
         if bearer:
             async with get_sessionmaker()() as session:
                 identity = await resolve_token(session, bearer)
+            print(
+                f"MIDDLEWARE: Resolved via Bearer token, identity={identity}",
+                flush=True,
+            )
+
+        # Si no hay token bearer, validar por session_id
         if identity is None:
+            query_string = scope.get("query_string", b"").decode("utf-8")
+            query_params = parse_qs(query_string)
+            session_ids = query_params.get("session_id", [])
+            if session_ids:
+                from uuid import UUID
+
+                try:
+                    session_id = UUID(hex=session_ids[0])
+                    identity = transport.session_identities.get(session_id)
+                    print(
+                        f"MIDDLEWARE: Resolved via session_id={session_id}, "
+                        f"identity={identity}",
+                        flush=True,
+                    )
+                except ValueError:
+                    print(
+                        f"MIDDLEWARE: Invalid session_id hex={session_ids[0]}",
+                        flush=True,
+                    )
+
+        if identity is None:
+            print("MIDDLEWARE: Authentication failed", flush=True)
             return await _unauthorized(send)
+
         scope.setdefault("state", {})[MCP_IDENTITY_KEY] = identity
         await mcp_app(scope, receive, send)
 
     return asgi
 
 
-def build_mcp_app() -> tuple[Any, Any]:
-    """Construye la app MCP con puerta Bearer; devuelve (asgi_gated, lifespan).
+# 6. Registrar rutas y construir aplicación Starlette
 
-    El `lifespan` debe pasarse a `FastAPI(...)` para que el gestor de sesiones
-    de FastMCP arranque/detenga correctamente.
-    """
-    mcp_app = mcp.http_app(path="/")
-    gated = with_bearer_auth(mcp_app)
-    return gated, mcp_app.lifespan
+routes = [
+    Route("/sse", endpoint=SseHandler(sse_transport, mcp_server), methods=["GET"]),
+    Route("/messages/", endpoint=MessagesHandler(sse_transport), methods=["POST"]),
+]
+
+mcp_asgi_app = Starlette(debug=True, routes=routes)
+
+
+def build_mcp_app() -> tuple[Any, Any]:
+    """Construye la app MCP con puerta Bearer; devuelve (asgi_gated, lifespan)."""
+
+    @asynccontextmanager
+    async def empty_lifespan(app):
+        yield
+
+    gated = with_bearer_auth(mcp_asgi_app, sse_transport)
+    return gated, empty_lifespan
