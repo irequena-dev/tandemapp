@@ -1,0 +1,129 @@
+# =============================================================================
+# Tándem — Docker Compose (FastAPI + React + PostgreSQL)
+# Traefik compartido con Kuvix (red externa kuvix_proxy-net)
+#
+# Uso con VibeLock:
+#   vibelock -v /etc/tandem-prod/secrets.vibe docker compose -v /etc/tandem-prod/secrets.vibe -- up -d --build
+#
+# DNS necesario:
+#   tandemapp.es       → frontend
+#   api.tandemapp.es   → backend
+# =============================================================================
+
+name: tandem
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 17
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:17-alpine
+    container_name: tandem-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tandem}
+      POSTGRES_USER: ${DB_USERNAME:-tandem}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - tandem-pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-tandem} -d ${POSTGRES_DB:-tandem}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - tandem-backend-net
+
+  # ---------------------------------------------------------------------------
+  # Backend (FastAPI) — expuesto en api.tandemapp.es via Traefik
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tandem-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Admin/owner connection (Alembic migrations + jOOQ-style ownership)
+      DATABASE_URL: postgresql+asyncpg://${DB_USERNAME:-tandem}:${DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-tandem}
+      # Password for the tandem_app NOSUPERUSER role (created by migration 0001)
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?APP_DB_PASSWORD is required}
+      # Clerk
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?CLERK_SECRET_KEY is required}
+      # CORS — frontend origin
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://tandemapp.es}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tandem-backend.rule=Host(`api.${TANDEM_DOMAIN:-tandemapp.es}`)"
+      - "traefik.http.routers.tandem-backend.entrypoints=websecure"
+      - "traefik.http.routers.tandem-backend.tls=true"
+      - "traefik.http.routers.tandem-backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.tandem-backend.loadbalancer.server.port=8000"
+      # CRITICAL: backend is on 2 networks, tell Traefik which one to use
+      - "traefik.docker.network=kuvix_proxy-net"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - tandem-backend-net
+      - proxy-net
+
+  # ---------------------------------------------------------------------------
+  # Frontend (React SPA via Nginx) — expuesto en tandemapp.es via Traefik
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.tandemapp.es}
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:?VITE_CLERK_PUBLISHABLE_KEY is required}
+    container_name: tandem-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tandem-frontend.rule=Host(`${TANDEM_DOMAIN:-tandemapp.es}`) || Host(`www.${TANDEM_DOMAIN:-tandemapp.es}`)"
+      - "traefik.http.routers.tandem-frontend.entrypoints=websecure"
+      - "traefik.http.routers.tandem-frontend.tls=true"
+      - "traefik.http.routers.tandem-frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.tandem-frontend.loadbalancer.server.port=80"
+      - "traefik.docker.network=kuvix_proxy-net"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/ > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - proxy-net
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # Shared with Kuvix — Traefik lives here
+  proxy-net:
+    external: true
+    name: kuvix_proxy-net
+  # Internal: backend ↔ PostgreSQL (isolated)
+  tandem-backend-net:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  tandem-pgdata:
+    driver: local

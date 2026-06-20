@@ -15,16 +15,18 @@ import { useAuth, useOrganizationList } from '@clerk/react'
  */
 export function useAutoActivateOrganization(): void {
   const { isLoaded, isSignedIn, orgId } = useAuth()
-  const { organizationList, setActive } = useOrganizationList()
+  const { isLoaded: orgListLoaded, setActive, userMemberships } = useOrganizationList({
+    userMemberships: true,
+  })
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return
     if (orgId) return // ya hay una Familia activa
-    if (!organizationList || organizationList.length === 0) return
+    if (!orgListLoaded || !userMemberships?.data?.length) return
 
     // App de familia única: activa la primera organización disponible. Si el
     // usuario perteneciera a varias, aquí habría que ofrecer un selector.
-    const [firstOrg] = organizationList
-    void setActive({ organization: firstOrg.id })
-  }, [isLoaded, isSignedIn, orgId, organizationList, setActive])
+    const [firstMembership] = userMemberships.data
+    void setActive?.({ organization: firstMembership.organization.id })
+  }, [isLoaded, isSignedIn, orgId, orgListLoaded, userMemberships, setActive])
 }
