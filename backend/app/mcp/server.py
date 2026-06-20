@@ -546,21 +546,31 @@ async def do_create_event(
 @mcp_server.list_tools()
 async def handle_list_tools() -> list[Tool]:
     """Lista las herramientas disponibles para Tándem."""
+    # Nota: las descripciones (incluidos los enum) son lo que el modelo lee para
+    # saber qué valores son válidos y a qué tool enrutar. Sin enum, el modelo
+    # inventa valores (ej: "calzado" en vez de "footwear"). (issue 05)
     return [
         Tool(
             name="listChildren",
-            description="Lista los hijos de la familia.",
-            inputSchema={"type": "object", "properties": {}},
+            description=(
+                "Lista los hijos (niños y niñas) de la familia con su nombre y "
+                "fecha de nacimiento. Úsala cuando necesites saber quiénes son o "
+                "el nombre exacto de un hijo antes de registrar algo."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="addShoppingItems",
-            description="Añade items a la lista de la compra.",
+            description="Añade productos a la lista de la compra de la familia.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "items": {
                         "type": "array",
                         "items": {"type": "string"},
+                        "description": (
+                            'Lista de productos a añadir, ej: ["leche", "pan"].'
+                        ),
                     }
                 },
                 "required": ["items"],
@@ -568,108 +578,212 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="recordHealthVisit",
-            description="Registra una visita médica de un hijo.",
+            description=(
+                "Registra una visita médica (pediatra, urgencias, etc.) de un hijo."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {"type": "string"},
-                    "visited_at": {"type": "string"},
-                    "diagnosis": {"type": "string"},
-                    "notes": {"type": "string"},
+                    "child_name": {
+                        "type": "string",
+                        "description": 'Nombre del hijo, ej: "Lucas".',
+                    },
+                    "visited_at": {
+                        "type": "string",
+                        "description": (
+                            "Fecha de la visita en formato YYYY-MM-DD, "
+                            'ej: "2026-06-20".'
+                        ),
+                    },
+                    "diagnosis": {
+                        "type": "string",
+                        "description": "Diagnóstico o motivo de la visita.",
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notas u observaciones adicionales (opcional).",
+                    },
                 },
                 "required": ["child_name", "visited_at", "diagnosis"],
             },
         ),
         Tool(
             name="startPauta",
-            description="Inicia un tratamiento para un hijo.",
+            description=(
+                "Inicia un tratamiento médico (pauta de medicación) para un hijo. "
+                "Devuelve el id de la pauta."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {"type": "string"},
-                    "medication": {"type": "string"},
-                    "dose": {"type": "string"},
-                    "interval": {"type": "integer"},
-                    "duration": {"type": "integer"},
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
+                    "medication": {
+                        "type": "string",
+                        "description": 'Nombre del medicamento, ej: "ibuprofeno".',
+                    },
+                    "dose": {
+                        "type": "string",
+                        "description": 'Dosis por toma, ej: "5 ml".',
+                    },
+                    "interval": {
+                        "type": "integer",
+                        "description": "Horas entre cada toma, ej: 8.",
+                    },
+                    "duration": {
+                        "type": "integer",
+                        "description": "Días que dura el tratamiento, ej: 5.",
+                    },
                 },
-                "required": ["child_name", "medication", "dose", "interval", "duration"],
+                "required": [
+                    "child_name",
+                    "medication",
+                    "dose",
+                    "interval",
+                    "duration",
+                ],
             },
         ),
         Tool(
             name="recordAdministration",
-            description="Registra una dosis dada de un tratamiento.",
+            description=(
+                "Registra que se ha dado una dosis de un tratamiento activo. "
+                "Requiere el id de la pauta "
+                "(obtenido de startPauta o listActivePautas)."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "pauta_id": {"type": "string"},
+                    "pauta_id": {
+                        "type": "string",
+                        "description": 'ID (UUID) de la pauta, ej: "b77fcb88-...".',
+                    },
                 },
                 "required": ["pauta_id"],
             },
         ),
         Tool(
             name="finishPauta",
-            description="Finaliza un tratamiento activo.",
+            description=("Finaliza un tratamiento activo. Requiere el id de la pauta."),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "pauta_id": {"type": "string"},
+                    "pauta_id": {
+                        "type": "string",
+                        "description": "ID (UUID) de la pauta a finalizar.",
+                    },
                 },
                 "required": ["pauta_id"],
             },
         ),
         Tool(
             name="listActivePautas",
-            description="Lista tratamientos activos.",
+            description=(
+                "Lista los tratamientos (pautas) activos, con su id, medicación y "
+                "pauta de dosis. Úsala antes de recordAdministration para obtener el "
+                "pauta_id."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {"type": "string"},
+                    "child_name": {
+                        "type": "string",
+                        "description": "Filtrar por hijo (opcional).",
+                    },
                 },
+                "required": [],
             },
         ),
         Tool(
             name="recordMeasurement",
-            description="Registra peso o altura de un hijo.",
+            description="Registra el peso o la altura de un hijo.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {"type": "string"},
-                    "type": {"type": "string"},
-                    "value": {"type": "number"},
-                    "unit": {"type": "string"},
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
+                    "type": {
+                        "type": "string",
+                        "enum": sorted(VALID_MEASUREMENT_TYPES),
+                        "description": (
+                            "'height' para altura (unidad: cm) o 'weight' para peso "
+                            "(unidad: kg)."
+                        ),
+                    },
+                    "value": {
+                        "type": "number",
+                        "description": "Valor numérico de la medida, ej: 82.5.",
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["cm", "kg"],
+                        "description": "'cm' si type=height, 'kg' si type=weight.",
+                    },
                 },
                 "required": ["child_name", "type", "value", "unit"],
             },
         ),
         Tool(
             name="recordSize",
-            description="Registra talla de ropa o calzado de un hijo.",
+            description="Registra la talla de ropa o de calzado de un hijo.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {"type": "string"},
-                    "type": {"type": "string"},
-                    "label": {"type": "string"},
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
+                    "type": {
+                        "type": "string",
+                        "enum": sorted(VALID_SIZE_TYPES),
+                        "description": (
+                            "'clothing' para ropa o 'footwear' para calzado (zapatos)."
+                        ),
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": (
+                            'Talla tal cual se escribe, ej: "80", "86" (ropa) '
+                            'o "24", "25" (calzado).'
+                        ),
+                    },
                 },
                 "required": ["child_name", "type", "label"],
             },
         ),
         Tool(
             name="listEventTypes",
-            description="Lista tipos de evento disponibles.",
-            inputSchema={"type": "object", "properties": {}},
+            description=(
+                "Lista los tipos de evento disponibles (ej: Cumpleaños, Vacuna, "
+                "Otros). Úsala antes de createEvent para conocer el nombre exacto "
+                "del tipo."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="createEvent",
-            description="Crea un evento en la agenda.",
+            description="Crea un evento en la agenda de la familia.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "title": {"type": "string"},
-                    "date": {"type": "string"},
-                    "type": {"type": "string"},
-                    "time": {"type": "string"},
-                    "child_name": {"type": "string"},
+                    "title": {
+                        "type": "string",
+                        "description": 'Título del evento, ej: "Cumple de Lucas".',
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": 'Fecha en formato YYYY-MM-DD, ej: "2026-07-15".',
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": (
+                            "Nombre del tipo de evento (ver listEventTypes), ej: "
+                            '"Cumpleaños". Si no existe, se usa "Otros".'
+                        ),
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": 'Hora en formato HH:MM, ej: "18:30" (opcional).',
+                    },
+                    "child_name": {
+                        "type": "string",
+                        "description": "Asociar el evento a un hijo (opcional).",
+                    },
                 },
                 "required": ["title", "date", "type"],
             },
@@ -790,9 +904,12 @@ def with_bearer_auth(mcp_app: Any) -> Any:
 
 
 # 6. Session manager + ASGI handler OFICIALES del SDK mcp
+# json_response=False => respuestas SSE (text/event-stream), el camino por
+# defecto del SDK y el que Edge Gallery ha probado contra servidores oficiales.
+# stateless=False => sesiones persistentes (Edge Gallery gestiona Mcp-Session-Id).
 http_manager = StreamableHTTPSessionManager(
     app=mcp_server,
-    json_response=True,
+    json_response=False,
     stateless=False,
 )
 
