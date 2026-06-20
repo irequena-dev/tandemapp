@@ -987,6 +987,8 @@ def with_bearer_auth(mcp_app: Any, transport: TandemSseServerTransport) -> Any:
 
 routes = [
     Route("/sse", endpoint=SseHandler(sse_transport, mcp_server), methods=["GET"]),
+    Route("/sse/", endpoint=SseHandler(sse_transport, mcp_server), methods=["GET"]),
+    Route("/messages", endpoint=MessagesHandler(sse_transport), methods=["POST"]),
     Route("/messages/", endpoint=MessagesHandler(sse_transport), methods=["POST"]),
 ]
 
