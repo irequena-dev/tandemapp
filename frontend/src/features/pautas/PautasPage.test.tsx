@@ -5,6 +5,7 @@ import { HttpResponse, http } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
+import { ToastProvider } from '../toasts/toasts'
 import { PautasPage } from './PautasPage'
 import type { Administration, Pauta } from './types'
 
@@ -27,16 +28,22 @@ function renderPage(pautas: Pauta[] = []) {
   )
 
   const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    // retry:false para queries y mutations: los tests de error no deben reintentar.
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
   })
 
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/pautas']}>
-        <Routes>
-          <Route path="/pautas" element={<PautasPage />} />
-        </Routes>
-      </MemoryRouter>
+      <ToastProvider>
+        <MemoryRouter initialEntries={['/pautas']}>
+          <Routes>
+            <Route path="/pautas" element={<PautasPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }
@@ -68,7 +75,7 @@ describe('PautasPage (costura de ruta/página)', () => {
     })
   })
 
-  it('muestra la Pauta activa con nombre del Hijo y progreso', async () => {
+  it('muestra la Pauta activa con nombre del Hijo y próxima toma en la cabecera', async () => {
     renderPage([samplePauta])
     await waitFor(() => {
       expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
@@ -77,8 +84,13 @@ describe('PautasPage (costura de ruta/página)', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Mateo/)).not.toBeNull()
     })
-    // Status pill
-    expect(screen.queryByText('Activa')).not.toBeNull()
+    // P0a: la tarjeta colapsada ES la respuesta — la próxima toma sube a la
+    // cabecera (sin expandir), con icono (State-Is-Never-Color-Alone).
+    // samplePauta.next_dose_at = 2026-06-12T16:00:00Z → 16:00 (es-ES, UTC).
+    expect(screen.queryByText(/Próxima/)).not.toBeNull()
+    expect(screen.queryByText(/16:00|18:00/)).not.toBeNull()
+    // Y la acción de escritura primaria también vive en la tarjeta colapsada.
+    expect(screen.queryByRole('button', { name: /Marcar toma/ })).not.toBeNull()
   })
 
   it('muestra las Pautas finalizadas con estilo recesado', async () => {
@@ -170,27 +182,164 @@ describe('PautasPage (costura de ruta/página)', () => {
       expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
     })
 
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { expanded: false }))
-
-    const markBtn = screen.getByText('Marcar toma').closest('button')!
-    expect(markBtn.disabled).toBe(true)
-    expect(screen.queryByText(/Toma reciente/)).not.toBeNull()
+    // P0a/P0b: con una toma reciente, la cabecera colapsada muestra "Dada" (no
+    // "Próxima") y el botón inline pasa a "Toma reciente" deshabilitado, sin
+    // necesidad de expandir.
+    expect(screen.queryByText(/Dada/)).not.toBeNull()
+    const markBtn = screen.getByRole('button', { name: /Toma reciente.+/i })
+    expect(markBtn).not.toBeNull()
+    expect((markBtn as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('muestra siguiente toma desde next_dose_at del servidor', async () => {    renderPage([samplePauta])
+  it('muestra siguiente toma desde next_dose_at del servidor en la cabecera colapsada', async () => {
+    renderPage([samplePauta])
 
     await waitFor(() => {
       expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
     })
 
+    // P0a: la próxima toma se muestra en la cabecera colapsada SIN expandir.
+    // samplePauta.next_dose_at = 2026-06-12T16:00:00Z → hora local es-ES.
+    expect(screen.queryByText(/Próxima/)).not.toBeNull()
+
+    // El cuerpo expandido conserva el detalle "Siguiente toma" como historial.
     const user = userEvent.setup()
-    const header = screen.getByRole('button', { expanded: false })
-    await user.click(header)
+    await user.click(screen.getByRole('button', { expanded: false }))
 
     await waitFor(() => {
       expect(screen.queryByText('Siguiente toma')).not.toBeNull()
     })
-    expect(screen.queryByText(/Próxima/)).not.toBeNull()
+  })
+
+  // --- Fase harden: confirmación inline del deshacer + toasts + error ---
+
+  it('confirma el borrado de una toma con un paso inline (¿Borrar?) antes de eliminar', async () => {
+    const admin: Administration = {
+      id: 'admin-1',
+      pauta_id: 'pauta-1',
+      administered_at: '2026-06-17T14:32:00Z',
+      administered_by: 'member-1',
+      member_name: 'Ana',
+      created_at: '2026-06-17T14:32:00Z',
+    }
+    const pautaWithAdmin: Pauta = { ...samplePauta, todays_administrations: [admin] }
+
+    server.use(
+      http.delete('http://localhost:8000/pautas/:pautaId/administrations/:adminId', () =>
+        new HttpResponse(null, { status: 204 }),
+      ),
+    )
+
+    renderPage([pautaWithAdmin])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Inicialmente hay un trigger "Deshacer" y NO aparece la pregunta de confirmación.
+    const undo = await screen.findByRole('button', { name: /Deshacer toma de las/ })
+    expect(screen.queryByText(/¿Borrar la toma/)).toBeNull()
+
+    // Al tocar "Deshacer" aparece la confirmación inline (sin modal).
+    await user.click(undo)
+    const confirmGroup = await screen.findByRole('group', { name: /Confirmar borrado de la toma/ })
+    expect(confirmGroup).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /Deshacer toma de las/ })).toBeNull()
+
+    // Cancelar oculta la confirmación y restaura el trigger.
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: /Confirmar borrado/ })).toBeNull()
+    })
+
+    // Reabrir la confirmación y esta vez confirmar → dispara DELETE + toast.
+    await user.click(screen.getByRole('button', { name: /Deshacer toma de las/ }))
+    await user.click(screen.getByRole('button', { name: 'Borrar' }))
+    await waitFor(() => {
+      expect(screen.queryByText(/Toma de las.* eliminada/)).not.toBeNull()
+    })
+  })
+
+  it('muestra un toast de éxito al marcar una toma desde la tarjeta colapsada (peak-end)', async () => {
+    // El POST devuelve la Administración creada; el toast la "dice": "Dada a las … por …".
+    const created: Administration = {
+      id: 'admin-new',
+      pauta_id: 'pauta-1',
+      administered_at: '2026-06-17T09:05:00Z',
+      administered_by: 'member-1',
+      member_name: 'Ana',
+      created_at: '2026-06-17T09:05:00Z',
+    }
+    server.use(
+      http.post('http://localhost:8000/pautas/:pautaId/administrations', () =>
+        HttpResponse.json(created, { status: 201 }),
+      ),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Marcar toma de/ }))
+
+    // Peak-end: la acción se acusa, con atribución a la Miembro.
+    await waitFor(() => {
+      expect(screen.queryByText(/Dada a las/)).not.toBeNull()
+    })
+    expect(screen.queryByText(/por Ana/)).not.toBeNull()
+  })
+
+  it('muestra un error accionable cuando falla el registro de la toma', async () => {
+    server.use(
+      http.post('http://localhost:8000/pautas/:pautaId/administrations', () =>
+        HttpResponse.json({ detail: 'boom' }, { status: 500 }),
+      ),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /Marcar toma de/ }))
+
+    // El error se surface inline (role=alert), no se traga silenciosamente.
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeNull()
+    })
+    // Y dice algo humano, no "HTTP 500".
+    expect(screen.queryByText(/servidor falló|Inténtalo de nuevo/)).not.toBeNull()
+  })
+
+  // --- Fase polish: agrupación "Finalizadas" + indicador de progreso discreto ---
+
+  it('agrupa las Pautas finalizadas en una sección "Finalizadas" separada', async () => {
+    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
+    renderPage([samplePauta, finished])
+    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(2))
+
+    // La sección recedida existe y está etiquetada para lectores.
+    const section = screen.getByRole('region', { name: /Pautas finalizadas/ })
+    expect(section).not.toBeNull()
+    expect(screen.queryByText('Finalizadas')).not.toBeNull()
+  })
+
+  it('muestra el progreso como segmentos "Día N de M" en vez de una barra continua', async () => {
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // La etiqueta sigue siendo "Día 3 de 7" (day_number del servidor).
+    expect(screen.queryByText(/Día 3 de 7/)).not.toBeNull()
+    // El indicador es discreto y accesible: role=img con la cuenta, no una
+    // barra continua ni un transition de width.
+    const indicator = await screen.findByRole('img', { name: /Día 3 de 7 del tratamiento/ })
+    expect(indicator).not.toBeNull()
+    // 7 días → 7 segmentos.
+    expect(indicator.querySelectorAll('.pauta-progress__seg').length).toBe(7)
+    // No debe quedar la barra continua animada.
+    expect(document.querySelector('.pauta-progress__fill')).toBeNull()
+    expect(document.querySelector('.pauta-progress__bar')).toBeNull()
   })
 })
