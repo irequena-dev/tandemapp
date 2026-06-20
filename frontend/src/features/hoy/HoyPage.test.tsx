@@ -93,7 +93,7 @@ describe('HoyPage — estado calmado', () => {
 
     render(<HoyPage />, { wrapper: makeWrapper() })
 
-    expect(screen.getByText('Cargando…')).toBeTruthy()
+    expect(screen.getByRole('status')).toBeTruthy()
   })
 
   it('muestra error si la petición falla', async () => {
@@ -104,6 +104,8 @@ describe('HoyPage — estado calmado', () => {
     await waitFor(() =>
       expect(screen.getByText(/No se pudo cargar/)).toBeTruthy(),
     )
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy()
   })
 })
 

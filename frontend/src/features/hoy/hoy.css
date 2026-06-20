@@ -331,3 +331,53 @@
 .hoy-row--compra.is-attn .hoy-row__chevron {
   color: var(--ds-attn-ink);
 }
+
+/* ---------- Loading skeleton ---------- */
+@keyframes hoy-pulse {
+  0% {
+    background-color: var(--ds-surface-2);
+  }
+  50% {
+    background-color: var(--ds-surface);
+  }
+  100% {
+    background-color: var(--ds-surface-2);
+  }
+}
+
+.hoy-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
+.hoy-skeleton__bar {
+  height: 1rem;
+  border-radius: var(--ds-r-sm);
+  animation: hoy-pulse 1.6s var(--ds-ease) infinite;
+}
+
+.hoy-skeleton__bar--hero {
+  height: 5.5rem;
+  border-radius: var(--ds-r-lg);
+}
+
+.hoy-skeleton__bar--row {
+  height: 3.25rem;
+  border-radius: var(--ds-r-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hoy-skeleton__bar {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ---------- Error ---------- */
+.hoy-error {
+  color: var(--ds-attn-ink);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  margin-bottom: var(--ds-s-md);
+}

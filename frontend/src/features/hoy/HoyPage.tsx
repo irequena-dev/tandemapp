@@ -10,7 +10,7 @@ function HeroCalm() {
   return (
     <section className="hoy-hero" aria-label="Ahora">
       <div className="hoy-hero__calm">
-        <svg className="hoy-hero__calm-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="hoy-hero__calm-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
           <polyline points="22 4 12 14.01 9 11.01" />
         </svg>
@@ -190,7 +190,7 @@ function HeroSection({ hero }: { hero: HeroItem | null }) {
 
 function CheckIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   )
@@ -198,7 +198,7 @@ function CheckIcon() {
 
 function ClockIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <circle cx="12" cy="12" r="10" />
       <polyline points="12 6 12 12 16 14" />
     </svg>
@@ -305,7 +305,7 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
         className={`hoy-row hoy-row--compra${compraAttn ? ' is-attn' : ''}`}
       >
         <span className="hoy-row__icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" />
             <path d="M2.5 3h2.2l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L21 7H6" />
           </svg>
@@ -324,7 +324,7 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
       <div className="hoy-summary__list">
         <Link to="/pautas" className="hoy-row">
           <span className="hoy-row__icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 12h4l2 5 4-12 2 7h6" />
             </svg>
           </span>
@@ -339,7 +339,7 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
 
         <Link to="/eventos" className="hoy-row">
           <span className="hoy-row__icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
             </svg>
           </span>
@@ -356,7 +356,7 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
 
         <Link to="/hijos" className="hoy-row">
           <span className="hoy-row__icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1" /><circle cx="9" cy="7" r="3.2" />
               <path d="M22 19v-1a4 4 0 0 0-3-3.87M16 3.3A4 4 0 0 1 16 11" />
             </svg>
@@ -378,13 +378,23 @@ function SummaryCards({ summary }: { summary: TodaySummary }) {
 /* ---------- Page ---------- */
 
 export function HoyPage() {
-  const { data, isLoading, isError } = useToday()
+  const { data, isLoading, isError, refetch } = useToday()
 
   if (isLoading) {
     return (
-      <div className="hoy" aria-labelledby="hoy-title">
+      <div
+        className="hoy"
+        aria-labelledby="hoy-title"
+        role="status"
+        aria-live="polite"
+        aria-label="Cargando Hoy"
+      >
         <h1 className="hoy__title" id="hoy-title">Hoy</h1>
-        <p className="hoy-hero__calm">Cargando…</p>
+        <div className="hoy-skeleton" aria-hidden="true">
+          <div className="hoy-skeleton__bar hoy-skeleton__bar--hero" />
+          <div className="hoy-skeleton__bar hoy-skeleton__bar--row" />
+          <div className="hoy-skeleton__bar hoy-skeleton__bar--row" />
+        </div>
       </div>
     )
   }
@@ -393,7 +403,16 @@ export function HoyPage() {
     return (
       <div className="hoy" aria-labelledby="hoy-title">
         <h1 className="hoy__title" id="hoy-title">Hoy</h1>
-        <p className="hoy-hero__calm">No se pudo cargar la información.</p>
+        <p className="hoy-error" role="alert">
+          No se pudo cargar la información.
+        </p>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={() => refetch()}
+        >
+          Reintentar
+        </button>
       </div>
     )
   }
