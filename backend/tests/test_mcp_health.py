@@ -19,49 +19,9 @@ def _as(identity: dict, org_id: str, user_id: str) -> None:
     identity.update({"org_id": org_id, "sub": user_id})
 
 
-def _asgi_factory(app):
-    from httpx import ASGITransport, AsyncClient
-
-    def factory(headers=None, timeout=None, auth=None, **_):
-        kwargs: dict = {"transport": ASGITransport(app=app), "follow_redirects": True}
-        if headers is not None:
-            kwargs["headers"] = headers
-        if auth is not None:
-            kwargs["auth"] = auth
-        return AsyncClient(**kwargs)
-
-    return factory
-
-
 @asynccontextmanager
 async def _lifespan(app) -> AsyncIterator[None]:
-    import asyncio
-
-    queue: asyncio.Queue = asyncio.Queue()
-    started = asyncio.Event()
-
-    async def receive():
-        return await queue.get()
-
-    async def send(message):
-        if message["type"] == "lifespan.startup.failed":
-            raise RuntimeError(f"Startup falló: {message.get('message')}")
-        if message["type"] == "lifespan.startup.complete":
-            started.set()
-
-    task = asyncio.create_task(  # noqa: RUF006
-        app({"type": "lifespan"}, receive, send)
-    )
-    try:
-        await queue.put({"type": "lifespan", "message": "lifespan.startup"})
-        await asyncio.wait_for(started.wait(), timeout=5)
-        yield
-    finally:
-        await queue.put({"type": "lifespan", "message": "lifespan.shutdown"})
-        try:
-            await asyncio.wait_for(task, timeout=5)
-        except (TimeoutError, asyncio.CancelledError):
-            task.cancel()
+    yield
 
 
 async def _seed_token_and_children(
@@ -100,23 +60,14 @@ def _tool_result(result) -> dict | list:
 
 
 async def test_record_health_visit_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_hv1", "user_hv1", [("Lucía", "2020-03-10")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             res = _tool_result(
                 await c.call_tool(
                     "record_health_visit",
@@ -135,23 +86,14 @@ async def test_record_health_visit_happy_path(
 
 
 async def test_record_health_visit_strict_matching_not_found(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_hv2", "user_hv2", [("Marcos", "2021-01-15")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             res = _tool_result(
                 await c.call_tool(
                     "record_health_visit",
@@ -170,22 +112,15 @@ async def test_record_health_visit_strict_matching_not_found(
 # ---------- start_pauta ----------
 
 
-async def test_start_pauta_happy_path(auth_client: AsyncClient, identity: dict) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
+async def test_start_pauta_happy_path(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_sp1", "user_sp1", [("Elena", "2019-05-20")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -206,23 +141,14 @@ async def test_start_pauta_happy_path(auth_client: AsyncClient, identity: dict) 
 
 
 async def test_start_pauta_strict_matching_not_found(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_sp2", "user_sp2", [("Pablo", "2020-07-01")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -243,23 +169,14 @@ async def test_start_pauta_strict_matching_not_found(
 
 
 async def test_record_administration_and_duplicate_guard(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_ra1", "user_ra1", [("Sofía", "2021-02-14")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             pauta_res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -290,23 +207,14 @@ async def test_record_administration_and_duplicate_guard(
 
 
 async def test_record_administration_pauta_not_found(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_ra2", "user_ra2", [("Leo", "2022-01-01")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             res = _tool_result(
                 await c.call_tool(
                     "record_administration",
@@ -317,23 +225,14 @@ async def test_record_administration_pauta_not_found(
 
 
 async def test_record_administration_pauta_finished(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_ra3", "user_ra3", [("Hugo", "2020-09-05")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             pauta_res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -360,23 +259,14 @@ async def test_record_administration_pauta_finished(
 
 
 async def test_finish_pauta_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_fp1", "user_fp1", [("Noa", "2019-11-30")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             pauta_res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -399,23 +289,14 @@ async def test_finish_pauta_happy_path(
 
 
 async def test_finish_pauta_already_finished(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_fp2", "user_fp2", [("Vega", "2020-04-22")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             pauta_res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -440,11 +321,9 @@ async def test_finish_pauta_already_finished(
 # ---------- list_active_pautas ----------
 
 
-async def test_list_active_pautas_all(auth_client: AsyncClient, identity: dict) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
+async def test_list_active_pautas_all(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
 
     token = await _seed_token_and_children(
         auth_client,
@@ -453,13 +332,8 @@ async def test_list_active_pautas_all(auth_client: AsyncClient, identity: dict) 
         "user_lap1",
         [("Aitana", "2020-01-01"), ("Liam", "2021-06-15")],
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             await c.call_tool(
                 "start_pauta",
                 {
@@ -489,12 +363,8 @@ async def test_list_active_pautas_all(auth_client: AsyncClient, identity: dict) 
 
 
 async def test_list_active_pautas_filtered_by_child(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -503,13 +373,8 @@ async def test_list_active_pautas_filtered_by_child(
         "user_lap2",
         [("Candela", "2019-03-10"), ("Mateo", "2020-09-01")],
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             await c.call_tool(
                 "start_pauta",
                 {
@@ -540,23 +405,14 @@ async def test_list_active_pautas_filtered_by_child(
 
 
 async def test_list_active_pautas_excludes_finished(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client, identity, "org_lap3", "user_lap3", [("Alma", "2021-02-28")]
     )
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             pauta_res = _tool_result(
                 await c.call_tool(
                     "start_pauta",
@@ -580,13 +436,9 @@ async def test_list_active_pautas_excludes_finished(
 
 
 async def test_tools_isolated_between_families(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Las herramientas MCP de salud respetan el aislamiento por Familia."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token_a = await _seed_token_and_children(
         auth_client, identity, "org_iso1", "user_iso1", [("Hijo_A", "2020-01-01")]
@@ -595,13 +447,8 @@ async def test_tools_isolated_between_families(
         auth_client, identity, "org_iso2", "user_iso2", [("Hijo_B", "2021-01-01")]
     )
 
-    async with _lifespan(app):
-        tr_a = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_a}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_a) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token_a) as c:
             await c.call_tool(
                 "start_pauta",
                 {
@@ -613,12 +460,7 @@ async def test_tools_isolated_between_families(
                 },
             )
 
-        tr_b = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_b}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_b) as c:
+        async with mcp_client_factory(token_b) as c:
             # Familia B solo ve sus Pautas, no las de A.
             res = _tool_result(await c.call_tool("list_active_pautas", {}))
 

@@ -10,7 +10,6 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -20,55 +19,9 @@ def _as(identity: dict, org_id: str, user_id: str) -> None:
     identity.update({"org_id": org_id, "sub": user_id})
 
 
-def _asgi_factory(app):
-    """httpx_client_factory que enruta a la app ASGI en proceso (sin red)."""
-    from httpx import ASGITransport, AsyncClient
-
-    def factory(headers=None, timeout=None, auth=None, **_):
-        kwargs: dict = {"transport": ASGITransport(app=app), "follow_redirects": True}
-        if headers is not None:
-            kwargs["headers"] = headers
-        if auth is not None:
-            kwargs["auth"] = auth
-        return AsyncClient(**kwargs)
-
-    return factory
-
-
 @asynccontextmanager
 async def _lifespan(app) -> AsyncIterator[None]:
-    """Dispara el lifespan ASGI (necesario para que FastMCP arranque sus sesiones).
-
-    httpx.ASGITransport NO ejecuta lifespan, así que lo emulamos a mano enviando
-    los eventos startup/shutdown al canal lifespan de la app.
-    """
-    import asyncio
-
-    queue: asyncio.Queue = asyncio.Queue()
-    started = asyncio.Event()
-
-    async def receive():
-        return await queue.get()
-
-    async def send(message):
-        if message["type"] == "lifespan.startup.failed":
-            raise RuntimeError(f"Startup falló: {message.get('message')}")
-        if message["type"] == "lifespan.startup.complete":
-            started.set()
-
-    task = asyncio.create_task(  # noqa: RUF006
-        app({"type": "lifespan"}, receive, send)
-    )
-    try:
-        await queue.put({"type": "lifespan", "message": "lifespan.startup"})
-        await asyncio.wait_for(started.wait(), timeout=5)
-        yield
-    finally:
-        await queue.put({"type": "lifespan", "message": "lifespan.shutdown"})
-        try:
-            await asyncio.wait_for(task, timeout=5)
-        except (TimeoutError, asyncio.CancelledError):
-            task.cancel()
+    yield
 
 
 async def _seed_token_and_children(
@@ -96,12 +49,8 @@ async def _seed_token_and_children(
 
 
 async def test_tracer_bullet_valid_bearer_lists_children(
-    auth_client: AsyncClient, identity: dict, client: AsyncClient
+    auth_client: AsyncClient, identity: dict, client: AsyncClient, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -111,13 +60,8 @@ async def test_tracer_bullet_valid_bearer_lists_children(
         [("Tracer Uno", "2020-01-01"), ("Tracer Dos", "2021-06-15")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool("list_children", {})
             names = _tool_names(result)
 
@@ -150,7 +94,7 @@ def _tool_names(result) -> list[str]:
 async def test_missing_authorization_header_is_unauthorized(
     client: AsyncClient,
 ) -> None:
-    resp = await client.post("/mcp/")
+    resp = await client.get("/mcp/sse")
     assert resp.status_code == 401
     assert resp.headers["www-authenticate"] == "Bearer"
 
@@ -159,8 +103,8 @@ async def test_missing_authorization_header_is_unauthorized(
 
 
 async def test_invalid_bearer_is_unauthorized(client: AsyncClient) -> None:
-    resp = await client.post(
-        "/mcp/", headers={"Authorization": "Bearer tdm_live_unknown"}
+    resp = await client.get(
+        "/mcp/sse", headers={"Authorization": "Bearer tdm_live_unknown"}
     )
     assert resp.status_code == 401
 
@@ -179,7 +123,7 @@ async def test_revoked_bearer_is_unauthorized(
     revoked = await auth_client.delete(f"/mcp-tokens/{token_id}")
     assert revoked.status_code == 204
 
-    resp = await client.post("/mcp/", headers={"Authorization": f"Bearer {token}"})
+    resp = await client.get("/mcp/sse", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 401
 
 
@@ -188,12 +132,8 @@ async def test_revoked_bearer_is_unauthorized(
 
 
 async def test_valid_bearer_lists_only_that_family_children(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -207,13 +147,8 @@ async def test_valid_bearer_lists_only_that_family_children(
         ],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool("list_children", {})
             names = _tool_names(result)
 
@@ -225,12 +160,8 @@ async def test_valid_bearer_lists_only_that_family_children(
 
 
 async def test_token_isolated_between_families(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     # Familia A: token + 2 Hijos.
     token_a = await _seed_token_and_children(
@@ -249,23 +180,13 @@ async def test_token_isolated_between_families(
         [("B1", "2020-06-01")],
     )
 
-    async with _lifespan(app):
+    async with _lifespan(None):
         # El token de A solo ve los Hijos de A.
-        tr_a = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_a}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_a) as c:
+        async with mcp_client_factory(token_a) as c:
             names_a = _tool_names(await c.call_tool("list_children", {}))
 
         # El token de B solo ve los Hijos de B.
-        tr_b = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_b}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_b) as c:
+        async with mcp_client_factory(token_b) as c:
             names_b = _tool_names(await c.call_tool("list_children", {}))
 
     assert sorted(names_a) == ["A1", "A2"]
@@ -306,12 +227,8 @@ def _parse_tool_error(exc: Exception) -> dict:
 
 
 async def test_record_measurement_height_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -321,13 +238,8 @@ async def test_record_measurement_height_happy_path(
         [("Lúa", "2020-03-01")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_measurement",
                 {
@@ -346,12 +258,8 @@ async def test_record_measurement_height_happy_path(
 
 
 async def test_record_measurement_weight_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -361,13 +269,8 @@ async def test_record_measurement_weight_happy_path(
         [("Bilú", "2019-06-15")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_measurement",
                 {
@@ -390,13 +293,8 @@ async def test_record_measurement_weight_happy_path(
 
 
 async def test_record_measurement_invalid_type_is_error(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -406,25 +304,20 @@ async def test_record_measurement_invalid_type_is_error(
         [("Eva", "2021-01-01")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_measurement",
-                    {
-                        "child_name": "Eva",
-                        "type": "temperature",
-                        "value": 36.5,
-                        "unit": "°C",
-                    },
-                )
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            result = await c.call_tool(
+                "record_measurement",
+                {
+                    "child_name": "Eva",
+                    "type": "temperature",
+                    "value": 36.5,
+                    "unit": "°C",
+                },
+            )
 
-    payload = _parse_tool_error(exc_info.value)
+    assert result.isError is True
+    payload = json.loads(result.content[0].text)
     assert payload["error"] == "invalid_type"
     assert "height" in payload["valid_types"]
     assert "weight" in payload["valid_types"]
@@ -436,12 +329,8 @@ async def test_record_measurement_invalid_type_is_error(
 
 
 async def test_record_measurement_child_not_found_is_error(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -451,13 +340,8 @@ async def test_record_measurement_child_not_found_is_error(
         [("Noa", "2020-02-10")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_measurement",
                 {
@@ -479,12 +363,8 @@ async def test_record_measurement_child_not_found_is_error(
 
 
 async def test_record_measurement_child_ambiguous_is_error(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -494,13 +374,8 @@ async def test_record_measurement_child_ambiguous_is_error(
         [("Leo", "2019-01-01"), ("leo", "2021-05-05")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_measurement",
                 {
@@ -522,12 +397,8 @@ async def test_record_measurement_child_ambiguous_is_error(
 
 
 async def test_record_size_clothing_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -537,13 +408,8 @@ async def test_record_size_clothing_happy_path(
         [("Marta", "2020-04-20")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_size",
                 {
@@ -560,12 +426,8 @@ async def test_record_size_clothing_happy_path(
 
 
 async def test_record_size_footwear_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -575,13 +437,8 @@ async def test_record_size_footwear_happy_path(
         [("Lucas", "2019-09-12")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_size",
                 {
@@ -602,13 +459,8 @@ async def test_record_size_footwear_happy_path(
 
 
 async def test_record_size_invalid_type_is_error(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-    from fastmcp.exceptions import ToolError
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -618,24 +470,19 @@ async def test_record_size_invalid_type_is_error(
         [("Ana", "2020-07-07")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
-            with pytest.raises(ToolError) as exc_info:
-                await c.call_tool(
-                    "record_size",
-                    {
-                        "child_name": "Ana",
-                        "type": "hat",
-                        "label": "M",
-                    },
-                )
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            result = await c.call_tool(
+                "record_size",
+                {
+                    "child_name": "Ana",
+                    "type": "hat",
+                    "label": "M",
+                },
+            )
 
-    payload = _parse_tool_error(exc_info.value)
+    assert result.isError is True
+    payload = json.loads(result.content[0].text)
     assert payload["error"] == "invalid_type"
     assert "clothing" in payload["valid_types"]
     assert "footwear" in payload["valid_types"]
@@ -647,12 +494,8 @@ async def test_record_size_invalid_type_is_error(
 
 
 async def test_record_size_child_not_found_is_error(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -662,13 +505,8 @@ async def test_record_size_child_not_found_is_error(
         [("Iris", "2021-03-03")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = await c.call_tool(
                 "record_size",
                 {
@@ -689,12 +527,8 @@ async def test_record_size_child_not_found_is_error(
 
 
 async def test_record_measurement_isolated_between_families(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     # Familia A con Hijo "Sol"
     token_a = await _seed_token_and_children(
@@ -713,14 +547,8 @@ async def test_record_measurement_isolated_between_families(
         [("Luna", "2021-01-01")],
     )
 
-    async with _lifespan(app):
-        tr_a = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_a}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        # Token A graba Medida para Sol → OK
-        async with Client(transport=tr_a) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token_a) as c:
             result_ok = await c.call_tool(
                 "record_measurement",
                 {
@@ -732,7 +560,7 @@ async def test_record_measurement_isolated_between_families(
             )
 
         # Token A intenta grabar Medida para Luna (de Familia B) → error
-        async with Client(transport=tr_a) as c:
+        async with mcp_client_factory(token_a) as c:
             result_fail = await c.call_tool(
                 "record_measurement",
                 {
@@ -757,24 +585,15 @@ async def test_record_measurement_isolated_between_families(
 
 
 async def test_list_event_types_returns_system_types(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Una Familia sin tipos propios ve exactamente los 5 tipos base."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     _as(identity, "org_mcp_et_sys", "user_mcp_et_sys")
     token = (await auth_client.post("/mcp-tokens")).json()["token"]
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(await c.call_tool("list_event_types", {}))
 
     names = sorted([t["name"] for t in result])
@@ -782,13 +601,9 @@ async def test_list_event_types_returns_system_types(
 
 
 async def test_list_event_types_includes_custom_types(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Si la Familia ha creado un tipo propio, list_event_types lo incluye."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     _as(identity, "org_mcp_et_cust", "user_mcp_et_cust")
     token = (await auth_client.post("/mcp-tokens")).json()["token"]
@@ -798,13 +613,8 @@ async def test_list_event_types_includes_custom_types(
     )
     assert resp.status_code == 201
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(await c.call_tool("list_event_types", {}))
 
     names = sorted([t["name"] for t in result])
@@ -819,24 +629,15 @@ async def test_list_event_types_includes_custom_types(
 
 
 async def test_create_event_happy_path(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Crea un Evento suelto con tipo válido, sin Hijo, sin hora."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     _as(identity, "org_mcp_ev_hp", "user_mcp_ev_hp")
     token = (await auth_client.post("/mcp-tokens")).json()["token"]
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -857,23 +658,16 @@ async def test_create_event_happy_path(
     assert "id" in result
 
 
-async def test_create_event_with_time(auth_client: AsyncClient, identity: dict) -> None:
+async def test_create_event_with_time(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
     """Crea un Evento con hora (no día completo)."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     _as(identity, "org_mcp_ev_time", "user_mcp_ev_time")
     token = (await auth_client.post("/mcp-tokens")).json()["token"]
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -892,13 +686,9 @@ async def test_create_event_with_time(auth_client: AsyncClient, identity: dict) 
 
 
 async def test_create_event_with_child(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Crea un Evento asociado a un Hijo por matching estricto."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -908,13 +698,8 @@ async def test_create_event_with_child(
         [("Lucas", "2019-05-10")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -932,24 +717,15 @@ async def test_create_event_with_child(
 
 
 async def test_create_event_fallback_to_otros(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """Si el tipo dictado no encaja, se usa 'Otros' sin error."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     _as(identity, "org_mcp_ev_otros", "user_mcp_ev_otros")
     token = (await auth_client.post("/mcp-tokens")).json()["token"]
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -967,13 +743,9 @@ async def test_create_event_fallback_to_otros(
 
 
 async def test_create_event_child_not_found(
-    auth_client: AsyncClient, identity: dict
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
 ) -> None:
     """child_name sin coincidencia → error con lista de Hijos válidos."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     token = await _seed_token_and_children(
         auth_client,
@@ -983,13 +755,8 @@ async def test_create_event_child_not_found(
         [("Sofía", "2020-01-01")],
     )
 
-    transport = StreamableHttpTransport(
-        "http://test/mcp",
-        headers={"Authorization": f"Bearer {token}"},
-        httpx_client_factory=_asgi_factory(app),
-    )
-    async with _lifespan(app):
-        async with Client(transport=transport) as c:
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
             result = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -1006,12 +773,10 @@ async def test_create_event_child_not_found(
     assert "Sofía" in result["error"]
 
 
-async def test_create_event_isolation(auth_client: AsyncClient, identity: dict) -> None:
+async def test_create_event_isolation(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
     """Un Evento creado por Familia A no es visible para Familia B."""
-    from fastmcp import Client
-    from fastmcp.client.transports import StreamableHttpTransport
-
-    from app.main import app
 
     # Familia A crea un Evento.
     _as(identity, "org_mcp_ev_iso_a", "user_mcp_ev_iso_a")
@@ -1021,14 +786,9 @@ async def test_create_event_isolation(auth_client: AsyncClient, identity: dict) 
     _as(identity, "org_mcp_ev_iso_b", "user_mcp_ev_iso_b")
     token_b = (await auth_client.post("/mcp-tokens")).json()["token"]
 
-    async with _lifespan(app):
+    async with _lifespan(None):
         # Familia A crea un Evento.
-        tr_a = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_a}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_a) as c:
+        async with mcp_client_factory(token_a) as c:
             res_a = _tool_result(
                 await c.call_tool(
                     "create_event",
@@ -1042,12 +802,7 @@ async def test_create_event_isolation(auth_client: AsyncClient, identity: dict) 
         assert "error" not in res_a
 
         # Familia B lista sus tipos (indirectamente verifica que no ve Eventos de A).
-        tr_b = StreamableHttpTransport(
-            "http://test/mcp",
-            headers={"Authorization": f"Bearer {token_b}"},
-            httpx_client_factory=_asgi_factory(app),
-        )
-        async with Client(transport=tr_b) as c:
+        async with mcp_client_factory(token_b) as c:
             types_b = _tool_result(await c.call_tool("list_event_types", {}))
 
     # Ambas Familias ven los tipos base, verificamos que la herramienta funciona

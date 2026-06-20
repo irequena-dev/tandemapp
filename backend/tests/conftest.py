@@ -106,3 +106,53 @@ async def auth_client(identity: dict) -> AsyncIterator[AsyncClient]:
             yield c
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture(scope="session")
+def mcp_server_port() -> int:
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def run_mcp_server(configure_env, mcp_server_port: int):
+    import asyncio
+
+    import uvicorn
+
+    from app.main import app
+
+    config = uvicorn.Config(
+        app=app, host="127.0.0.1", port=mcp_server_port, log_level="warning"
+    )
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+    # Wait for the server to start up
+    await asyncio.sleep(0.5)
+    yield
+    server.should_exit = True
+    await task
+
+
+@pytest.fixture
+def mcp_client_factory(mcp_server_port: int):
+    from contextlib import asynccontextmanager
+
+    import mcp.client.sse
+    from mcp import ClientSession
+
+    @asynccontextmanager
+    async def _factory(token: str):
+        url = f"http://127.0.0.1:{mcp_server_port}/mcp/sse"
+        headers = {"Authorization": f"Bearer {token}"}
+        async with mcp.client.sse.sse_client(url=url, headers=headers) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+
+    return _factory
