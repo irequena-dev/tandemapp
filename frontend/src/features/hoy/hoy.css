@@ -1,4 +1,4 @@
-/* Hoy — home screen. Hero "Ahora" + timeline + summary cards.
+/* Hoy — home screen. Hero "Ahora" + timeline + summary list.
    See pantallas.md § Hoy, DESIGN.md tokens. */
 
 .hoy {
@@ -19,6 +19,22 @@
   line-height: 1.1;
 }
 
+/* ---------- Line clamps (reusable) ---------- */
+.hoy-clamp-1,
+.hoy-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hoy-clamp-1 {
+  -webkit-line-clamp: 1;
+}
+
+.hoy-clamp-2 {
+  -webkit-line-clamp: 2;
+}
+
 /* ---------- Hero "Ahora" ---------- */
 .hoy-hero {
   background: var(--ds-surface);
@@ -33,18 +49,6 @@
 .hoy-hero--urgent {
   border-color: var(--ds-attn);
   background: var(--ds-attn-bg);
-}
-
-.hoy-hero__eyebrow {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--ds-muted);
-  text-transform: uppercase;
-}
-
-.hoy-hero--urgent .hoy-hero__eyebrow {
-  color: var(--ds-attn-ink);
 }
 
 .hoy-hero__heading {
@@ -70,6 +74,10 @@
   flex-wrap: wrap;
 }
 
+.hoy-hero__actions .btn {
+  min-height: 44px;
+}
+
 .hoy-hero__calm {
   display: flex;
   align-items: center;
@@ -88,6 +96,9 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hoy-timeline__title {
@@ -97,15 +108,31 @@
   margin-bottom: var(--ds-s-md);
 }
 
+.hoy-timeline__empty {
+  color: var(--ds-muted);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  padding: var(--ds-s-md) 0;
+}
+
 .hoy-tl-item {
   display: flex;
+  align-items: center;
   gap: var(--ds-s-md);
+  min-height: 44px;
   padding: var(--ds-s-md) 0;
   position: relative;
+  text-decoration: none;
+  color: inherit;
 }
 
 .hoy-tl-item + .hoy-tl-item {
   border-top: 1px solid var(--ds-border);
+}
+
+.hoy-tl-item:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
 }
 
 .hoy-tl-item__time {
@@ -122,6 +149,8 @@
 .hoy-tl-item__body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .hoy-tl-item__label {
@@ -147,7 +176,6 @@
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1;
-  align-self: center;
 }
 
 .hoy-tl-item__status--done {
@@ -165,18 +193,32 @@
   color: var(--ds-attn-ink);
 }
 
-/* ---------- Summary cards ("Más cosas") ---------- */
-.hoy-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* ---------- Summary list ---------- */
+.hoy-summary {
+  display: flex;
+  flex-direction: column;
   gap: var(--ds-s-md);
 }
 
-.hoy-card {
+.hoy-summary__list {
   display: flex;
   flex-direction: column;
-  gap: var(--ds-s-sm);
-  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
+.hoy-summary__list .hoy-row + .hoy-row {
+  border-top: 1px solid var(--ds-border);
+}
+
+.hoy-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  min-height: 44px;
+  padding: var(--ds-s-md) var(--ds-s-lg);
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-lg);
@@ -186,18 +228,43 @@
   cursor: pointer;
 }
 
-.hoy-card:hover {
+.hoy-summary__list .hoy-row {
+  /* inside the list the rows share the container border; drop per-row radius/border */
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-bottom: none;
+}
+
+.hoy-summary__list .hoy-row:first-child {
+  border-top: none;
+}
+
+.hoy-row:hover {
   background: var(--ds-surface-2);
 }
 
-.hoy-card:focus-visible {
+.hoy-row:focus-visible {
   outline: 2px solid var(--ds-primary);
   outline-offset: 2px;
 }
 
-.hoy-card__icon {
-  width: 36px;
-  height: 36px;
+/* Attention variant: Compra when there are pending items */
+.hoy-row--compra.is-attn {
+  background: var(--ds-attn-bg);
+  border-color: var(--ds-attn);
+}
+
+.hoy-row--compra.is-attn:hover {
+  /* keep the attention wash on hover; nudge tonal via filter */
+  filter: brightness(0.98);
+}
+
+.hoy-row__icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border-radius: var(--ds-r-md);
@@ -205,15 +272,62 @@
   color: var(--ds-primary);
 }
 
-.hoy-card__label {
+.hoy-row--compra.is-attn .hoy-row__icon {
+  background: var(--ds-surface);
+  color: var(--ds-attn-ink);
+}
+
+.hoy-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hoy-row__label {
   font-size: 0.8125rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--ds-muted);
 }
 
-.hoy-card__value {
+.hoy-row__value {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--ds-ink);
+}
+
+.hoy-row--compra.is-attn .hoy-row__value {
+  color: var(--ds-attn-ink);
+}
+
+/* Hijos child-status chip: pair color with icon (state-is-never-color-alone) */
+.hoy-row__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.hoy-row__chip.is-ok {
+  color: var(--ds-success-ink);
+}
+
+.hoy-row__chip.is-muted {
+  color: var(--ds-muted);
+}
+
+.hoy-row__chip.is-warn {
+  color: var(--ds-attn-ink);
+}
+
+.hoy-row__chevron {
+  flex: none;
+  color: var(--ds-muted);
+}
+
+.hoy-row--compra.is-attn .hoy-row__chevron {
+  color: var(--ds-attn-ink);
 }

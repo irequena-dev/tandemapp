@@ -69,7 +69,7 @@ describe('HoyPage — estado calmado', () => {
     expect(screen.getByText('Al día')).toBeTruthy()
   })
 
-  it('no muestra la sección de timeline cuando está vacía', async () => {
+  it('muestra estado vacío tranquilo cuando el timeline no tiene entradas', async () => {
     server.use(http.get(API, () => HttpResponse.json(CALM_RESPONSE)))
 
     render(<HoyPage />, { wrapper: makeWrapper() })
@@ -77,7 +77,10 @@ describe('HoyPage — estado calmado', () => {
     await waitFor(() =>
       expect(screen.getByText(/Nada urgente ahora/)).toBeTruthy(),
     )
-    expect(screen.queryByText('Hoy', { selector: 'h2' })).toBeNull()
+    expect(screen.getByText(/Hoy está tranquilo/)).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'Agenda de hoy', level: 2 }),
+    ).toBeTruthy()
   })
 
   it('muestra estado de carga mientras se obtienen los datos', async () => {
