@@ -1,6 +1,6 @@
 # 03 — Pauta domain module: one deep module for next-dose, lazy-expiry, duplicate-guard
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 

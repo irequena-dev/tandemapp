@@ -1,6 +1,6 @@
 # 02 — Tenancy seam: `family_session` yields session + identity together
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 

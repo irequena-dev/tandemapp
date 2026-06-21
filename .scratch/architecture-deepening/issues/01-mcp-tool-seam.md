@@ -1,6 +1,6 @@
 # 01 — MCP tool seam: one session/RLS/identity seam + tool registry
 
-Status: ready-for-agent
+Status: done
 
 ## What to build
 
