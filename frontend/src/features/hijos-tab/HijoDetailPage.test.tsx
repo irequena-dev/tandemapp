@@ -318,3 +318,54 @@ describe('HijoDetailPage — vocabulario de componentes consistente', () => {
     expect(addBtn).toHaveClass('hijo-detail__add-btn')
   })
 })
+
+describe('HijoDetailPage — colores de gráfica (clay reservado para urgencia)', () => {
+  it('la gráfica de Peso no usa el color clay (--ds-attention)', async () => {
+    const weightMeasurement1 = {
+      ...MEASUREMENT,
+      id: 'm2',
+      type: 'weight',
+      value: 13,
+      unit: 'kg',
+      measured_at: '2026-05-01',
+    }
+    const weightMeasurement2 = {
+      ...MEASUREMENT,
+      id: 'm3',
+      type: 'weight',
+      value: 14,
+      unit: 'kg',
+      measured_at: '2026-06-01',
+    }
+    server.use(
+      ...stubData({
+        measurements: [MEASUREMENT, weightMeasurement1, weightMeasurement2],
+      }),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
+
+    // Find all growth charts
+    const charts = document.querySelectorAll('.growth-chart')
+    expect(charts.length).toBeGreaterThan(0)
+
+    // Find the Peso chart (second chart, after Altura)
+    const pesoChart = Array.from(charts).find(chart =>
+      chart.textContent?.includes('Peso')
+    )
+    expect(pesoChart).toBeTruthy()
+
+    // The chart should not use var(--ds-attention) as its color
+    // We check this by inspecting the SVG polyline stroke
+    const svg = pesoChart?.querySelector('svg')
+    const polyline = svg?.querySelector('polyline')
+    const strokeColor = polyline?.getAttribute('stroke')
+
+    // It should not be the clay color
+    expect(strokeColor).not.toBe('var(--ds-attention)')
+    // It should be a sage or muted color instead
+    expect(strokeColor).toMatch(/var\(--ds-(primary|primary-hover|muted|ink)/)
+  })
+})

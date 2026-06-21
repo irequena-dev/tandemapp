@@ -512,7 +512,7 @@ export function HijoDetailPage() {
               medidas={weights}
               label="Peso"
               unit="kg"
-              color="var(--ds-attention)"
+              color="var(--ds-primary-hover)"
             />
             <ul className="hijo-detail__growth">
               {sortedMedidas.map((m) => (
