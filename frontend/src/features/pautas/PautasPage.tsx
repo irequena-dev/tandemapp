@@ -87,6 +87,8 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
   // ID de la Administración cuyo "Deshacer" está pidiendo confirmación inline.
   // null = ninguna. Es por-fila: solo una toma se confirma a la vez.
   const [confirmingAdminId, setConfirmingAdminId] = useState<string | null>(null)
+  // ¿La acción "Finalizar Pauta" está pidiendo confirmación inline? (destructiva).
+  const [confirmingFinish, setConfirmingFinish] = useState(false)
   const finishMutation = useFinishPauta()
   const createAdmin = useCreateAdministration()
   const deleteAdmin = useDeleteAdministration()
@@ -150,9 +152,21 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
   function toggleOpen() {
     setOpen((prev) => {
       const next = !prev
-      if (!next) setConfirmingAdminId(null)
+      if (!next) {
+        setConfirmingAdminId(null)
+        setConfirmingFinish(false)
+      }
       return next
     })
+  }
+
+  // Finaliza la Pauta tras la confirmación inline. El toast de éxito con
+  // "Deshacer" (10s, reactiva la Pauta) lo dispara el hook `useFinishPauta`,
+  // porque al marcar finished esta tarjeta se desmonta (salta a "Finalizadas")
+  // y un onSuccess pasado a `.mutate()` no se ejecutaría.
+  function handleConfirmFinish() {
+    setConfirmingFinish(false)
+    finishMutation.mutate(pauta.id)
   }
 
   const isActive = pauta.status === 'active'
@@ -173,31 +187,39 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
 
   return (
     <div className={`pauta-card${pauta.status === 'finished' ? ' pauta-card--finalizada' : ''}`}>
+      {/* Toda la tarjeta colapsada es el trigger de disclosure (como la card de
+          Hijos). Anagrama grande para identificar al Hijo de un vistazo, título
+          con la Pauta y chips de frecuencia/duración. El chevron arriba a la
+          derecha es solo el indicador visual; la acción primaria "Marcar toma"
+          frena la propagación para no desplegar a la vez. */}
       <div
-        className="pauta-card__header"
+        className="pauta-card__summary"
         role="button"
         tabIndex={0}
         aria-expanded={open}
+        aria-label={open ? 'Ocultar detalles' : 'Ver detalles'}
         onClick={toggleOpen}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen() } }}
       >
-        <span className="pauta-card__child">
-          <span className="hijo-mono" data-tone={toneOf(childName)}>
+        <div className="pauta-card__head">
+          <span className="hijo-mono hijo-mono--lg" data-tone={toneOf(childName)}>
             {initialOf(childName)}
           </span>
-        </span>
-        <div className="pauta-card__info">
-          <span className="pauta-card__med ds-nums">
-            {pauta.medication} · {pauta.dose}
-          </span>
-          <span className="pauta-card__sub">
-            <span>{childName} · cada </span>
-            <span className="ds-nums">{pauta.interval_hours}h</span>
-            <span> · </span>
-            <span className="ds-nums">{pauta.duration_days} días</span>
+          <div className="pauta-card__headinfo">
+            <span className="pauta-card__title">{pauta.medication} · {pauta.dose}</span>
+            <span className="pauta-card__child">{childName}</span>
+            <div className="pauta-card__chips">
+              <span className="pauta-card__chip ds-nums">Cada {pauta.interval_hours} h</span>
+              <span className="pauta-card__chip ds-nums">{pauta.duration_days} días</span>
+            </div>
+          </div>
+          <span className="pauta-card__toggle" aria-hidden="true">
+            <ChevronDown open={open} />
           </span>
         </div>
-        <div className="pauta-card__meta">
+
+        {/* Footer: estado a la izquierda + acción primaria abajo a la derecha. */}
+        <div className="pauta-card__footer">
           {dueLabel && (
             <span className={`pauta-card__due pauta-card__due--${dueLabel.kind}`}>
               {dueLabel.kind === 'proxima' && <><ClockSmall /> Próxima · <span className="ds-nums">{dueLabel.time}</span></>}
@@ -205,36 +227,30 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
               {dueLabel.kind === 'finalizada' && <><CheckSmall /> Finalizada</>}
             </span>
           )}
-          <ChevronDown open={open} />
+          <div className="pauta-card__actions">
+            {isActive && (
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                onClick={(e) => { e.stopPropagation(); handleCreateToma() }}
+                disabled={createAdmin.isPending || recentToma}
+                aria-label={
+                  recentToma && lastAdmin
+                    ? `Toma reciente (${formatTime(lastAdmin.administered_at)}). Espera ${DUPLICATE_GUARD_MINUTES} min entre tomas.`
+                    : `Marcar toma de ${pauta.medication}`
+                }
+              >
+                {recentToma ? 'Toma reciente' : 'Marcar toma'}
+              </button>
+            )}
+            {createError && (
+              <span className="pauta-inline-error" role="alert">
+                {createError}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Acción de escritura primaria en la tarjeta colapsada (P0b): un solo
-          botón sage, visible solo para la pauta activa. stopPropagation evita
-          que un toque registre la toma Y abra la tarjeta a la vez. La acción
-          infrecuente "Finalizar Pauta" vive solo en el cuerpo expandido. */}
-      {isActive && (
-        <div className="pauta-card__action">
-          <button
-            type="button"
-            className="btn btn--primary btn--sm"
-            onClick={(e) => { e.stopPropagation(); handleCreateToma() }}
-            disabled={createAdmin.isPending || recentToma}
-            aria-label={
-              recentToma && lastAdmin
-                ? `Toma reciente (${formatTime(lastAdmin.administered_at)}). Espera ${DUPLICATE_GUARD_MINUTES} min entre tomas.`
-                : `Marcar toma de ${pauta.medication}`
-            }
-          >
-            {recentToma ? 'Toma reciente' : 'Marcar toma'}
-          </button>
-          {createError && (
-            <span className="pauta-inline-error" role="alert">
-              {createError}
-            </span>
-          )}
-        </div>
-      )}
 
       {open && (
         <div className="pauta-body">
@@ -310,18 +326,20 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
                       <button
                         type="button"
                         className="btn btn--secondary btn--sm"
+                        aria-label="Cancelar"
                         onClick={() => setConfirmingAdminId(null)}
                         disabled={deleteAdmin.isPending}
                       >
-                        Cancelar
+                        No
                       </button>
                       <button
                         type="button"
                         className="btn btn--danger-solid btn--sm"
+                        aria-label="Borrar"
                         onClick={() => handleConfirmDelete(a)}
                         disabled={deleteAdmin.isPending}
                       >
-                        {deleteAdmin.isPending ? 'Borrando…' : 'Borrar'}
+                        {deleteAdmin.isPending ? '…' : 'Sí'}
                       </button>
                     </div>
                   )}
@@ -355,36 +373,20 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
             </div>
           )}
 
-          {/* Última toma */}
-          {lastAdmin && (
-            <div className="pauta-tomas">
-              <span className="pauta-tomas__title">Última toma</span>
-              <div className="pauta-toma">
-                <span className="pauta-toma__time ds-nums">
-                  {formatTime(lastAdmin.administered_at)}
-                </span>
-                <span className="pauta-toma__label">
-                  {lastAdmin.member_name ?? 'Miembro'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Ends at */}
-          <div className="pauta-tomas">
-            <span className="pauta-tomas__title">Fin del tratamiento</span>
-            <div className="pauta-toma">
-              <span className="pauta-toma__time ds-nums">
-                {new Date(pauta.ends_at).toLocaleDateString('es-ES')}
-              </span>
-              <span className="pauta-toma__label">
-                {pauta.status === 'finished' ? (
-                  <><CheckSmall /> Finalizada</>
-                ) : (
-                  <><ClockSmall /> En curso</>
-                )}
-              </span>
-            </div>
+          {/* Fin del tratamiento — una sola fila compacta (la "última toma" ya se
+              infiere del timeline "Tomas de hoy", así que no la repetimos). */}
+          <div className="pauta-endline">
+            <span className="pauta-endline__label">Fin del tratamiento</span>
+            <span className="pauta-endline__value ds-nums">
+              {new Date(pauta.ends_at).toLocaleDateString('es-ES')}
+            </span>
+            <span className="pauta-endline__status">
+              {pauta.status === 'finished' ? (
+                <><CheckSmall /> Finalizada</>
+              ) : (
+                <><ClockSmall /> En curso</>
+              )}
+            </span>
           </div>
 
           {/* El cuerpo expandido es ahora historial. "Marcar toma" vive en la
@@ -399,22 +401,48 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
                   {lastAdmin.member_name ? ` por ${lastAdmin.member_name}` : ''} · próxima disponible en {DUPLICATE_GUARD_MINUTES} min
                 </span>
               )}
-              <button
-                type="button"
-                className="pauta-finish"
-                onClick={() =>
-                  finishMutation.mutate(pauta.id, {
-                    onSuccess: () => toast.success(`Pauta de ${pauta.medication} finalizada`),
-                  })
-                }
-                disabled={finishMutation.isPending}
-              >
-                {finishMutation.isPending ? 'Finalizando…' : 'Finalizar Pauta'}
-              </button>
               {finishError && (
                 <p className="pauta-inline-error" role="alert">
                   {finishError}
                 </p>
+              )}
+              {/* Finalizar es destructivo (cierra el tratamiento): pedimos
+                  confirmación inline (patrón .hijo-confirm, Sí/No de ancho
+                  igual) antes de ejecutar. El undo de 10s vive en el toast. */}
+              {confirmingFinish ? (
+                <div
+                  className="hijo-confirm pauta-finish-confirm pauta-finish"
+                  role="group"
+                  aria-label="Confirmar finalización de la Pauta"
+                >
+                  <span className="hijo-confirm__label">¿Finalizar la Pauta?</span>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm pauta-confirm__btn"
+                    aria-label="Cancelar"
+                    onClick={() => setConfirmingFinish(false)}
+                    disabled={finishMutation.isPending}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger-solid btn--sm pauta-confirm__btn"
+                    aria-label="Finalizar Pauta"
+                    onClick={handleConfirmFinish}
+                    disabled={finishMutation.isPending}
+                  >
+                    {finishMutation.isPending ? '…' : 'Sí'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm pauta-finish"
+                  onClick={() => setConfirmingFinish(true)}
+                >
+                  Finalizar Pauta
+                </button>
               )}
             </div>
           )}

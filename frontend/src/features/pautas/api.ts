@@ -1,3 +1,4 @@
+import { createElement, Fragment } from 'react'
 import { useAuth } from '@clerk/react'
 import {
   useMutation,
@@ -7,6 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
 import { randomId } from '../../lib/randomId'
+import { useToast } from '../toasts/useToast'
 import type { Administration, Pauta, PautaInput } from './types'
 
 /** Claves de caché de Pautas. */
@@ -89,10 +91,20 @@ export function useCreatePauta() {
   })
 }
 
-/** Finaliza una Pauta (optimista: marca finished inmediatamente). */
+/** Finaliza una Pauta (optimista: marca finished inmediatamente).
+ *
+ * El toast de éxito con "Deshacer" (10s, reactiva la Pauta) se dispara desde el
+ * `onSuccess` del propio hook —no desde un callback pasado a `.mutate()`— porque
+ * al marcar `finished` la tarjeta salta de la lista de activas a la sección
+ * "Finalizadas" y se DESMONTA: los callbacks de `.mutate()` de un componente
+ * desmontado no se ejecutan, así que el toast se perdía. Los de `useMutation`
+ * sí se ejecutan siempre. Usamos `createElement` porque este archivo es `.ts`.
+ */
 export function useFinishPauta() {
   const { getToken } = useAuth()
   const qc = useQueryClient()
+  const toast = useToast()
+  const reactivate = useReactivatePauta()
   return useMutation({
     mutationFn: async (pautaId: string) =>
       apiFetch<Pauta>(`/pautas/${pautaId}/finish`, {
@@ -106,6 +118,53 @@ export function useFinishPauta() {
           p.id === pautaId
             ? { ...p, status: 'finished' as const, next_dose_at: null }
             : p,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSuccess: (data) => {
+      toast.success(
+        createElement(
+          Fragment,
+          null,
+          createElement('strong', null, `Pauta de ${data.medication} finalizada.`),
+          ' ',
+          createElement(
+            'button',
+            {
+              type: 'button',
+              className: 'toast__action',
+              onClick: () =>
+                reactivate.mutate(data.id, {
+                  onError: () => toast.error('No se pudo reactivar la Pauta.'),
+                }),
+            },
+            'Deshacer',
+          ),
+        ),
+        { duration: 10000 },
+      )
+    },
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+/** Reactiva una Pauta finalizada (deshacer "Finalizar Pauta"). */
+export function useReactivatePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (pautaId: string) =>
+      apiFetch<Pauta>(`/pautas/${pautaId}/reactivate`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (pautaId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) =>
+          p.id === pautaId ? { ...p, status: 'active' as const } : p,
         ),
       )
       return ctx

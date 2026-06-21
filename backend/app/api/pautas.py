@@ -202,3 +202,32 @@ async def finish_pauta(
     await session.flush()
     await session.refresh(pauta)
     return await _to_out(pauta, session)
+
+
+@router.post("/pautas/{pauta_id}/reactivate")
+async def reactivate_pauta(
+    pauta_id: uuid.UUID,
+    session: AsyncSession = Depends(family_session),
+) -> PautaOut:
+    """Reactiva una Pauta finalizada manualmente (deshacer "Finalizar Pauta").
+
+    Solo aplica a Pautas finalizadas que aún no han caducado: una Pauta cuyo
+    `ends_at` ya pasó volvería a `finished` en el próximo lazy-finish, así que
+    reactivarla no tendría efecto y devolvemos 409.
+    """
+    pauta = await _get_owned_pauta(session, pauta_id)
+    if pauta.status == "active":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La Pauta ya está activa",
+        )
+    if pauta.is_expired:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede reactivar una Pauta ya caducada",
+        )
+    pauta.status = "active"
+    session.add(pauta)
+    await session.flush()
+    await session.refresh(pauta)
+    return await _to_out(pauta, session)

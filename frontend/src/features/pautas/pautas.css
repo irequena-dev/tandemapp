@@ -36,66 +36,107 @@
   overflow: hidden;
 }
 
-/* Una Pauta finalizada se expresa con la pill "Finalizada" (con check) + un
-   paso tonal a surface-2, no bajando opacidad: opacity:0.6 empuja el texto
-   muted por debajo de AA 4.5:1. Sección agrupada "Finalizadas" refuerza el
-   estado a nivel de IA. */
+/* Una Pauta finalizada se agrupa en la sección "Finalizadas" y se marca con la
+   pill "Finalizada" (con check). El recedido NO se hace con surface-2 porque en
+   el tema cálido surface-2 (#efe7d8) ≈ el fondo de la app (#ece6da) y la card se
+   fundía con el campo; mantenemos la superficie de card y recedemos con un borde
+   discreto (dashed) que sigue leyendo como tarjeta cerrada. */
 .pauta-card--finalizada {
-  background: var(--ds-surface-2);
+  background: var(--ds-surface);
+  border-style: dashed;
 }
 
-.pauta-card__header {
+/* ---------- Pauta card summary (collapsed) ----------
+   Card tipo Hijos: anagrama grande + título de la Pauta + chips de
+   frecuencia/duración y un footer con estado + acción. Toda la card es el
+   trigger de disclosure (role=button); el chevron es solo indicador visual y
+   "Marcar toma" frena la propagación. */
+.pauta-card__summary {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--ds-s-md);
-  padding: var(--ds-s-md) var(--ds-s-lg);
+  padding: var(--ds-s-lg);
   cursor: pointer;
-  min-height: 64px;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
 @media (hover: hover) and (pointer: fine) {
-  .pauta-card__header:hover {
+  .pauta-card__summary:hover {
     background: color-mix(in srgb, var(--ds-surface-2) 50%, transparent);
   }
 }
-/* Anillo de foco para teclado/switch (WCAG 2.4.7). El header ES el trigger de
-   disclosure (div[role=button], tabIndex 0) y solo tenía :hover. */
-.pauta-card__header:focus-visible {
+.pauta-card__summary:focus-visible {
   outline: 2px solid var(--ds-primary);
   outline-offset: -2px;
 }
 
-.pauta-card__child {
-  flex: none;
+/* Cabecera tipo card de Hijos: anagrama grande, info, chevron arriba a la derecha. */
+.pauta-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-s-lg);
+  min-width: 0;
 }
 
-.pauta-card__info {
+.pauta-card__headinfo {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.pauta-card__med {
+.pauta-card__title {
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
   color: var(--ds-ink);
+  overflow-wrap: anywhere;
 }
 
-.pauta-card__sub {
-  font-size: 0.8125rem;
+.pauta-card__child {
+  font-size: 0.875rem;
   color: var(--ds-muted);
 }
 
-/* Cabecera derecha: la figura de estado (próxima/dada/finalizada) + chevron.
-   Agrupados para que la tarjeta colapsada sea la respuesta de un vistazo. */
-.pauta-card__meta {
-  flex: none;
+.pauta-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  margin-top: 2px;
+}
+
+.pauta-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ds-ink);
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-sm);
+  padding: 3px var(--ds-s-sm);
+  white-space: nowrap;
+}
+
+/* Footer: pill de estado a la izquierda, acción primaria a la derecha. */
+.pauta-card__footer {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--ds-s-sm);
+  min-height: 44px;
+}
+
+.pauta-card__actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-s-sm);
+  margin-left: auto;
 }
 
 .pauta-card__due {
@@ -111,8 +152,7 @@
   white-space: nowrap;
 }
 
-/* Próxima → clay (attn): "needs you now". Dada → sage/success: handled.
-   Finalizada → neutral. Cada uno lleva icono (State-Is-Never-Color-Alone). */
+/* Próxima → attn ("needs you now"). Dada → success (handled). Finalizada → neutral. */
 .pauta-card__due--proxima {
   background: var(--ds-attn-bg);
   color: var(--ds-attn-ink);
@@ -126,26 +166,24 @@
   color: var(--ds-muted);
 }
 
+/* Indicador de expansión: chevron arriba a la derecha. Decorativo (la card
+   entera es el trigger), así que no es focusable ni necesita hover propio. */
+.pauta-card__toggle {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--ds-muted);
+}
+
 .pauta-card__chevron {
   flex: none;
-  color: var(--ds-muted);
+  color: currentColor;
   transition: transform var(--ds-dur-fast) var(--ds-ease);
 }
 .pauta-card__chevron--open {
   transform: rotate(180deg);
-}
-
-/* Acción primaria en la tarjeta colapsada (P0b). Strip a pie de tarjeta:
-   legible, en rango del pulgar, y solo un botón sage por tarjeta activa
-   (Quiet Sage Rule). btn--sm ya garantiza ≥44px de tap target.
-   Apila el botón y, si aplica, el mensaje de error de la mutación. */
-.pauta-card__action {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: var(--ds-s-sm);
-  padding: 0 var(--ds-s-lg) var(--ds-s-md);
 }
 
 /* Mensaje de error inline (create/delete/finish). Hermano del bloque
@@ -169,6 +207,23 @@
   margin-top: var(--ds-s-xs);
   padding: var(--ds-s-sm) var(--ds-s-md);
   border-radius: 0 0 var(--ds-r-md) var(--ds-r-md);
+}
+
+/* Confirmación inline (deshacer toma / finalizar Pauta): fijamos un ancho mínimo
+   común a los botones Sí/No para que "No" no sea más ancho que "Sí" según sus
+   caracteres y queden alineados y del mismo tamaño. */
+.pauta-confirm .btn--sm,
+.pauta-finish-confirm .btn--sm {
+  min-width: 3rem;
+  justify-content: center;
+}
+
+/* El confirm inline de "Finalizar Pauta" reusa .hijo-confirm pero vive al pie
+   del cuerpo: lo empujamos a la derecha (.pauta-finish) y le damos su propio
+   redondeo completo (no solo inferior como .pauta-confirm). */
+.pauta-finish-confirm {
+  flex: none;
+  border-radius: var(--ds-r-md);
 }
 
 /* ---------- Expanded body ---------- */
@@ -289,47 +344,48 @@
   color: var(--ds-muted);
 }
 
+/* Fin del tratamiento — una sola fila compacta (etiqueta · fecha · estado),
+   no una sección con filas separadas que ocupa de más. */
+.pauta-endline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs) var(--ds-s-sm);
+  font-size: 0.875rem;
+}
+.pauta-endline__label {
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+.pauta-endline__value {
+  color: var(--ds-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pauta-endline__status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  color: var(--ds-muted);
+}
+
+/* "Finalizar Pauta": acción infrecuente de final de tratamiento. Vive abajo a
+   la derecha del cuerpo y reusa el estilo del botón "Deshacer" (btn--secondary
+   btn--sm); aquí solo la empujamos a la derecha y dejamos el aviso en su fila. */
 .pauta-body__actions {
   display: flex;
   gap: var(--ds-s-sm);
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
 }
 
-/* "Finalizar Pauta" es una acción infrecuente de final de tratamiento: vive
-   sola en el cuerpo y se expresa como acción de texto recedida (muted → ink al
-   hover/foco), no como un botón secondary que pese igual que el sage "Marcar
-   toma". Mantiene tap target cómodo y el anillo de foco del sistema. */
 .pauta-finish {
-  appearance: none;
-  border: none;
-  background: transparent;
-  padding: var(--ds-s-sm) var(--ds-s-xs);
-  margin-left: calc(var(--ds-s-xs) * -1);
-  font-family: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--ds-muted);
-  cursor: pointer;
-  border-radius: var(--ds-r-md);
-  min-height: 44px;
-  transition: color var(--ds-dur-fast) var(--ds-ease);
-}
-.pauta-finish:hover:not(:disabled) {
-  color: var(--ds-danger);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.pauta-finish:focus-visible {
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 2px;
-}
-.pauta-finish:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  margin-left: auto;
 }
 
 .pauta-toma__hint {
+  flex-basis: 100%;
   font-size: 0.8125rem;
   color: var(--ds-muted);
 }

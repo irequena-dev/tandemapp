@@ -260,6 +260,42 @@ describe('PautasPage (costura de ruta/página)', () => {
     })
   })
 
+  it('finalizar Pauta pide confirmación inline y ofrece deshacer (reactivar) en el toast', async () => {
+    let finishCalls = 0
+    let reactivateCalls = 0
+    server.use(
+      http.post('http://localhost:8000/pautas/:id/finish', () => {
+        finishCalls += 1
+        return HttpResponse.json({ ...samplePauta, status: 'finished', next_dose_at: null })
+      }),
+      http.post('http://localhost:8000/pautas/:id/reactivate', () => {
+        reactivateCalls += 1
+        return HttpResponse.json({ ...samplePauta, status: 'active' })
+      }),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    // Expandir para llegar a "Finalizar Pauta".
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Pulsar "Finalizar Pauta" NO finaliza: abre confirmación inline.
+    await user.click(await screen.findByRole('button', { name: 'Finalizar Pauta' }))
+    expect(await screen.findByRole('group', { name: /Confirmar finalización/ })).not.toBeNull()
+    expect(finishCalls).toBe(0)
+
+    // Confirmar (el "Sí" tiene aria-label "Finalizar Pauta") → dispara el POST + toast con Deshacer.
+    await user.click(screen.getByRole('button', { name: 'Finalizar Pauta' }))
+    await waitFor(() => expect(finishCalls).toBe(1))
+    const undo = await screen.findByRole('button', { name: 'Deshacer' })
+
+    // Deshacer reactiva la Pauta.
+    await user.click(undo)
+    await waitFor(() => expect(reactivateCalls).toBe(1))
+  })
+
   it('muestra un toast de éxito al marcar una toma desde la tarjeta colapsada (peak-end)', async () => {
     // El POST devuelve la Administración creada; el toast la "dice": "Dada a las … por …".
     const created: Administration = {
