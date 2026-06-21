@@ -439,13 +439,61 @@
 .pautas__group + .pautas__group {
   margin-top: var(--ds-s-md);
 }
-.pautas__group-title {
+
+/* Collapsible <details> para la sección Finalizadas. Reusa el patrón de
+   disclosure de las tarjetas (chevron que rota al expandir). */
+.pautas__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.pautas__group > summary {
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--ds-muted);
   text-transform: none;
   margin: 0 0 var(--ds-s-sm) var(--ds-s-xs);
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  user-select: none;
+  transition: color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.pautas__group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pautas__group > summary:hover {
+  color: var(--ds-ink);
+}
+
+.pautas__group > summary:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Chevron indicator para el summary de Finalizadas. Reusa el estilo de
+   .pauta-card__chevron pero con tamaño ligeramente menor para el encabezado. */
+.pautas__group > summary::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  color: currentColor;
+  transition: transform var(--ds-dur-fast) var(--ds-ease);
+}
+
+.pautas__group[open] > summary::after {
+  transform: rotate(180deg);
 }
 
 /* ---------- Loading skeleton ---------- */

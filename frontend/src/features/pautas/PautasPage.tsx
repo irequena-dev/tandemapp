@@ -517,14 +517,16 @@ export function PautasPage() {
           )}
 
           {finished.length > 0 && (
-            <section className="pautas__group" aria-label="Pautas finalizadas">
-              <h2 className="pautas__group-title">Finalizadas</h2>
+            <details className="pautas__group" open aria-label="Pautas finalizadas">
+              <summary className="pautas__group-title">
+                Finalizadas ({finished.length})
+              </summary>
               <ul className="pautas__list">
                 {finished.map((p) => (
                   <li key={p.id}><PautaCard pauta={p} childName={childNameById(p.child_id)} /></li>
                 ))}
               </ul>
-            </section>
+            </details>
           )}
         </>
       )}

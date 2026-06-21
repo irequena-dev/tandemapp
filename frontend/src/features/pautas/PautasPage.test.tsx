@@ -354,9 +354,9 @@ describe('PautasPage (costura de ruta/página)', () => {
     await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(2))
 
     // La sección recedida existe y está etiquetada para lectores.
-    const section = screen.getByRole('region', { name: /Pautas finalizadas/ })
-    expect(section).not.toBeNull()
-    expect(screen.queryByText('Finalizadas')).not.toBeNull()
+    const details = document.querySelector('details.pautas__group')
+    expect(details).not.toBeNull()
+    expect(screen.queryByText(/Finalizadas/)).not.toBeNull()
   })
 
   it('muestra el progreso como segmentos "Día N de M" en vez de una barra continua', async () => {
@@ -400,5 +400,64 @@ describe('PautasPage (costura de ruta/página)', () => {
     await waitFor(() => {
       expect(screen.queryByText('Guardando…')).not.toBeNull()
     })
+  })
+
+  // --- P2: Finalizadas section collapsible with count ---
+
+  it('muestra la sección "Finalizadas" como un <details> colapsable con el conteo', async () => {
+    const finished1: Pauta = { ...samplePauta, id: 'pauta-fin-1', status: 'finished', next_dose_at: null }
+    const finished2: Pauta = { ...samplePauta, id: 'pauta-fin-2', status: 'finished', next_dose_at: null }
+    renderPage([samplePauta, finished1, finished2])
+    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(3))
+
+    // Debe existir un elemento <details> para la sección Finalizadas
+    const details = document.querySelector('details.pautas__group')
+    expect(details).not.toBeNull()
+
+    // El summary debe mostrar el conteo: "Finalizadas (2)"
+    expect(screen.queryByText(/Finalizadas \(2\)/)).not.toBeNull()
+
+    // Por defecto debe estar abierto (open attribute)
+    expect(details?.hasAttribute('open')).toBe(true)
+  })
+
+  it('permite colapsar y expandir la sección "Finalizadas"', async () => {
+    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
+    renderPage([samplePauta, finished])
+    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(2))
+
+    const details = document.querySelector('details.pautas__group')
+    expect(details).not.toBeNull()
+
+    const user = userEvent.setup()
+
+    // Inicialmente abierto: las tarjetas finalizadas son visibles
+    const finishedCard = screen.queryAllByText(/Amoxicilina · 5 ml/)[1]
+    expect(finishedCard).not.toBeNull()
+
+    // Colapsar al hacer click en el summary
+    const summary = details?.querySelector('summary')
+    expect(summary).not.toBeNull()
+    await user.click(summary!)
+
+    // Ahora debe estar cerrado: las tarjetas finalizadas no son visibles
+    await waitFor(() => {
+      expect(details?.hasAttribute('open')).toBe(false)
+    })
+
+    // Expandir de nuevo
+    await user.click(summary!)
+    await waitFor(() => {
+      expect(details?.hasAttribute('open')).toBe(true)
+    })
+  })
+
+  it('no muestra la sección "Finalizadas" cuando no hay pautas finalizadas', async () => {
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    // No debe existir el elemento <details> para Finalizadas
+    const details = document.querySelector('details.pautas__group')
+    expect(details).toBeNull()
   })
 })
