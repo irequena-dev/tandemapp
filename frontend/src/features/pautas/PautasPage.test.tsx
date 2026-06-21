@@ -93,27 +93,29 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(screen.queryByRole('button', { name: /Marcar toma/ })).not.toBeNull()
   })
 
-  it('muestra las Pautas finalizadas con estilo recesado', async () => {
+  it('NO muestra Pautas finalizadas (solo activas)', async () => {
     const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
     renderPage([finished])
     await waitFor(() => {
-      expect(screen.queryByText('Finalizada')).not.toBeNull()
+      // El estado vacío debe decir que no hay pautas activas
+      expect(screen.queryByText('Sin pautas activas')).not.toBeNull()
     })
+    // No debe mostrar ninguna tarjeta finalizada
+    expect(screen.queryByText('Finalizada')).toBeNull()
+    expect(screen.queryByText(/Amoxicilina · 5 ml/)).toBeNull()
   })
 
-  it('Pauta auto-finalizada (status=finished, next_dose_at=null) muestra recesado sin próxima toma', async () => {
-    const autoFinished: Pauta = {
-      ...samplePauta,
-      id: 'pauta-auto-fin',
-      status: 'finished',
-      next_dose_at: null,
-    }
-    renderPage([autoFinished])
+  it('muestra solo Pautas activas cuando hay mezcla de activas y finalizadas', async () => {
+    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
+    renderPage([samplePauta, finished])
     await waitFor(() => {
-      expect(screen.queryByText('Finalizada')).not.toBeNull()
+      // Solo debe aparecer la activa
+      expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(1)
     })
-    // No debe mostrar "Próxima toma" en el header
-    expect(screen.queryByText('Próxima toma')).toBeNull()
+    // No debe mostrar la sección "Finalizadas"
+    expect(screen.queryByText(/Finalizadas/)).toBeNull()
+    const details = document.querySelector('details.pautas__group')
+    expect(details).toBeNull()
   })
 
   it('muestra tomas del día con "Dada por" y botón "Marcar toma"', async () => {
@@ -346,17 +348,17 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(screen.queryByText(/servidor falló|Inténtalo de nuevo/)).not.toBeNull()
   })
 
-  // --- Fase polish: agrupación "Finalizadas" + indicador de progreso discreto ---
+  // --- Fase polish: solo activas, sin sección "Finalizadas" ---
 
-  it('agrupa las Pautas finalizadas en una sección "Finalizadas" separada', async () => {
+  it('NO agrupa finalizadas: la sección "Finalizadas" no existe', async () => {
     const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
     renderPage([samplePauta, finished])
-    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(2))
+    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(1))
 
-    // La sección recedida existe y está etiquetada para lectores.
+    // La sección "Finalizadas" NO debe existir
     const details = document.querySelector('details.pautas__group')
-    expect(details).not.toBeNull()
-    expect(screen.queryByText(/Finalizadas/)).not.toBeNull()
+    expect(details).toBeNull()
+    expect(screen.queryByText(/Finalizadas/)).toBeNull()
   })
 
   it('muestra el progreso como segmentos "Día N de M" en vez de una barra continua', async () => {
@@ -402,121 +404,22 @@ describe('PautasPage (costura de ruta/página)', () => {
     })
   })
 
-  // --- P2: Finalizadas section collapsible with count ---
+  // --- P2: No hay sección "Finalizadas" ---
 
-  it('muestra la sección "Finalizadas" como un <details> colapsable con el conteo', async () => {
+  it('NO muestra sección "Finalizadas" aunque haya múltiples finalizadas', async () => {
     const finished1: Pauta = { ...samplePauta, id: 'pauta-fin-1', status: 'finished', next_dose_at: null }
     const finished2: Pauta = { ...samplePauta, id: 'pauta-fin-2', status: 'finished', next_dose_at: null }
     renderPage([samplePauta, finished1, finished2])
-    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(3))
+    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(1))
 
-    // Debe existir un elemento <details> para la sección Finalizadas
-    const details = document.querySelector('details.pautas__group')
-    expect(details).not.toBeNull()
-
-    // El summary debe mostrar el conteo: "Finalizadas (2)"
-    expect(screen.queryByText(/Finalizadas \(2\)/)).not.toBeNull()
-
-    // Por defecto debe estar abierto (open attribute)
-    expect(details?.hasAttribute('open')).toBe(true)
-  })
-
-  it('permite colapsar y expandir la sección "Finalizadas"', async () => {
-    const finished: Pauta = { ...samplePauta, id: 'pauta-fin', status: 'finished', next_dose_at: null }
-    renderPage([samplePauta, finished])
-    await waitFor(() => expect(screen.queryAllByText(/Amoxicilina · 5 ml/).length).toBe(2))
-
-    const details = document.querySelector('details.pautas__group')
-    expect(details).not.toBeNull()
-
-    const user = userEvent.setup()
-
-    // Inicialmente abierto: las tarjetas finalizadas son visibles
-    const finishedCard = screen.queryAllByText(/Amoxicilina · 5 ml/)[1]
-    expect(finishedCard).not.toBeNull()
-
-    // Colapsar al hacer click en el summary
-    const summary = details?.querySelector('summary')
-    expect(summary).not.toBeNull()
-    await user.click(summary!)
-
-    // Ahora debe estar cerrado: las tarjetas finalizadas no son visibles
-    await waitFor(() => {
-      expect(details?.hasAttribute('open')).toBe(false)
-    })
-
-    // Expandir de nuevo
-    await user.click(summary!)
-    await waitFor(() => {
-      expect(details?.hasAttribute('open')).toBe(true)
-    })
-  })
-
-  it('no muestra la sección "Finalizadas" cuando no hay pautas finalizadas', async () => {
-    renderPage([samplePauta])
-    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
-
-    // No debe existir el elemento <details> para Finalizadas
+    // No debe existir la sección "Finalizadas"
     const details = document.querySelector('details.pautas__group')
     expect(details).toBeNull()
+    expect(screen.queryByText(/Finalizadas/)).toBeNull()
   })
 
-  // --- P2: Segmented progress shows all segments as done when pauta is finished ---
-
-  it('muestra todos los segmentos como done cuando la pauta está finalizada', async () => {
-    const finished: Pauta = {
-      ...samplePauta,
-      id: 'pauta-fin',
-      status: 'finished',
-      next_dose_at: null,
-      day_number: 3, // Finished on day 3 of 7
-    }
-    renderPage([finished])
-    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
-
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { expanded: false }))
-
-    // Find the progress indicator
-    const indicator = await screen.findByRole('img', { name: /Día 3 de 7 del tratamiento/ })
-    expect(indicator).not.toBeNull()
-
-    // All 7 segments should be marked as done when status is finished
-    const segments = indicator.querySelectorAll('.pauta-progress__seg')
-    expect(segments.length).toBe(7)
-
-    // Every segment should have the --done class
-    segments.forEach((seg) => {
-      expect(seg.classList.contains('pauta-progress__seg--done')).toBe(true)
-      expect(seg.classList.contains('pauta-progress__seg--current')).toBe(false)
-    })
-  })
-
-  it('muestra todos los segmentos como done para una pauta de 1 día finalizada', async () => {
-    const oneDayFinished: Pauta = {
-      ...samplePauta,
-      id: 'pauta-1day-fin',
-      status: 'finished',
-      next_dose_at: null,
-      duration_days: 1,
-      day_number: 1,
-    }
-    renderPage([oneDayFinished])
-    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
-
-    const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { expanded: false }))
-
-    // Find the progress indicator
-    const indicator = await screen.findByRole('img', { name: /Día 1 de 1 del tratamiento/ })
-    expect(indicator).not.toBeNull()
-
-    // The single segment should be marked as done (not current)
-    const segments = indicator.querySelectorAll('.pauta-progress__seg')
-    expect(segments.length).toBe(1)
-    expect(segments[0].classList.contains('pauta-progress__seg--done')).toBe(true)
-    expect(segments[0].classList.contains('pauta-progress__seg--current')).toBe(false)
-  })
+  // --- P2: No se muestran Pautas finalizadas, por lo que no se testea su progreso ---
+  // El progreso de finalizadas se testea en el tab Pautas de HijoDetail
 
   // --- P3: Última toma should not render when todaysAdmins is non-empty ---
 

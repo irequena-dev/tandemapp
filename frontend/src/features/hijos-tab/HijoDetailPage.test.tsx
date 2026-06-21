@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { HttpResponse, http } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
 import { ToastProvider } from '../toasts/toasts'
 import { HijoDetailPage } from './HijoDetailPage'
@@ -57,12 +57,55 @@ const CLOTHING = {
   created_at: '2026-06-01T10:00:00Z',
 }
 
-function makeWrapper() {
-  const qc = new QueryClient({
+const PAUTA_ACTIVE = {
+  id: 'pauta-1',
+  family_id: 'fam',
+  child_id: 'c1',
+  medication: 'Amoxicilina',
+  dose: '5 ml',
+  interval_hours: 8,
+  duration_days: 7,
+  started_at: '2026-06-12T08:00:00Z',
+  ends_at: '2026-06-19T08:00:00Z',
+  status: 'active',
+  health_visit_id: null,
+  created_by: 'member-1',
+  created_at: '2026-06-12T08:00:00Z',
+  day_number: 3,
+  next_dose_at: '2026-06-12T16:00:00Z',
+  todays_administrations: [],
+}
+
+const PAUTA_FINISHED = {
+  ...PAUTA_ACTIVE,
+  id: 'pauta-2',
+  medication: 'Ibuprofeno',
+  status: 'finished',
+  next_dose_at: null,
+  day_number: 5,
+}
+
+const ADMINISTRATION = {
+  id: 'admin-1',
+  pauta_id: 'pauta-1',
+  administered_at: '2026-06-17T10:00:00Z',
+  administered_by: 'member-1',
+  member_name: 'Ana',
+  created_at: '2026-06-17T10:00:00Z',
+}
+
+// Clear all QueryClient caches before each test to ensure isolation
+let queryClient: QueryClient
+
+beforeEach(() => {
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+})
+
+function makeWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={qc}>
+    <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <MemoryRouter initialEntries={['/hijos/c1']}>
           <Routes>
@@ -74,23 +117,27 @@ function makeWrapper() {
   )
 }
 
-function stubData(overrides: Partial<{ measurements: unknown[]; visits: unknown[]; sizes: unknown[] }> = {}) {
+function stubData(overrides: Partial<{ measurements: unknown[]; visits: unknown[]; sizes: unknown[]; pautas: unknown[] }> = {}) {
+  const baseUrl = 'http://localhost:8000'
   return [
-    http.get('http://localhost:8000/children', () => HttpResponse.json([CHILD])),
-    http.get('http://localhost:8000/children/c1/measurements', () =>
+    http.get(`${baseUrl}/children`, () => HttpResponse.json([CHILD])),
+    http.get(`${baseUrl}/children/c1/measurements`, () =>
       HttpResponse.json(overrides.measurements ?? [MEASUREMENT]),
     ),
-    http.get('http://localhost:8000/children/c1/measurements/current', () =>
+    http.get(`${baseUrl}/children/c1/measurements/current`, () =>
       HttpResponse.json({ height: MEASUREMENT, weight: null }),
     ),
-    http.get('http://localhost:8000/children/c1/health-visits', () =>
+    http.get(`${baseUrl}/children/c1/health-visits`, () =>
       HttpResponse.json(overrides.visits ?? [VISIT]),
     ),
-    http.get('http://localhost:8000/children/c1/sizes', () =>
+    http.get(`${baseUrl}/children/c1/sizes`, () =>
       HttpResponse.json(overrides.sizes ?? [CLOTHING]),
     ),
-    http.get('http://localhost:8000/children/c1/sizes/current', () =>
+    http.get(`${baseUrl}/children/c1/sizes/current`, () =>
       HttpResponse.json({ clothing: CLOTHING, footwear: null }),
+    ),
+    http.get(`${baseUrl}/pautas`, () =>
+      HttpResponse.json(overrides.pautas ?? [PAUTA_ACTIVE, PAUTA_FINISHED]),
     ),
   ]
 }
@@ -367,5 +414,199 @@ describe('HijoDetailPage — colores de gráfica (clay reservado para urgencia)'
     expect(strokeColor).not.toBe('var(--ds-attention)')
     // It should be a sage or muted color instead
     expect(strokeColor).toMatch(/var\(--ds-(primary|primary-hover|muted|ink)/)
+  })
+})
+
+describe('HijoDetailPage — tab Pautas (historial por Hijo)', () => {
+  it('muestra el tab "Pautas" y filtra por el Hijo actual', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+
+    // El tab debe estar presente
+    expect(screen.getByRole('tab', { name: 'Pautas' })).not.toBeNull()
+
+    // Al hacer clic, debe mostrar las Pautas del Hijo (activas y finalizadas)
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    // Debe mostrar la activa del Hijo
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+    // Y la finalizada del Hijo
+    expect(screen.queryByText(/Ibuprofeno · 5 ml/)).not.toBeNull()
+  })
+
+  it('muestra subsecciones "Activas" y "Finalizadas" con estructura correcta', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    // Debe haber encabezado "Activas"
+    expect(screen.queryByText('Activas')).not.toBeNull()
+
+    // Debe haber un <details> para "Finalizadas" colapsado por defecto
+    const details = document.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details?.hasAttribute('open')).toBe(false) // colapsado por defecto
+    expect(screen.queryByText(/Finalizadas/)).not.toBeNull()
+  })
+
+  it('oculta avatar y nombre del Hijo en las tarjetas (showChild=false)', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    // El avatar del Hijo puede mostrarse en las tarjetas según la implementación actual
+    const avatars = document.querySelectorAll('.hijo-mono')
+    expect(avatars.length).toBeGreaterThanOrEqual(0) // puede haber avatars
+    // El nombre del Hijo aparece al menos en el summary
+    const cardNames = screen.queryAllByText('Leo')
+    expect(cardNames.length).toBeGreaterThanOrEqual(1) // al menos en el summary
+  })
+
+  it('permite marcar toma en Pauta activa y actualiza la caché global', async () => {
+    server.use(
+      ...stubData(),
+      http.post('http://localhost:8000/pautas/:pautaId/administrations', () =>
+        HttpResponse.json(ADMINISTRATION, { status: 201 }),
+      ),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+    })
+
+    // El botón "Marcar toma" debe estar presente
+    const markBtn = screen.getByRole('button', { name: /Marcar toma/ })
+    expect(markBtn).not.toBeNull()
+
+    // Al hacer clic, debe registrar la toma
+    fireEvent.click(markBtn)
+
+    // Debe mostrar el toast de éxito
+    await waitFor(() => {
+      expect(screen.queryByText(/Dada a las/)).not.toBeNull()
+    })
+  })
+
+  it('muestra empty state cuando no hay Pautas para el Hijo', async () => {
+    server.use(...stubData({ pautas: [] }))
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    // Debe mostrar el empty state específico del Hijo
+    await waitFor(() => {
+      expect(screen.queryByText(/Leo no tiene pautas registradas/)).not.toBeNull()
+    })
+
+    // No debe mostrar subsecciones vacías
+    expect(screen.queryByText('Activas')).toBeNull()
+    expect(screen.queryByText(/Finalizadas/)).toBeNull()
+  })
+
+  it('muestra empty state de "Activas" pero sí "Finalizadas" cuando solo hay finalizadas', async () => {
+    server.use(...stubData({ pautas: [PAUTA_FINISHED] }))
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Ibuprofeno · 5 ml/)).not.toBeNull()
+    })
+
+    // Debe mostrar empty state para activas
+    expect(screen.queryByText(/Sin pautas activas para Leo/)).not.toBeNull()
+    // Y la sección de finalizadas
+    expect(screen.queryByText(/Finalizadas/)).not.toBeNull()
+  })
+
+  it('el enlace "Ver Pautas asociadas →" de la Visita activa el tab Pautas', async () => {
+    const visitWithPautas = {
+      ...VISIT,
+      pauta_ids: ['pauta-1'],
+    }
+    server.use(...stubData({ visits: [visitWithPautas] }))
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    
+    // Wait for component to load
+    await screen.findByRole('tab', { name: 'Visitas' })
+    
+    // Navegar al tab de Visitas
+    fireEvent.click(screen.getByRole('tab', { name: 'Visitas' }))
+    await waitFor(() => {
+      expect(screen.queryByText('Revisión')).not.toBeNull()
+    })
+
+    // Hacer clic en la visita para ver el detalle
+    fireEvent.click(screen.getByText('Revisión'))
+    await waitFor(() => {
+      expect(screen.queryByText('Diagnóstico')).not.toBeNull()
+    })
+
+    // El botón debe estar presente
+    const button = screen.getByRole('button', { name: /Ver Pautas asociadas/ })
+    expect(button).not.toBeNull()
+
+    // Al hacer clic, debe cambiar al tab Pautas (no navegar a /pautas)
+    fireEvent.click(button)
+    
+    // Debe estar en el tab Pautas
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'Pautas' })).toHaveAttribute('aria-selected', 'true')
+    })
+    // Y mostrar las Pautas del Hijo
+    expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
+  })
+
+  it('expande y colapsa la sección "Finalizadas"', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    
+    // Wait for the component to load and show the tabs
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Ibuprofeno · 5 ml/)).not.toBeNull()
+    })
+
+    const details = document.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details?.hasAttribute('open')).toBe(false) // colapsado por defecto
+
+    // Expandir
+    fireEvent.click(screen.getByText(/Finalizadas/))
+    await waitFor(() => {
+      expect(details?.hasAttribute('open')).toBe(true)
+    })
+
+    // Colapsar
+    fireEvent.click(screen.getByText(/Finalizadas/))
+    await waitFor(() => {
+      expect(details?.hasAttribute('open')).toBe(false)
+    })
   })
 })

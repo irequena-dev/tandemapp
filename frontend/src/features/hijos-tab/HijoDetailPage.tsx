@@ -17,6 +17,9 @@ import {
   useUpdateHealthVisit,
 } from '../health-visits/api'
 import type { HealthVisit } from '../health-visits/types'
+import { PautaCard } from '../pautas/PautaCard'
+import { usePautas } from '../pautas/api'
+import type { Pauta } from '../pautas/types'
 import { SizesSection } from '../sizes/SizesSection'
 import '../sizes/sizes.css'
 import './hijos-tab.css'
@@ -276,6 +279,7 @@ export function HijoDetailPage() {
   const createVisit = useCreateHealthVisit(childId ?? '')
   const updateVisit = useUpdateHealthVisit(childId ?? '')
   const deleteVisit = useDeleteHealthVisit(childId ?? '')
+  const { data: pautas = [] } = usePautas()
 
   const [showVisitForm, setShowVisitForm] = useState(false)
   const [editingVisit, setEditingVisit] = useState<HealthVisit | undefined>()
@@ -285,7 +289,7 @@ export function HijoDetailPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
-  const [activeTab, setActiveTab] = useState<'tallas' | 'crecimiento' | 'visitas'>('tallas')
+  const [activeTab, setActiveTab] = useState<'tallas' | 'crecimiento' | 'visitas' | 'pautas'>('tallas')
 
   // Confirmación inline de borrado (patrón .hijo-confirm): cada fila destructiva
   // pasa por un "¿Borrar? [Borrar] [Cancelar]" antes de mutar. Al borrar con
@@ -433,6 +437,17 @@ export function HijoDetailPage() {
           onClick={() => setActiveTab('visitas')}
         >
           Visitas
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'pautas'}
+          aria-controls="panel-pautas"
+          id="tab-pautas"
+          onClick={() => setActiveTab('pautas')}
+        >
+          Pautas
         </button>
       </div>
 
@@ -584,6 +599,22 @@ export function HijoDetailPage() {
           confirmingVisit={confirmingVisit}
           setConfirmingVisit={setConfirmingVisit}
           onConfirmDeleteVisit={handleConfirmDeleteVisit}
+          onActivatePautasTab={() => setActiveTab('pautas')}
+        />
+      </div>
+
+      {/* Pautas tab panel */}
+      <div
+        id="panel-pautas"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-pautas"
+        aria-hidden={activeTab !== 'pautas'}
+      >
+        <PautasSection
+          childId={childId}
+          childName={child?.name ?? ''}
+          pautas={pautas}
         />
       </div>
     </div>
@@ -611,6 +642,7 @@ type VisitasSectionProps = {
   confirmingVisit: string | null
   setConfirmingVisit: (v: string | null) => void
   onConfirmDeleteVisit: (v: HealthVisit) => void
+  onActivatePautasTab: () => void
 }
 
 function VisitasSection({
@@ -631,6 +663,7 @@ function VisitasSection({
   confirmingVisit,
   setConfirmingVisit,
   onConfirmDeleteVisit,
+  onActivatePautasTab,
 }: VisitasSectionProps) {
   const toast = useToast()
   const pending = createVisit.isPending || updateVisit.isPending
@@ -666,9 +699,13 @@ function VisitasSection({
             </div>
           )}
           {detail.pauta_ids.length > 0 && (
-            <Link to="/pautas" className="visita-detail__pautas-link">
+            <button
+              type="button"
+              className="visita-detail__pautas-link"
+              onClick={onActivatePautasTab}
+            >
               Ver Pautas asociadas →
-            </Link>
+            </button>
           )}
         </div>
       </section>
@@ -898,5 +935,91 @@ function VisitaForm({ editing, pending = false, onCreate, onUpdate, onCancel }: 
         </button>
       </div>
     </form>
+  )
+}
+
+/* ---------- Pautas section ---------- */
+
+type PautasSectionProps = {
+  childId: string
+  childName: string
+  pautas: Pauta[]
+}
+
+function PautasSection({ childId, childName, pautas }: PautasSectionProps) {
+  // Filtrar Pautas por Hijo (cliente-side para mantener consistencia con cache global)
+  const childPautas = pautas.filter(p => p.child_id === childId)
+  const active = childPautas.filter(p => p.status === 'active')
+  const finished = childPautas.filter(p => p.status === 'finished')
+
+  // Ordenar activas por próxima toma
+  const sortedActive = [...active].sort((a, b) => {
+    if (a.next_dose_at && b.next_dose_at) {
+      return new Date(a.next_dose_at).getTime() - new Date(b.next_dose_at).getTime()
+    }
+    return 0
+  })
+
+  // Ordenar finalizadas por fecha de finalización (más recientes primero)
+  const sortedFinished = [...finished].sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  if (childPautas.length === 0) {
+    return (
+      <section className="hijo-detail__section">
+        <div className="hijo-detail__section-header">
+          <h2 className="hijo-detail__section-title">Pautas</h2>
+        </div>
+        <div className="hijo-detail__empty">
+          <p>{childName} no tiene pautas registradas</p>
+          <p className="hijo-detail__empty-hint">
+            Las pautas se crean desde una visita médica
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="hijo-detail__section">
+      <div className="hijo-detail__section-header">
+        <h2 className="hijo-detail__section-title">Pautas</h2>
+      </div>
+
+      {/* Activas */}
+      <div className="pautas-section">
+        <h3 className="pautas-section__title">Activas</h3>
+        {sortedActive.length > 0 ? (
+          <ul className="pautas__list">
+            {sortedActive.map((p) => (
+              <li key={p.id}>
+                <PautaCard pauta={p} childName={childName} showChild={false} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="hijo-detail__empty hijo-detail__empty--compact">
+            <p>Sin pautas activas para {childName}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Finalizadas - colapsable por defecto */}
+      {sortedFinished.length > 0 && (
+        <details className="pautas-section__group" open={false}>
+          <summary className="pautas-section__summary">
+            Finalizadas ({sortedFinished.length})
+          </summary>
+          <ul className="pautas__list">
+            {sortedFinished.map((p) => (
+              <li key={p.id}>
+                <PautaCard pauta={p} childName={childName} showChild={false} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
   )
 }
