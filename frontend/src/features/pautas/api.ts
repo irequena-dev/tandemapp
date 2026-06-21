@@ -123,6 +123,7 @@ export function useFinishPauta(toast?: ToastApi) {
     },
     onError: (_e, _id, ctx) => rollback(qc, ctx),
     onSuccess: (data) => {
+      if (!toast) return
       const toastId = toast.success(
         createElement(
           Fragment,
