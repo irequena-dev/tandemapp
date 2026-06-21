@@ -30,7 +30,7 @@ from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from mcp.server.lowlevel.server import request_ctx
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import TextContent, Tool
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.applications import Starlette
 from starlette.routing import Route
@@ -48,7 +48,7 @@ from ..models import (
     ShoppingItem,
     Size,
 )
-from ..tenancy import FAMILY_VAR
+from ..tenancy import open_family_scope
 from .auth import extract_bearer, resolve_token
 from .child_matching import ChildMatchError, resolve_child_by_name
 
@@ -275,21 +275,26 @@ class ToolError(Exception):
 
 @asynccontextmanager
 async def tool_session() -> AsyncIterator[ToolContext]:
-    """Abre sesión + transacción + fija RLS; entrega un ToolContext listo."""
+    """Abre sesión + transacción + fija RLS; entrega un ToolContext listo.
+
+    Delega en `open_family_scope` (el seam unificado de tenancy): es la ÚNICA
+    implementación del setup RLS. MCP no pasa claims porque los Miembros ya
+    fueron materializados por un login REST previo (ADR-0005 / issue 02).
+    """
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            yield ToolContext(session=session, member_id=member_id, family_id=family_id)
+    async with open_family_scope(family_id, member_id) as scope:
+        yield ToolContext(
+            session=scope.session,
+            member_id=scope.member_id,
+            family_id=scope.family_id,
+        )
 
 
 # 3. Handlers de dominio. Firma unificada: (ctx, arguments) -> Any.
 #    Contienen SOLO lógica de dominio. Sin get_http_request, sin get_sessionmaker,
-#    sin set_config, sin leer MCP_IDENTITY_KEY.
+#    sin fijar la variable RLS (eso vive en open_family_scope), sin leer
+#    MCP_IDENTITY_KEY.
 async def do_list_children(ctx: ToolContext, arguments: dict) -> list[dict[str, str]]:
     rows = (
         (

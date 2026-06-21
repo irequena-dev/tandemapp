@@ -13,7 +13,7 @@ from ..models import (
     MeasurementOut,
     MeasurementUpdate,
 )
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["measurements"])
 
@@ -46,9 +46,10 @@ async def _get_owned_measurement(
 async def list_measurements(
     child_id: uuid.UUID,
     type: str | None = Query(None, pattern="^(height|weight)$"),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[MeasurementOut]:
     """Histórico de Medidas de un Hijo, opcionalmente filtrado por tipo."""
+    session = scope.session
     await _get_owned_child(session, child_id)
     stmt = select(Measurement).where(Measurement.child_id == child_id)
     if type is not None:
@@ -61,9 +62,10 @@ async def list_measurements(
 @router.get("/children/{child_id}/measurements/current")
 async def current_measurements(
     child_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> CurrentMeasurementsOut:
     """Valor más reciente de cada tipo (height / weight) para un Hijo."""
+    session = scope.session
     await _get_owned_child(session, child_id)
     out = CurrentMeasurementsOut()
     for mtype in ("height", "weight"):
@@ -87,20 +89,19 @@ async def current_measurements(
 async def create_measurement(
     child_id: uuid.UUID,
     data: MeasurementCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> MeasurementOut:
     """Registra una Medida para un Hijo de la Familia autenticada."""
+    session = scope.session
     await _get_owned_child(session, child_id)
     measurement = Measurement(
-        family_id=family_id,
+        family_id=scope.family_id,
         child_id=child_id,
         type=data.type,
         value=data.value,
         unit=data.unit,
         measured_at=data.measured_at,
-        recorded_by=member_id,
+        recorded_by=scope.member_id,
         created_at=datetime.now(UTC),
     )
     session.add(measurement)
@@ -114,9 +115,10 @@ async def update_measurement(
     child_id: uuid.UUID,
     measurement_id: uuid.UUID,
     data: MeasurementUpdate,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> MeasurementOut:
     """Corrige una Medida existente (valor, unidad o fecha)."""
+    session = scope.session
     m = await _get_owned_measurement(session, child_id, measurement_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(m, field, value)
@@ -133,9 +135,10 @@ async def update_measurement(
 async def delete_measurement(
     child_id: uuid.UUID,
     measurement_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
     """Elimina una Medida (corrección: el dato se borra definitivamente)."""
+    session = scope.session
     m = await _get_owned_measurement(session, child_id, measurement_id)
     await session.delete(m)
     await session.flush()

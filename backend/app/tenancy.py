@@ -1,12 +1,18 @@
 """Aislamiento multi-inquilino: una sola puerta para fijar la Familia activa.
 
-Toda transacción que toque datos de dominio pasa por `family_session`, que
+Toda transacción que toque datos de dominio pasa por `open_family_scope`, que
 materializa la identidad de Clerk en `families`/`members` y fija la variable de
 sesión `app.current_family_id` (SET LOCAL). PostgreSQL aplica RLS sobre esa
 variable como red de seguridad. Ningún handler fija la variable ad hoc.
+
+La misma puerta la usan:
+- REST, a través de la dependencia `family_session` (entrega un `FamilyScope`).
+- MCP, a través de `tool_session` en `app.mcp.server`.
 """
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import text
@@ -17,6 +23,15 @@ from .database import get_sessionmaker
 
 # Variable de sesión que fija la Familia activa por transacción (SET LOCAL).
 FAMILY_VAR = "app.current_family_id"
+
+
+@dataclass
+class FamilyScope:
+    """Una puerta: sesión acotada a la Familia + identidad ya resuelta."""
+
+    session: AsyncSession
+    family_id: str
+    member_id: str
 
 
 def family_id_from_claims(claims: dict) -> str | None:
@@ -71,11 +86,30 @@ async def _materialize(session: AsyncSession, claims: dict, family_id: str) -> N
     )
 
 
-def current_family_id(claims: dict = Depends(require_auth)) -> str:
-    """`family_id` (≡ `org_id`) de la Familia activa; 403 si no hay ninguna.
+@asynccontextmanager
+async def open_family_scope(
+    family_id: str, member_id: str, *, claims: dict | None = None
+) -> AsyncIterator[FamilyScope]:
+    """Abre sesión, fija app.current_family_id (SET LOCAL) y, si hay claims,
+    materializa la identidad de Clerk. La ÚNICA implementación del setup RLS."""
+    async with get_sessionmaker()() as session:
+        async with session.begin():
+            await session.execute(
+                text("SELECT set_config(:key, :value, true)"),
+                {"key": FAMILY_VAR, "value": family_id},
+            )
+            if claims is not None:
+                await _materialize(session, claims, family_id)
+            yield FamilyScope(session=session, family_id=family_id, member_id=member_id)
 
-    Lo usan los handlers que necesitan el `family_id` explícito (p. ej. fijarlo
-    al dar de alta una fila) sin tocar nunca la variable de sesión a mano.
+
+async def family_session(
+    claims: dict = Depends(require_auth),
+) -> AsyncIterator[FamilyScope]:
+    """Sesión acotada a la Familia autenticada, con identidad materializada.
+
+    Lanza 403 si el Miembro no tiene una Familia (Organización) activa.
+    Entrega un `FamilyScope` con sesión + identidad ya resueltas.
     """
     family_id = family_id_from_claims(claims)
     if not family_id:
@@ -83,34 +117,6 @@ def current_family_id(claims: dict = Depends(require_auth)) -> str:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El Miembro no tiene una Familia activa",
         )
-    return family_id
-
-
-def current_member_id(claims: dict = Depends(require_auth)) -> str:
-    """`user_id` de Clerk (≡ Miembro) del contexto autenticado.
-
-    Acota los recursos que son propiedad del Miembro (p. ej. sus tokens MCP):
-    RLS aísla por Familia, pero dentro de ella un Miembro solo gestiona lo suyo.
-    `require_auth` está cacheado por petición en FastAPI → sin doble verificación.
-    """
-    return claims["sub"]
-
-
-async def family_session(
-    claims: dict = Depends(require_auth),
-    family_id: str = Depends(current_family_id),
-) -> AsyncIterator[AsyncSession]:
-    """Sesión acotada a la Familia autenticada, con identidad materializada.
-
-    Lanza 403 si el Miembro no tiene una Familia (Organización) activa.
-    """
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            # Fijar la Familia ANTES de cualquier escritura: las políticas RLS
-            # (WITH CHECK) validan contra esta variable.
-            await session.execute(
-                text("SELECT set_config(:key, :value, true)"),
-                {"key": FAMILY_VAR, "value": family_id},
-            )
-            await _materialize(session, claims, family_id)
-            yield session
+    member_id = claims["sub"]
+    async with open_family_scope(family_id, member_id, claims=claims) as scope:
+        yield scope

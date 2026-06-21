@@ -12,7 +12,7 @@ from ..models import (
     HealthVisitOut,
     HealthVisitUpdate,
 )
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["health-visits"])
 
@@ -57,8 +57,9 @@ async def list_health_visits(
     child_id: uuid.UUID,
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[HealthVisitOut]:
+    session = scope.session
     await _get_owned_child(session, child_id)
     stmt = select(HealthVisit).where(HealthVisit.child_id == child_id)
     if date_from:
@@ -74,18 +75,17 @@ async def list_health_visits(
 async def create_health_visit(
     child_id: uuid.UUID,
     data: HealthVisitCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> HealthVisitOut:
+    session = scope.session
     await _get_owned_child(session, child_id)
     visit = HealthVisit(
-        family_id=family_id,
+        family_id=scope.family_id,
         child_id=child_id,
         visited_at=data.visited_at,
         diagnosis=data.diagnosis,
         notes=data.notes,
-        created_by=member_id,
+        created_by=scope.member_id,
     )
     session.add(visit)
     await session.flush()
@@ -97,9 +97,9 @@ async def create_health_visit(
 async def get_health_visit(
     child_id: uuid.UUID,
     visit_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> HealthVisitOut:
-    visit = await _get_owned_visit(session, child_id, visit_id)
+    visit = await _get_owned_visit(scope.session, child_id, visit_id)
     return _to_out(visit)
 
 
@@ -108,8 +108,9 @@ async def update_health_visit(
     child_id: uuid.UUID,
     visit_id: uuid.UUID,
     data: HealthVisitUpdate,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> HealthVisitOut:
+    session = scope.session
     visit = await _get_owned_visit(session, child_id, visit_id)
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -127,8 +128,9 @@ async def update_health_visit(
 async def delete_health_visit(
     child_id: uuid.UUID,
     visit_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
+    session = scope.session
     visit = await _get_owned_visit(session, child_id, visit_id)
     await session.delete(visit)
     await session.flush()

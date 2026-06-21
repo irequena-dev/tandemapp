@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, status
 
 from ..auth import get_clerk
 from ..models import InvitationCreate, InvitationOut
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["invitations"])
 
@@ -19,17 +19,15 @@ router = APIRouter(tags=["invitations"])
 @router.post("/invitations", status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     body: InvitationCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    _session=Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> InvitationOut:
     """Envía una invitación por email a la Familia del Miembro autenticado."""
     clerk = get_clerk()
     inv = clerk.organization_invitations.create(
-        organization_id=family_id,
+        organization_id=scope.family_id,
         email_address=body.email_address,
         role="org:member",
-        inviter_user_id=member_id,
+        inviter_user_id=scope.member_id,
     )
     return InvitationOut(
         id=inv.id,
@@ -42,13 +40,12 @@ async def create_invitation(
 
 @router.get("/invitations")
 async def list_invitations(
-    family_id: str = Depends(current_family_id),
-    _session=Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[InvitationOut]:
     """Lista las invitaciones pendientes de la Familia autenticada."""
     clerk = get_clerk()
     result = clerk.organization_invitations.list(
-        organization_id=family_id,
+        organization_id=scope.family_id,
         status="pending",
     )
     return [
@@ -66,14 +63,12 @@ async def list_invitations(
 @router.delete("/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_invitation(
     invitation_id: str,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    _session=Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
     """Revoca una invitación pendiente de la Familia autenticada."""
     clerk = get_clerk()
     clerk.organization_invitations.revoke(
-        organization_id=family_id,
+        organization_id=scope.family_id,
         invitation_id=invitation_id,
-        requesting_user_id=member_id,
+        requesting_user_id=scope.member_id,
     )

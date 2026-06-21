@@ -12,7 +12,7 @@ from ..models import (
     Measurement,
     Size,
 )
-from ..tenancy import current_family_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["children"])
 
@@ -34,16 +34,16 @@ async def _get_owned_child(session: AsyncSession, child_id: uuid.UUID) -> Child:
 @router.post("/children", status_code=status.HTTP_201_CREATED)
 async def create_child(
     data: ChildCreate,
-    family_id: str = Depends(current_family_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> Child:
     """Da de alta un Hijo en la Familia autenticada.
 
     El `family_id` lo impone el servidor desde el contexto; coincide con
     `app.current_family_id`, así que el WITH CHECK de RLS lo acepta.
     """
+    session = scope.session
     child = Child(
-        family_id=family_id,
+        family_id=scope.family_id,
         name=data.name,
         birth_date=data.birth_date,
         avatar_color=data.avatar_color,
@@ -57,8 +57,9 @@ async def create_child(
 @router.get("/children")
 async def list_children(
     include: str | None = Query(default=None),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[Child] | list[ChildWithMetricsOut]:
+    session = scope.session
     """Lista los Hijos de la Familia autenticada (RLS acota las filas).
 
     Con `?include=current_metrics` enriquece cada Hijo con su última Medida
@@ -153,9 +154,10 @@ async def list_children(
 async def update_child(
     child_id: uuid.UUID,
     data: ChildUpdate,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> Child:
     """Edita parcialmente un Hijo (corrige nombre o fecha de nacimiento)."""
+    session = scope.session
     child = await _get_owned_child(session, child_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(child, field, value)
@@ -168,9 +170,10 @@ async def update_child(
 @router.delete("/children/{child_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_child(
     child_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
     """Elimina un Hijo de la Familia autenticada."""
+    session = scope.session
     child = await _get_owned_child(session, child_id)
     await session.delete(child)
     await session.flush()

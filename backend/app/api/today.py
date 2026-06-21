@@ -28,7 +28,7 @@ from ..models import (
     Pauta,
     ShoppingItem,
 )
-from ..tenancy import family_session
+from ..tenancy import FamilyScope, family_session
 from .events import _enrich
 
 router = APIRouter(prefix="/api", tags=["today"])
@@ -364,9 +364,10 @@ async def _children_status(session: AsyncSession, today: date) -> str:
 @router.get("/today", response_model=TodayOut)
 async def get_today(
     tz: str | None = Query(default=None),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> TodayOut:
     """Pantalla Hoy: agrega contadores de todas las fases conectadas."""
+    session = scope.session
     device_tz = _device_tz(tz)
     today = datetime.now(device_tz).date()
     now = datetime.now(UTC)

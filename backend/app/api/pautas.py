@@ -22,7 +22,7 @@ from ..models import (
     PautaCreate,
     PautaOut,
 )
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["pautas"])
 
@@ -124,14 +124,13 @@ async def _get_owned_pauta(session: AsyncSession, pauta_id: uuid.UUID) -> Pauta:
 @router.post("/pautas", status_code=status.HTTP_201_CREATED)
 async def create_pauta(
     data: PautaCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> PautaOut:
     """Inicia una nueva Pauta para un Hijo de la Familia autenticada."""
+    session = scope.session
     now = datetime.now(UTC)
     pauta = Pauta(
-        family_id=family_id,
+        family_id=scope.family_id,
         child_id=data.child_id,
         medication=data.medication,
         dose=data.dose,
@@ -140,7 +139,7 @@ async def create_pauta(
         started_at=now,
         status="active",
         health_visit_id=data.health_visit_id,
-        created_by=member_id,
+        created_by=scope.member_id,
         created_at=now,
     )
     session.add(pauta)
@@ -151,10 +150,11 @@ async def create_pauta(
 
 @router.get("/pautas")
 async def list_pautas(
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
     status_filter: str | None = Query(None, alias="status"),
     child_id: uuid.UUID | None = Query(None),
 ) -> list[PautaOut]:
+    session = scope.session
     """Lista las Pautas de la Familia, con filtros opcionales por status/child_id."""
     stmt = select(Pauta)
     if child_id:
@@ -177,9 +177,10 @@ async def list_pautas(
 @router.get("/pautas/{pauta_id}")
 async def get_pauta(
     pauta_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> PautaOut:
     """Detalle de una Pauta con campos calculados."""
+    session = scope.session
     pauta = await _get_owned_pauta(session, pauta_id)
     pauta = await _lazy_finish(pauta, session)
     return await _to_out(pauta, session)
@@ -188,9 +189,10 @@ async def get_pauta(
 @router.post("/pautas/{pauta_id}/finish")
 async def finish_pauta(
     pauta_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> PautaOut:
     """Finaliza manualmente una Pauta activa."""
+    session = scope.session
     pauta = await _get_owned_pauta(session, pauta_id)
     if pauta.status == "finished":
         raise HTTPException(
@@ -207,7 +209,7 @@ async def finish_pauta(
 @router.post("/pautas/{pauta_id}/reactivate")
 async def reactivate_pauta(
     pauta_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> PautaOut:
     """Reactiva una Pauta finalizada manualmente (deshacer "Finalizar Pauta").
 
@@ -215,6 +217,7 @@ async def reactivate_pauta(
     `ends_at` ya pasó volvería a `finished` en el próximo lazy-finish, así que
     reactivarla no tendría efecto y devolvemos 409.
     """
+    session = scope.session
     pauta = await _get_owned_pauta(session, pauta_id)
     if pauta.status == "active":
         raise HTTPException(

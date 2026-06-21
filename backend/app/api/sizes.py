@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from ..models import Child, CurrentSizesOut, Size, SizeCreate, SizeOut, SizeUpdate
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["sizes"])
 
@@ -53,8 +53,9 @@ def _to_out(s: Size) -> SizeOut:
 async def list_sizes(
     child_id: uuid.UUID,
     type: str | None = Query(default=None),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[SizeOut]:
+    session = scope.session
     await _get_owned_child(session, child_id)
     stmt = select(Size).where(col(Size.child_id) == child_id)
     if type is not None:
@@ -72,8 +73,9 @@ async def list_sizes(
 @router.get("/children/{child_id}/sizes/current")
 async def current_sizes(
     child_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> CurrentSizesOut:
+    session = scope.session
     await _get_owned_child(session, child_id)
     out = CurrentSizesOut()
     for size_type in ("clothing", "footwear"):
@@ -97,18 +99,17 @@ async def current_sizes(
 async def create_size(
     child_id: uuid.UUID,
     data: SizeCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> SizeOut:
+    session = scope.session
     await _get_owned_child(session, child_id)
     size = Size(
-        family_id=family_id,
+        family_id=scope.family_id,
         child_id=child_id,
         type=data.type,
         label=data.label,
         recorded_at=data.recorded_at,
-        recorded_by=member_id,
+        recorded_by=scope.member_id,
         created_at=datetime.now(UTC),
     )
     session.add(size)
@@ -122,8 +123,9 @@ async def update_size(
     child_id: uuid.UUID,
     size_id: uuid.UUID,
     data: SizeUpdate,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> SizeOut:
+    session = scope.session
     size = await _get_owned_size(session, child_id, size_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(size, field, value)
@@ -139,8 +141,9 @@ async def update_size(
 async def delete_size(
     child_id: uuid.UUID,
     size_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
+    session = scope.session
     size = await _get_owned_size(session, child_id, size_id)
     await session.delete(size)
     await session.flush()
