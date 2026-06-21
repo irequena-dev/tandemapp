@@ -11,6 +11,7 @@ Platform to share the logistical mental load of parenting and the home among the
 - **Plan features, autofix bugs**: plan & check in for new features/architecture; fix bug reports and failing CI autonomously. See [workflow](docs/agents/workflow.md).
 - **Ubiquitous language is Spanish** (Familia, Miembro, Hijo, Medida, Talla, Ítem de compra, Evento, Serie, Tipo de Evento, Visita médica, Pauta, Administración) — keep these terms in Spanish even in English prose. Display brand = **"Tándem"**; technical slug (code, dirs, DB) = **`tandem`**.
 - **Never read or print `*.env.local`** (secrets).
+- Be extremely concise. Sacrifice grammar for the sake of brevity.
 
 ## Domain docs (source of truth — read at session start)
 
