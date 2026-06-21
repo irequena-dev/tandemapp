@@ -12,25 +12,12 @@
  * El `<ToastProvider />` se monta una sola vez (en main.tsx) y renderiza el
  * viewport vía portal en document.body, por encima de todo salvo tooltips.
  */
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ToastContext, type ToastApi, type ToastOptions } from './useToast'
 import './toasts.css'
 
 export type ToastTone = 'success' | 'error' | 'info'
-
-export interface ToastOptions {
-  /** Milisegundos antes del auto-cierre. Por defecto 4s; los errores duran 6s. */
-  duration?: number
-}
 
 interface ToastRecord {
   id: number
@@ -39,13 +26,9 @@ interface ToastRecord {
   leaving: boolean
 }
 
-interface ToastApi {
-  success: (text: ReactNode, opts?: ToastOptions) => void
-  error: (text: ReactNode, opts?: ToastOptions) => void
-  info: (text: ReactNode, opts?: ToastOptions) => void
-}
-
-const ToastContext = createContext<ToastApi | null>(null)
+// Re-exportamos los tipos del hook para mantener la superficie pública estable
+// (consumidores que importaban `ToastApi`/`ToastOptions` de aquí siguen funcionando).
+export type { ToastApi, ToastOptions }
 
 const DEFAULT_DURATION: Record<ToastTone, number> = {
   success: 4000,
@@ -193,11 +176,3 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** Acceso al sistema de toasts. Debe usarse dentro de `<ToastProvider />`. */
-export function useToast(): ToastApi {
-  const ctx = useContext(ToastContext)
-  if (!ctx) {
-    throw new Error('useToast debe usarse dentro de <ToastProvider>')
-  }
-  return ctx
-}
