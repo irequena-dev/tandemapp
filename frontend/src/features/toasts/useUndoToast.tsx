@@ -11,7 +11,6 @@ export function useUndoToast() {
 
   const showUndoToast = useCallback(
     (
-      tone: 'success' | 'info',
       message: ReactNode,
       undoAction: () => void,
       options?: { duration?: number }
