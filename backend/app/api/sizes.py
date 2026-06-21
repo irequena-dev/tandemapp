@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
-from ..models import Child, CurrentSizesOut, Size, SizeCreate, SizeOut, SizeUpdate
+from ..models import CurrentSizesOut, Size, SizeCreate, SizeOut, SizeUpdate
 from ..tenancy import FamilyScope, family_session
+from .children_access import get_owned_child
 
 router = APIRouter(tags=["sizes"])
 
@@ -16,19 +17,10 @@ router = APIRouter(tags=["sizes"])
 _VALID_TYPES = {"clothing", "footwear"}
 
 
-async def _get_owned_child(session: AsyncSession, child_id: uuid.UUID) -> Child:
-    child = await session.get(Child, child_id)
-    if child is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Hijo no encontrado"
-        )
-    return child
-
-
 async def _get_owned_size(
     session: AsyncSession, child_id: uuid.UUID, size_id: uuid.UUID
 ) -> Size:
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     size = await session.get(Size, size_id)
     if size is None or size.child_id != child_id:
         raise HTTPException(
@@ -56,7 +48,7 @@ async def list_sizes(
     scope: FamilyScope = Depends(family_session),
 ) -> list[SizeOut]:
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     stmt = select(Size).where(col(Size.child_id) == child_id)
     if type is not None:
         if type not in _VALID_TYPES:
@@ -76,7 +68,7 @@ async def current_sizes(
     scope: FamilyScope = Depends(family_session),
 ) -> CurrentSizesOut:
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     out = CurrentSizesOut()
     for size_type in ("clothing", "footwear"):
         stmt = (
@@ -102,7 +94,7 @@ async def create_size(
     scope: FamilyScope = Depends(family_session),
 ) -> SizeOut:
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     size = Size(
         family_id=scope.family_id,
         child_id=child_id,

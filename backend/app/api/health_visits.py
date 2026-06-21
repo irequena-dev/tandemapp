@@ -6,24 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
-    Child,
     HealthVisit,
     HealthVisitCreate,
     HealthVisitOut,
     HealthVisitUpdate,
 )
 from ..tenancy import FamilyScope, family_session
+from .children_access import get_owned_child
 
 router = APIRouter(tags=["health-visits"])
-
-
-async def _get_owned_child(session: AsyncSession, child_id: uuid.UUID) -> Child:
-    child = await session.get(Child, child_id)
-    if child is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Hijo no encontrado"
-        )
-    return child
 
 
 async def _get_owned_visit(
@@ -60,7 +51,7 @@ async def list_health_visits(
     scope: FamilyScope = Depends(family_session),
 ) -> list[HealthVisitOut]:
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     stmt = select(HealthVisit).where(HealthVisit.child_id == child_id)
     if date_from:
         stmt = stmt.where(HealthVisit.visited_at >= date_from)
@@ -78,7 +69,7 @@ async def create_health_visit(
     scope: FamilyScope = Depends(family_session),
 ) -> HealthVisitOut:
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     visit = HealthVisit(
         family_id=scope.family_id,
         child_id=child_id,

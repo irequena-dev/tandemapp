@@ -6,7 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
-    Child,
     CurrentMeasurementsOut,
     Measurement,
     MeasurementCreate,
@@ -14,17 +13,9 @@ from ..models import (
     MeasurementUpdate,
 )
 from ..tenancy import FamilyScope, family_session
+from .children_access import get_owned_child
 
 router = APIRouter(tags=["measurements"])
-
-
-async def _get_owned_child(session: AsyncSession, child_id: uuid.UUID) -> Child:
-    child = await session.get(Child, child_id)
-    if child is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Hijo no encontrado"
-        )
-    return child
 
 
 async def _get_owned_measurement(
@@ -50,7 +41,7 @@ async def list_measurements(
 ) -> list[MeasurementOut]:
     """Histórico de Medidas de un Hijo, opcionalmente filtrado por tipo."""
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     stmt = select(Measurement).where(Measurement.child_id == child_id)
     if type is not None:
         stmt = stmt.where(Measurement.type == type)
@@ -66,7 +57,7 @@ async def current_measurements(
 ) -> CurrentMeasurementsOut:
     """Valor más reciente de cada tipo (height / weight) para un Hijo."""
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     out = CurrentMeasurementsOut()
     for mtype in ("height", "weight"):
         stmt = (
@@ -93,7 +84,7 @@ async def create_measurement(
 ) -> MeasurementOut:
     """Registra una Medida para un Hijo de la Familia autenticada."""
     session = scope.session
-    await _get_owned_child(session, child_id)
+    await get_owned_child(session, child_id)
     measurement = Measurement(
         family_id=scope.family_id,
         child_id=child_id,

@@ -1,7 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query, status
 from sqlmodel import col, select
 
 from ..models import (
@@ -13,22 +12,9 @@ from ..models import (
     Size,
 )
 from ..tenancy import FamilyScope, family_session
+from .children_access import get_owned_child
 
 router = APIRouter(tags=["children"])
-
-
-async def _get_owned_child(session: AsyncSession, child_id: uuid.UUID) -> Child:
-    """Carga un Hijo de la Familia activa o lanza 404.
-
-    RLS (cláusula USING) ya oculta los Hijos de otras Familias, así que un id
-    de otra Familia se comporta como inexistente: 404, nunca 403.
-    """
-    child = await session.get(Child, child_id)
-    if child is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Hijo no encontrado"
-        )
-    return child
 
 
 @router.post("/children", status_code=status.HTTP_201_CREATED)
@@ -158,7 +144,7 @@ async def update_child(
 ) -> Child:
     """Edita parcialmente un Hijo (corrige nombre o fecha de nacimiento)."""
     session = scope.session
-    child = await _get_owned_child(session, child_id)
+    child = await get_owned_child(session, child_id)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(child, field, value)
     session.add(child)
@@ -174,6 +160,6 @@ async def delete_child(
 ) -> None:
     """Elimina un Hijo de la Familia autenticada."""
     session = scope.session
-    child = await _get_owned_child(session, child_id)
+    child = await get_owned_child(session, child_id)
     await session.delete(child)
     await session.flush()
