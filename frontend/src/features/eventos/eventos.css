@@ -684,6 +684,32 @@
   }
 }
 
+/* ---------- Pending spinner (reuses skeleton motion vocabulary) ---------- */
+.evento-item__pending-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.75rem;
+  color: var(--ds-muted);
+  animation: eventos-skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.evento-item__pending-spinner svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evento-item__pending-spinner,
+  .evento-item__pending-spinner svg {
+    animation: none;
+  }
+}
+
 /* ---------- FAB (thumb-zone create affordance) ---------- */
 /* Sits above the fixed bottom tab bar (64px + safe-area), never under it. */
 .eventos__fab {

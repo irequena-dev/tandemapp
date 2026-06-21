@@ -402,6 +402,44 @@ describe('EventosPage — atajos de teclado', () => {
   })
 })
 
+describe('EventosPage — estado pendiente visible', () => {
+  it('muestra un spinner/etiqueta "guardando…" cuando una mutación está en curso', async () => {
+    let resolveDone: (() => void) | undefined
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev1',
+            family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+      http.post('http://localhost:8000/events/ev1/done', async () => {
+        await new Promise<void>((resolve) => { resolveDone = resolve })
+        return new HttpResponse(null, { status: 204 })
+      }),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Evento 1')).toBeTruthy())
+
+    // Click the done button
+    fireEvent.click(screen.getByRole('button', { name: /Marcar.*hecho/ }))
+
+    // While pending, should show spinner/label
+    await waitFor(() => {
+      const spinner = document.querySelector('.evento-item__pending-spinner')
+      expect(spinner).toBeTruthy()
+    })
+
+    // Resolve the mutation
+    if (resolveDone) resolveDone()
+  })
+})
+
 describe('EventosPage — filtros', () => {
   const type2 = {
     id: 't2',

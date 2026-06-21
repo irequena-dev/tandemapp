@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
@@ -97,6 +97,17 @@ function ChevronIcon({ open }: { open: boolean }) {
     <svg className="eventos__chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : 'none' }}>
       <polyline points="9 6 15 12 9 18" />
     </svg>
+  )
+}
+
+function PendingSpinner() {
+  return (
+    <span className="evento-item__pending-spinner" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+      </svg>
+      <span className="evento-item__pending-label">guardando…</span>
+    </span>
   )
 }
 
@@ -632,6 +643,7 @@ export function EventosPage() {
         <div className="evento-item__footer">
           {statusVisual(ev)}
           <div className="evento-item__actions">
+            {isBusy(ev) && <PendingSpinner />}
             {ev.status === 'done' ? (
             <button
               type="button"
