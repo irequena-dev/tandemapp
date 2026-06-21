@@ -237,19 +237,19 @@ describe('HijoDetailPage — feedback de mutaciones (pending + error)', () => {
   })
 })
 
-describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
-  it('muestra tres pestañas y arranca en Resumen (Tallas visible, sin gráficas)', async () => {
+describe('HijoDetailPage — pestañas Tallas / Crecimiento / Visitas', () => {
+  it('muestra tres pestañas y arranca en Tallas (Tallas visible, sin gráficas)', async () => {
     server.use(...stubData())
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByRole('tab', { name: 'Resumen' })
+    await screen.findByRole('tab', { name: 'Tallas' })
 
     expect(screen.getByRole('tab', { name: 'Crecimiento' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Visitas' })).toBeTruthy()
 
-    // Resumen incluye las Tallas; la cabecera de Crecimiento no.
-    const resumenTab = screen.getByRole('tab', { name: 'Resumen' })
-    expect(resumenTab.getAttribute('aria-selected')).toBe('true')
+    // Tallas incluye las Tallas; la cabecera de Crecimiento no.
+    const tallasTab = screen.getByRole('tab', { name: 'Tallas' })
+    expect(tallasTab.getAttribute('aria-selected')).toBe('true')
     expect(screen.queryByRole('heading', { name: 'Crecimiento' })).toBeNull()
   })
 
@@ -260,7 +260,7 @@ describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Crecimiento' }))
 
     expect(screen.getByRole('heading', { name: 'Crecimiento' })).toBeTruthy()
-    // La sección Tallas (Resumen) está oculta via aria-hidden.
+    // La sección Tallas está oculta via aria-hidden.
     const sizesPanel = screen.getByTestId('sizes-section').closest('[role="tabpanel"]')
     expect(sizesPanel?.getAttribute('aria-hidden')).toBe('true')
   })

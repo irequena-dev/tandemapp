@@ -159,11 +159,6 @@
   margin-top: 2px;
 }
 
-.hijo-detail__summary-metrics {
-  display: flex;
-  gap: var(--ds-s-lg);
-  margin-top: var(--ds-s-sm);
-}
 
 /* ---------- Section ---------- */
 .hijo-detail__section {

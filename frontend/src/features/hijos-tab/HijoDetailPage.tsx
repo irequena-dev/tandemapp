@@ -4,7 +4,6 @@ import { useChildren } from '../children/api'
 import { formatAge } from '../children/age'
 import {
   useCreateMeasurement,
-  useCurrentMeasurements,
   useDeleteMeasurement,
   useMeasurements,
   useUpdateMeasurement,
@@ -260,17 +259,6 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
   )
 }
 
-/* ---------- Current value highlight ---------- */
-
-function CurrentValue({ label, value, unit }: { label: string; value: number | null | undefined; unit: string }) {
-  if (value == null) return null
-  return (
-    <span className="hijo-card__metric">
-      <span className="hijo-card__metric-value">{value} {unit}</span>
-      <span className="hijo-card__metric-label">{label}</span>
-    </span>
-  )
-}
 
 /* ---------- Main page ---------- */
 
@@ -279,7 +267,6 @@ export function HijoDetailPage() {
   const { data: children } = useChildren()
   const child = children?.find((c) => c.id === childId)
   const { data: measurements = [] } = useMeasurements(childId ?? '')
-  const { data: currentM } = useCurrentMeasurements(childId ?? '')
   const deleteMutation = useDeleteMeasurement(childId ?? '')
   const createMeasurement = useCreateMeasurement(childId ?? '')
   const toast = useToast()
@@ -298,7 +285,7 @@ export function HijoDetailPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
-  const [activeTab, setActiveTab] = useState<'resumen' | 'crecimiento' | 'visitas'>('resumen')
+  const [activeTab, setActiveTab] = useState<'tallas' | 'crecimiento' | 'visitas'>('tallas')
 
   // Confirmación inline de borrado (patrón .hijo-confirm): cada fila destructiva
   // pasa por un "¿Borrar? [Borrar] [Cancelar]" antes de mutar. Al borrar con
@@ -409,10 +396,6 @@ export function HijoDetailPage() {
         <div className="hijo-detail__summary-info">
           <div className="hijo-detail__summary-name">{child.name}</div>
           <div className="hijo-detail__summary-age ds-nums">{formatAge(child.birth_date)}</div>
-          <div className="hijo-detail__summary-metrics">
-            <CurrentValue label="Altura" value={currentM?.height?.value} unit="cm" />
-            <CurrentValue label="Peso" value={currentM?.weight?.value} unit="kg" />
-          </div>
         </div>
       </div>
 
@@ -422,12 +405,12 @@ export function HijoDetailPage() {
           type="button"
           className="hijo-detail__tab"
           role="tab"
-          aria-selected={activeTab === 'resumen'}
-          aria-controls="panel-resumen"
-          id="tab-resumen"
-          onClick={() => setActiveTab('resumen')}
+          aria-selected={activeTab === 'tallas'}
+          aria-controls="panel-tallas"
+          id="tab-tallas"
+          onClick={() => setActiveTab('tallas')}
         >
-          Resumen
+          Tallas
         </button>
         <button
           type="button"
@@ -453,13 +436,13 @@ export function HijoDetailPage() {
         </button>
       </div>
 
-      {/* Resumen tab panel */}
+      {/* Tallas tab panel */}
       <div
-        id="panel-resumen"
+        id="panel-tallas"
         className="hijo-detail__tab-panel"
         role="tabpanel"
-        aria-labelledby="tab-resumen"
-        aria-hidden={activeTab !== 'resumen'}
+        aria-labelledby="tab-tallas"
+        aria-hidden={activeTab !== 'tallas'}
       >
         {/* Tallas */}
         {childId && <SizesSection childId={childId} />}
