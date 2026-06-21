@@ -460,4 +460,61 @@ describe('PautasPage (costura de ruta/página)', () => {
     const details = document.querySelector('details.pautas__group')
     expect(details).toBeNull()
   })
+
+  // --- P2: Segmented progress shows all segments as done when pauta is finished ---
+
+  it('muestra todos los segmentos como done cuando la pauta está finalizada', async () => {
+    const finished: Pauta = {
+      ...samplePauta,
+      id: 'pauta-fin',
+      status: 'finished',
+      next_dose_at: null,
+      day_number: 3, // Finished on day 3 of 7
+    }
+    renderPage([finished])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Find the progress indicator
+    const indicator = await screen.findByRole('img', { name: /Día 3 de 7 del tratamiento/ })
+    expect(indicator).not.toBeNull()
+
+    // All 7 segments should be marked as done when status is finished
+    const segments = indicator.querySelectorAll('.pauta-progress__seg')
+    expect(segments.length).toBe(7)
+
+    // Every segment should have the --done class
+    segments.forEach((seg) => {
+      expect(seg.classList.contains('pauta-progress__seg--done')).toBe(true)
+      expect(seg.classList.contains('pauta-progress__seg--current')).toBe(false)
+    })
+  })
+
+  it('muestra todos los segmentos como done para una pauta de 1 día finalizada', async () => {
+    const oneDayFinished: Pauta = {
+      ...samplePauta,
+      id: 'pauta-1day-fin',
+      status: 'finished',
+      next_dose_at: null,
+      duration_days: 1,
+      day_number: 1,
+    }
+    renderPage([oneDayFinished])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Find the progress indicator
+    const indicator = await screen.findByRole('img', { name: /Día 1 de 1 del tratamiento/ })
+    expect(indicator).not.toBeNull()
+
+    // The single segment should be marked as done (not current)
+    const segments = indicator.querySelectorAll('.pauta-progress__seg')
+    expect(segments.length).toBe(1)
+    expect(segments[0].classList.contains('pauta-progress__seg--done')).toBe(true)
+    expect(segments[0].classList.contains('pauta-progress__seg--current')).toBe(false)
+  })
 })

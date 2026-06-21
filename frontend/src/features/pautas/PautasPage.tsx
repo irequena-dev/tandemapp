@@ -270,11 +270,13 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
             >
               {Array.from({ length: pauta.duration_days }, (_, i) => {
                 const day = i + 1
-                const cls = day < pauta.day_number
+                const cls = pauta.status === 'finished'
                   ? 'pauta-progress__seg pauta-progress__seg--done'
-                  : day === pauta.day_number
-                    ? 'pauta-progress__seg pauta-progress__seg--current'
-                    : 'pauta-progress__seg'
+                  : day < pauta.day_number
+                    ? 'pauta-progress__seg pauta-progress__seg--done'
+                    : day === pauta.day_number
+                      ? 'pauta-progress__seg pauta-progress__seg--current'
+                      : 'pauta-progress__seg'
                 return <span key={day} className={cls} />
               })}
             </div>
