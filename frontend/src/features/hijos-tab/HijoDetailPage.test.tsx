@@ -190,3 +190,41 @@ describe('HijoDetailPage — borrados destructivos (confirmación + deshacer)', 
     await screen.findByText(/Visita borrada/i)
   })
 })
+
+describe('HijoDetailPage — feedback de mutaciones (pending + error)', () => {
+  it('al fallar el alta de una medida muestra un toast de error', async () => {
+    server.use(
+      ...stubData({ measurements: [] }),
+      http.post('http://localhost:8000/children/c1/measurements', () =>
+        HttpResponse.json({ detail: 'fail' }, { status: 500 }),
+      ),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByText('Crecimiento')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar medida' }))
+    fireEvent.change(screen.getByLabelText('Valor en cm'), { target: { value: '95' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    await screen.findByText(/No se pudo registrar la medida/i)
+  })
+
+  it('al fallar el alta de una visita muestra un toast de error', async () => {
+    server.use(
+      ...stubData({ visits: [] }),
+      http.post('http://localhost:8000/children/c1/health-visits', () =>
+        HttpResponse.json({ detail: 'fail' }, { status: 500 }),
+      ),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByText('Visitas médicas')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar visita' }))
+    fireEvent.change(screen.getByLabelText('Diagnóstico'), { target: { value: 'Gripe' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    await screen.findByText(/No se pudo registrar la visita/i)
+  })
+})

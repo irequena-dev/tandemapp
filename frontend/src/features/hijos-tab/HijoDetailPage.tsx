@@ -175,6 +175,8 @@ type MeasurementFormProps = {
 function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
   const create = useCreateMeasurement(childId)
   const update = useUpdateMeasurement(childId)
+  const toast = useToast()
+  const pending = create.isPending || update.isPending
 
   const [type, setType] = useState<'height' | 'weight'>(
     (editing?.type as 'height' | 'weight') ?? 'height',
@@ -191,14 +193,15 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
     const numVal = parseFloat(value)
     if (isNaN(numVal) || numVal <= 0) return
 
+    const onError = () => toast.error('No se pudo registrar la medida')
     if (editing) {
       update.mutate(
         { id: editing.id, patch: { value: numVal, unit, measured_at: measuredAt } },
-        { onSuccess: onDone },
+        { onSuccess: onDone, onError },
       )
     } else {
       const input: MeasurementInput = { type, value: numVal, unit, measured_at: measuredAt }
-      create.mutate(input, { onSuccess: onDone })
+      create.mutate(input, { onSuccess: onDone, onError })
     }
   }
 
@@ -237,10 +240,19 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
         />
       </div>
       <div className="measurement-form__actions">
-        <button type="submit" className="measurement-form__btn measurement-form__btn--primary">
-          {editing ? 'Guardar' : 'Registrar'}
+        <button
+          type="submit"
+          className="measurement-form__btn measurement-form__btn--primary"
+          disabled={pending}
+        >
+          {pending ? 'Guardando…' : editing ? 'Guardar' : 'Registrar'}
         </button>
-        <button type="button" className="measurement-form__btn measurement-form__btn--secondary" onClick={onDone}>
+        <button
+          type="button"
+          className="measurement-form__btn measurement-form__btn--secondary"
+          onClick={onDone}
+          disabled={pending}
+        >
           Cancelar
         </button>
       </div>
@@ -574,6 +586,8 @@ function VisitasSection({
   setConfirmingVisit,
   onConfirmDeleteVisit,
 }: VisitasSectionProps) {
+  const toast = useToast()
+  const pending = createVisit.isPending || updateVisit.isPending
   const filtered = visitas
     .filter((v) => !filterFrom || v.visited_at >= filterFrom)
     .filter((v) => !filterTo || v.visited_at <= filterTo)
@@ -665,11 +679,21 @@ function VisitasSection({
       {showForm && (
         <VisitaForm
           editing={editing}
+          pending={pending}
           onCreate={(input) => {
-            createVisit.mutate(input, { onSuccess: () => setShowForm(false) })
+            createVisit.mutate(input, {
+              onSuccess: () => setShowForm(false),
+              onError: () => toast.error('No se pudo registrar la visita'),
+            })
           }}
           onUpdate={(id, patch) => {
-            updateVisit.mutate({ id, patch }, { onSuccess: () => { setShowForm(false); setEditing(undefined) } })
+            updateVisit.mutate(
+              { id, patch },
+              {
+                onSuccess: () => { setShowForm(false); setEditing(undefined) },
+                onError: () => toast.error('No se pudo guardar la visita'),
+              },
+            )
           }}
           onCancel={() => { setShowForm(false); setEditing(undefined) }}
         />
@@ -747,12 +771,13 @@ function VisitasSection({
 
 type VisitaFormProps = {
   editing?: HealthVisit
+  pending?: boolean
   onCreate: (input: { visited_at: string; diagnosis: string; notes?: unknown }) => void
   onUpdate: (id: string, patch: { visited_at?: string; diagnosis?: string; notes?: unknown }) => void
   onCancel: () => void
 }
 
-function VisitaForm({ editing, onCreate, onUpdate, onCancel }: VisitaFormProps) {
+function VisitaForm({ editing, pending = false, onCreate, onUpdate, onCancel }: VisitaFormProps) {
   const [visitedAt, setVisitedAt] = useState(
     editing?.visited_at ?? new Date().toISOString().slice(0, 10),
   )
@@ -810,10 +835,19 @@ function VisitaForm({ editing, onCreate, onUpdate, onCancel }: VisitaFormProps) 
         />
       </label>
       <div className="visita-form__actions">
-        <button type="submit" className="visita-form__btn visita-form__btn--primary">
-          {editing ? 'Guardar' : 'Registrar'}
+        <button
+          type="submit"
+          className="visita-form__btn visita-form__btn--primary"
+          disabled={pending}
+        >
+          {pending ? 'Guardando…' : editing ? 'Guardar' : 'Registrar'}
         </button>
-        <button type="button" className="visita-form__btn visita-form__btn--secondary" onClick={onCancel}>
+        <button
+          type="button"
+          className="visita-form__btn visita-form__btn--secondary"
+          onClick={onCancel}
+          disabled={pending}
+        >
           Cancelar
         </button>
       </div>
