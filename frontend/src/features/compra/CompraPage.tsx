@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   useShoppingItems,
   useCreateShoppingItem,
@@ -56,6 +56,109 @@ function PencilIcon() {
       <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
       <path d="m15 5 4 4" />
     </svg>
+  )
+}
+
+function MoreVerticalIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="5" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="12" cy="19" r="1.5" />
+    </svg>
+  )
+}
+
+function ItemMenu({
+  itemText,
+  onEdit,
+  onDelete,
+}: {
+  itemText: string
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (
+        menuRef.current?.contains(target) ||
+        buttonRef.current?.contains(target)
+      ) {
+        return
+      }
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+    }
+  }, [open])
+
+  const handleEdit = () => {
+    setOpen(false)
+    onEdit()
+  }
+
+  const handleDelete = () => {
+    setOpen(false)
+    onDelete()
+  }
+
+  return (
+    <div className="compra-item__menu">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="compra-item__menu-button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={`Menú de acciones de ${itemText}`}
+      >
+        <MoreVerticalIcon />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          id={menuId}
+          className="compra-item__menu-dropdown"
+          role="menu"
+          aria-orientation="vertical"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="compra-item__menu-option"
+            role="menuitem"
+            onClick={handleEdit}
+            aria-label={`Editar ${itemText}`}
+          >
+            <PencilIcon />
+            <span>Editar</span>
+          </button>
+          <button
+            type="button"
+            className="compra-item__menu-option compra-item__menu-option--danger"
+            role="menuitem"
+            onClick={handleDelete}
+            aria-label={`Borrar ${itemText}`}
+          >
+            <TrashIcon />
+            <span>Borrar</span>
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -130,34 +233,13 @@ function ItemRow({
         {isBought && boughtByName && (
           <span className="compra-item__meta">{boughtByName}</span>
         )}
-        {isBought && (
-          <button
-            type="button"
-            className="compra-item__undo"
-            onClick={onToggle}
-            aria-label={`Deshacer compra de ${item.text}`}
-          >
-            Deshacer
-          </button>
-        )}
         {!editing && (
-          <button
-            type="button"
-            className="compra-item__action"
-            onClick={startEdit}
-            aria-label={`Editar ${item.text}`}
-          >
-            <PencilIcon />
-          </button>
+          <ItemMenu
+            itemText={item.text}
+            onEdit={startEdit}
+            onDelete={onDelete}
+          />
         )}
-        <button
-          type="button"
-          className="compra-item__action compra-item__action--danger"
-          onClick={onDelete}
-          aria-label={`Borrar ${item.text}`}
-        >
-          <TrashIcon />
-        </button>
       </div>
     </li>
   )

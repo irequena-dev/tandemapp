@@ -93,7 +93,16 @@
   background: var(--ds-surface);
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-r-lg);
-  overflow: hidden;
+}
+
+.compra__list .compra-item:first-child {
+  border-top-left-radius: var(--ds-r-lg);
+  border-top-right-radius: var(--ds-r-lg);
+}
+
+.compra__list .compra-item:last-child {
+  border-bottom-left-radius: var(--ds-r-lg);
+  border-bottom-right-radius: var(--ds-r-lg);
 }
 
 .compra-item {
@@ -185,26 +194,17 @@
 /* Row action buttons */
 .compra-item__actions {
   display: flex;
+  align-items: center;
   gap: var(--ds-s-sm);
   flex: none;
-  opacity: 0;
-  transition: opacity var(--ds-dur-fast) var(--ds-ease);
 }
 
-.compra-item:hover .compra-item__actions,
-.compra-item:focus-within .compra-item__actions {
-  opacity: 1;
+.compra-item__menu {
+  position: relative;
+  display: inline-flex;
 }
 
-/* En un dispositivo táctil no hay hover: sin esta regla, Editar/Borrar quedan
-   invisibles hasta que el usuario tropieza con el foco. Forzamos opacity:1. */
-@media (hover: none) {
-  .compra-item__actions {
-    opacity: 1;
-  }
-}
-
-.compra-item__action {
+.compra-item__menu-button {
   display: grid;
   place-items: center;
   width: 44px;
@@ -222,42 +222,67 @@
     background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.compra-item__action:hover {
+.compra-item__menu-button:hover {
   background: var(--ds-surface-2);
   color: var(--ds-ink);
 }
 
-.compra-item__action--danger:hover {
+.compra-item__menu-button:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.compra-item__menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--ds-z-dropdown);
+  min-width: 180px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  box-shadow: var(--ds-shadow-floating);
+  padding: var(--ds-s-xs);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.compra-item__menu-option {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  width: 100%;
+  min-height: 40px;
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: transparent;
+  color: var(--ds-ink);
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--ds-dur-fast) var(--ds-ease),
+    background-color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.compra-item__menu-option:hover {
+  background: var(--ds-surface-2);
+}
+
+.compra-item__menu-option--danger:hover {
   color: var(--ds-danger);
 }
 
-/* Antes sólo el input de alta tenía focus ring. Ahora lo llevan también las
-   acciones de fila, el check y el botón de limpiar: el foco visible contra los
-   tonos cálidos no puede depender del cambio de color por sí solo. */
-.compra-item__action:focus-visible {
+.compra-item__menu-option:focus-visible {
   outline: 2px solid var(--ds-primary);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .compra-item__check:focus-visible {
   outline: 2px solid var(--ds-primary);
   outline-offset: 2px;
-}
-
-/* Undo button (bought row) */
-.compra-item__undo {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--ds-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--ds-r-sm);
-  transition: color var(--ds-dur-fast) var(--ds-ease);
-}
-.compra-item__undo:hover {
-  color: var(--ds-primary);
 }
 
 /* ---------- Bought section (collapsed) ---------- */

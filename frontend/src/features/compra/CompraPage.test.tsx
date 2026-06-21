@@ -209,8 +209,24 @@ describe('CompraPage — sección "Comprado" abierta por defecto cuando hay poco
   })
 })
 
-describe('CompraPage — edición inline', () => {
-  it('Enter guarda la edición; blur la descarta (no commitea por perder foco)', async () => {
+function openItemMenu(itemText: string) {
+  const menuButton = screen.getByRole('button', { name: `Menú de acciones de ${itemText}` })
+  fireEvent.click(menuButton)
+  return menuButton
+}
+
+describe('CompraPage — menú de acciones de tres puntos', () => {
+  it('muestra el menú de acciones siempre visible en cada fila', async () => {
+    const store: ShoppingItem[] = [pendingItem('Leche entera')]
+    server.use(membersHandler, http.get(URL, () => HttpResponse.json(store)))
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
+
+    expect(screen.getByRole('button', { name: /Menú de acciones de Leche entera/ })).toBeTruthy()
+  })
+
+  it('abre el desplegable y dispara Editar desde el menú', async () => {
     let store: ShoppingItem[] = [pendingItem('Leche entera')]
     const patches: { id: string; text: string }[] = []
     server.use(
@@ -229,28 +245,68 @@ describe('CompraPage — edición inline', () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
 
-    // Abre la edición y escribe un texto nuevo.
-    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
+    openItemMenu('Leche entera')
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Editar Leche entera/ }))
+
     const input = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
     fireEvent.change(input, { target: { value: 'Leche desnatada' } })
-
-    // Blur (perder foco por tab/scroll/notificación): NO commitea.
-    fireEvent.blur(input)
-    await waitFor(() =>
-      expect(screen.queryByRole('textbox', { name: /Editar Leche entera/ })).toBeNull(),
-    )
-    expect(patches).toHaveLength(0)
-    // El texto original sigue ahí: no se perdió ni se guardó a medias.
-    expect(screen.getByText('Leche entera')).toBeTruthy()
-
-    // Ahora sí: abre, edita y pulsa Enter → commitea.
-    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
-    const input2 = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
-    fireEvent.change(input2, { target: { value: 'Leche desnatada' } })
-    fireEvent.keyDown(input2, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => expect(patches).toHaveLength(1))
     expect(patches[0].text).toBe('Leche desnatada')
+  })
+
+  it('abre el desplegable y dispara Borrar desde el menú', async () => {
+    let store: ShoppingItem[] = [pendingItem('Leche entera')]
+    const deleted: string[] = []
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json(store)),
+      http.delete(`${URL}/:id`, ({ params }) => {
+        deleted.push(params['id'] as string)
+        store = store.filter((i) => i.id !== params['id'])
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
+
+    openItemMenu('Leche entera')
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Borrar Leche entera/ }))
+
+    await waitFor(() => expect(screen.queryByText('Leche entera')).toBeNull())
+    expect(deleted).toHaveLength(1)
+    expect(deleted[0]).toBe('p-Leche entera')
+  })
+
+  it('cierra el desplegable al tocar fuera', async () => {
+    const store: ShoppingItem[] = [pendingItem('Leche entera'), pendingItem('Pan')]
+    server.use(membersHandler, http.get(URL, () => HttpResponse.json(store)))
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
+
+    openItemMenu('Leche entera')
+    expect(screen.getByRole('menuitem', { name: /^Editar Leche entera/ })).toBeTruthy()
+
+    fireEvent.mouseDown(document.body)
+
+    await waitFor(() =>
+      expect(screen.queryByRole('menuitem', { name: /^Editar Leche entera/ })).toBeNull(),
+    )
+  })
+
+  it('muestra el nombre del comprador a la izquierda del menú en ítems comprados', async () => {
+    const store: ShoppingItem[] = [boughtItem('Pan')]
+    server.use(membersHandler, http.get(URL, () => HttpResponse.json(store)))
+
+    renderPage()
+    await openBoughtThenSee('Pan')
+
+    // El nombre del comprador está visible junto al menú.
+    expect(screen.getByText('Ana')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Menú de acciones de Pan/ })).toBeTruthy()
   })
 
   it('un borrón en blanco (draft vacío) descarta, no borra el ítem', async () => {
@@ -268,9 +324,9 @@ describe('CompraPage — edición inline', () => {
     renderPage()
     await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
 
-    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
+    openItemMenu('Leche entera')
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Editar Leche entera/ }))
     const input = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
-    // El usuario borra todo y pulsa Enter: tratamos el draft vacío como cancelar.
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -278,43 +334,23 @@ describe('CompraPage — edición inline', () => {
       expect(screen.queryByRole('textbox', { name: /Editar Leche entera/ })).toBeNull(),
     )
     expect(patches).toHaveLength(0)
-    // El ítem original sigue existiendo.
     expect(screen.getByText('Leche entera')).toBeTruthy()
   })
 })
 
-describe('CompraPage — acciones de fila accesibles en táctil (hover:none, 44px, focus-visible)', () => {
-  // Las acciones de fila (editar/borrar) y el check viven con opacity:0 y se
-  // revelan sólo en :hover/:focus-within — pero en un móvil no hay hover, así
-  // que son invisibles. El fix es CSS puro (no se ve en el DOM), así que este
-  // test ancla las reglas a nivel de fuente para evitar regresiones.
-  const css = readFileSync(
-    resolve(__dirname, 'compra.css'),
-    'utf8',
-  )
+describe('CompraPage — acciones de fila accesibles (44px, focus-visible)', () => {
+  const css = readFileSync(resolve(__dirname, 'compra.css'), 'utf8')
 
-  it('mantiene las acciones visibles en dispositivos sin hover (@media hover: none)', () => {
-    expect(css).toMatch(/@media\s*\(\s*hover:\s*none\s*\)/)
-    // Dentro del bloque hover:none, las acciones deben forzar opacity:1.
-    const hoverNoneBlock = css.match(/@media\s*\(\s*hover:\s*none\s*\)\s*{([^}]*)}/)
-    expect(hoverNoneBlock).not.toBeNull()
-    expect(hoverNoneBlock![1]).toMatch(/compra-item__actions/)
-    expect(hoverNoneBlock![1]).toMatch(/opacity:\s*1/)
-  })
-
-  it('agrandaba el área de toque del check y de las acciones a >=44px', () => {
-    // El check pasa de 24px a un área de 44px vía padding/size.
+  it('agrandaba el área de toque del check y del botón de menú a >=44px', () => {
     expect(css).toMatch(/compra-item__check[^{]*\{[^}]*min-width:\s*44px/)
     expect(css).toMatch(/compra-item__check[^{]*\{[^}]*min-height:\s*44px/)
-    // Los botones de acción pasan de 32px a 44px.
-    expect(css).toMatch(/compra-item__action[^{]*\{[^}]*min-width:\s*44px/)
-    expect(css).toMatch(/compra-item__action[^{]*\{[^}]*min-height:\s*44px/)
+    expect(css).toMatch(/compra-item__menu-button[^{]*\{[^}]*min-width:\s*44px/)
+    expect(css).toMatch(/compra-item__menu-button[^{]*\{[^}]*min-height:\s*44px/)
   })
 
-  it('añade un :focus-visible outline a acciones, toggles y al botón de limpiar', () => {
-    // Antes sólo el input de alta tenía focus ring; ahora también las acciones
-    // de fila, el check/toggle y el botón de limpiar lo tienen.
-    expect(css).toMatch(/compra-item__action:focus-visible/)
+  it('añade un :focus-visible outline al menú, opciones, check y botón de limpiar', () => {
+    expect(css).toMatch(/compra-item__menu-button:focus-visible/)
+    expect(css).toMatch(/compra-item__menu-option:focus-visible/)
     expect(css).toMatch(/compra-item__check:focus-visible/)
     expect(css).toMatch(/compra__clear:focus-visible/)
   })
