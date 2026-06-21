@@ -699,7 +699,7 @@ async def handle_list_tools() -> list[Tool]:
     # inventa valores (ej: "calzado" en vez de "footwear"). (issue 05)
     return [
         Tool(
-            name="listChildren",
+            name="list_children",
             description=(
                 "Lista los hijos (niños y niñas) de la familia con su nombre y "
                 "fecha de nacimiento. Úsala cuando necesites saber quiénes son o "
@@ -708,7 +708,7 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
-            name="addShoppingItems",
+            name="add_shopping_items",
             description="Añade productos a la lista de la compra de la familia.",
             inputSchema={
                 "type": "object",
@@ -725,7 +725,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="recordHealthVisit",
+            name="record_health_visit",
             description=(
                 "Registra una visita médica (pediatra, urgencias, etc.) de un hijo."
             ),
@@ -758,7 +758,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="startPauta",
+            name="start_pauta",
             description=(
                 "Inicia un tratamiento médico (pauta de medicación) para un hijo. "
                 "Devuelve el id de la pauta."
@@ -794,11 +794,11 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="recordAdministration",
+            name="record_administration",
             description=(
                 "Registra que se ha dado una dosis de un tratamiento activo. "
                 "Requiere el id de la pauta "
-                "(obtenido de startPauta o listActivePautas)."
+                "(obtenido de start_pauta o list_active_pautas)."
             ),
             inputSchema={
                 "type": "object",
@@ -812,7 +812,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="finishPauta",
+            name="finish_pauta",
             description=("Finaliza un tratamiento activo. Requiere el id de la pauta."),
             inputSchema={
                 "type": "object",
@@ -826,10 +826,10 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="listActivePautas",
+            name="list_active_pautas",
             description=(
                 "Lista los tratamientos (pautas) activos, con su id, medicación y "
-                "pauta de dosis. Úsala antes de recordAdministration para obtener el "
+                "pauta de dosis. Úsala antes de record_administration para obtener el "
                 "pauta_id."
             ),
             inputSchema={
@@ -844,7 +844,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="recordMeasurement",
+            name="record_measurement",
             description="Registra el peso o la altura de un hijo.",
             inputSchema={
                 "type": "object",
@@ -872,7 +872,7 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="recordSize",
+            name="record_size",
             description="Registra la talla de ropa o de calzado de un hijo.",
             inputSchema={
                 "type": "object",
@@ -897,16 +897,16 @@ async def handle_list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="listEventTypes",
+            name="list_event_types",
             description=(
                 "Lista los tipos de evento disponibles (ej: Cumpleaños, Vacuna, "
-                "Otros). Úsala antes de createEvent para conocer el nombre exacto "
+                "Otros). Úsala antes de create_event para conocer el nombre exacto "
                 "del tipo."
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
-            name="createEvent",
+            name="create_event",
             description="Crea un evento en la agenda de la familia.",
             inputSchema={
                 "type": "object",
@@ -927,7 +927,7 @@ async def handle_list_tools() -> list[Tool]:
                     "type": {
                         "type": "string",
                         "description": (
-                            "Nombre del tipo de evento (ver listEventTypes), ej: "
+                            "Nombre del tipo de evento (ver list_event_types), ej: "
                             '"Cumpleaños". Si no existe, se usa "Otros".'
                         ),
                     },
@@ -954,18 +954,18 @@ async def handle_list_tools() -> list[Tool]:
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Llama a la herramienta correspondiente con sus parámetros."""
     try:
-        if name == "listChildren":
+        if name == "list_children":
             res = await do_list_children()
-        elif name == "addShoppingItems":
+        elif name == "add_shopping_items":
             res = await do_add_shopping_items(arguments["items"])
-        elif name == "recordHealthVisit":
+        elif name == "record_health_visit":
             res = await do_record_health_visit(
                 child_name=arguments["child_name"],
                 visited_at=arguments["visited_at"],
                 diagnosis=arguments["diagnosis"],
                 notes=arguments.get("notes"),
             )
-        elif name == "startPauta":
+        elif name == "start_pauta":
             res = await do_start_pauta(
                 child_name=arguments["child_name"],
                 medication=arguments["medication"],
@@ -973,28 +973,28 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 interval=arguments["interval"],
                 duration=arguments["duration"],
             )
-        elif name == "recordAdministration":
+        elif name == "record_administration":
             res = await do_record_administration(pauta_id=arguments["pauta_id"])
-        elif name == "finishPauta":
+        elif name == "finish_pauta":
             res = await do_finish_pauta(pauta_id=arguments["pauta_id"])
-        elif name == "listActivePautas":
+        elif name == "list_active_pautas":
             res = await do_list_active_pautas(child_name=arguments.get("child_name"))
-        elif name == "recordMeasurement":
+        elif name == "record_measurement":
             res = await do_record_measurement(
                 child_name=arguments["child_name"],
                 type=arguments["type"],
                 value=float(arguments["value"]),
                 unit=arguments["unit"],
             )
-        elif name == "recordSize":
+        elif name == "record_size":
             res = await do_record_size(
                 child_name=arguments["child_name"],
                 type=arguments["type"],
                 label=arguments["label"],
             )
-        elif name == "listEventTypes":
+        elif name == "list_event_types":
             res = await do_list_event_types()
-        elif name == "createEvent":
+        elif name == "create_event":
             d_val = parse_flexible_date(arguments["date"])
             t_val = (
                 parse_flexible_time(arguments["time"])
