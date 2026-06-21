@@ -517,4 +517,40 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(segments[0].classList.contains('pauta-progress__seg--done')).toBe(true)
     expect(segments[0].classList.contains('pauta-progress__seg--current')).toBe(false)
   })
+
+  // --- P3: Última toma should not render when todaysAdmins is non-empty ---
+
+  it('no muestra el hint "Última toma" cuando hay tomas de hoy (evita redundancia)', async () => {
+    const recentIso = new Date(Date.now() - 5 * 60_000).toISOString()
+    const recentAdmin: Administration = {
+      id: 'admin-recent',
+      pauta_id: 'pauta-1',
+      administered_at: recentIso,
+      administered_by: 'member-1',
+      member_name: 'Ana',
+      created_at: recentIso,
+    }
+    const pautaWithAdmin: Pauta = {
+      ...samplePauta,
+      todays_administrations: [recentAdmin],
+    }
+
+    renderPage([pautaWithAdmin])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Should show "Tomas de hoy" section
+    await waitFor(() => {
+      expect(screen.queryByText('Tomas de hoy')).not.toBeNull()
+    })
+
+    // Should show the recent toma in the "Tomas de hoy" list
+    expect(screen.queryByText(/Dada por Ana/)).not.toBeNull()
+
+    // P3: should NOT show the "Última toma" hint (the recent toma block)
+    // because it would duplicate the information already shown in "Tomas de hoy"
+    expect(screen.queryByText(/próxima disponible en 15 min/)).toBeNull()
+  })
 })

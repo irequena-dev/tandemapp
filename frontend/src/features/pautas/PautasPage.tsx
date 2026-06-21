@@ -397,7 +397,7 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
               momento de reassurance ("Dada a las … por …"). */}
           {pauta.status === 'active' && (
             <div className="pauta-body__actions">
-              {recentToma && lastAdmin && (
+              {recentToma && lastAdmin && todaysAdmins.length === 0 && (
                 <span className="pauta-toma__hint">
                   Dada a las {formatTime(lastAdmin.administered_at)}
                   {lastAdmin.member_name ? ` por ${lastAdmin.member_name}` : ''} · próxima disponible en {DUPLICATE_GUARD_MINUTES} min
