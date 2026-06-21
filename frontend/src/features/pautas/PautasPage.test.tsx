@@ -378,4 +378,27 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(document.querySelector('.pauta-progress__fill')).toBeNull()
     expect(document.querySelector('.pauta-progress__bar')).toBeNull()
   })
+
+  it('muestra "Guardando…" en el botón "Marcar toma" mientras está pendiente', async () => {
+    // Mock a delayed response to keep the mutation in pending state
+    server.use(
+      http.post('http://localhost:8000/pautas/:pautaId/administrations', async () => {
+        // Intentionally delay to keep mutation in pending state
+        await new Promise((resolve) => setTimeout(resolve, 10000))
+        return HttpResponse.json({ id: 'admin-new' }, { status: 201 })
+      }),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    const markBtn = screen.getByRole('button', { name: /Marcar toma de/ })
+    await user.click(markBtn)
+
+    // P1: el botón debe mostrar "Guardando…" mientras la mutación está pendiente
+    await waitFor(() => {
+      expect(screen.queryByText('Guardando…')).not.toBeNull()
+    })
+  })
 })

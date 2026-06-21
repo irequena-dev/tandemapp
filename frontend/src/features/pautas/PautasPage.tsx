@@ -240,7 +240,7 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
                     : `Marcar toma de ${pauta.medication}`
                 }
               >
-                {recentToma ? 'Toma reciente' : 'Marcar toma'}
+                {createAdmin.isPending ? 'Guardando…' : recentToma ? 'Toma reciente' : 'Marcar toma'}
               </button>
             )}
             {createError && (
