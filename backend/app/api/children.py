@@ -1,15 +1,14 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query, status
-from sqlmodel import col, select
+from sqlmodel import select
 
+from ..current_values import latest_measurement, latest_size
 from ..models import (
     Child,
     ChildCreate,
     ChildUpdate,
     ChildWithMetricsOut,
-    Measurement,
-    Size,
 )
 from ..tenancy import FamilyScope, family_session
 from .children_access import get_owned_child
@@ -59,66 +58,10 @@ async def list_children(
 
     enriched: list[ChildWithMetricsOut] = []
     for child in children:
-        height_cm: float | None = None
-        weight_kg: float | None = None
-        talla: str | None = None
-        talla_calzado: str | None = None
-
-        # Última Medida de altura
-        stmt = (
-            select(Measurement)
-            .where(
-                col(Measurement.child_id) == child.id,
-                Measurement.type == "height",
-            )
-            .order_by(
-                col(Measurement.measured_at).desc(),
-                col(Measurement.created_at).desc(),
-            )
-            .limit(1)
-        )
-        row = (await session.execute(stmt)).scalar_one_or_none()
-        if row is not None:
-            height_cm = row.value
-
-        # Última Medida de peso
-        stmt = (
-            select(Measurement)
-            .where(
-                col(Measurement.child_id) == child.id,
-                Measurement.type == "weight",
-            )
-            .order_by(
-                col(Measurement.measured_at).desc(),
-                col(Measurement.created_at).desc(),
-            )
-            .limit(1)
-        )
-        row = (await session.execute(stmt)).scalar_one_or_none()
-        if row is not None:
-            weight_kg = row.value
-
-        # Última Talla de ropa
-        stmt = (
-            select(Size)
-            .where(col(Size.child_id) == child.id, col(Size.type) == "clothing")
-            .order_by(col(Size.recorded_at).desc(), col(Size.created_at).desc())
-            .limit(1)
-        )
-        size_row = (await session.execute(stmt)).scalar_one_or_none()
-        if size_row is not None:
-            talla = size_row.label
-
-        # Última Talla de calzado
-        stmt = (
-            select(Size)
-            .where(col(Size.child_id) == child.id, col(Size.type) == "footwear")
-            .order_by(col(Size.recorded_at).desc(), col(Size.created_at).desc())
-            .limit(1)
-        )
-        size_row = (await session.execute(stmt)).scalar_one_or_none()
-        if size_row is not None:
-            talla_calzado = size_row.label
+        height = await latest_measurement(session, child.id, "height")
+        weight = await latest_measurement(session, child.id, "weight")
+        clothing = await latest_size(session, child.id, "clothing")
+        footwear = await latest_size(session, child.id, "footwear")
 
         enriched.append(
             ChildWithMetricsOut(
@@ -127,10 +70,10 @@ async def list_children(
                 name=child.name,
                 birth_date=child.birth_date,
                 avatar_color=child.avatar_color,
-                current_height_cm=height_cm,
-                current_weight_kg=weight_kg,
-                current_talla=talla,
-                current_talla_calzado=talla_calzado,
+                current_height_cm=height.value if height else None,
+                current_weight_kg=weight.value if weight else None,
+                current_talla=clothing.label if clothing else None,
+                current_talla_calzado=footwear.label if footwear else None,
             )
         )
     return enriched

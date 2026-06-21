@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
+from ..current_values import latest_size
 from ..models import CurrentSizesOut, Size, SizeCreate, SizeOut, SizeUpdate
 from ..tenancy import FamilyScope, family_session
 from .children_access import get_owned_child
@@ -71,14 +72,7 @@ async def current_sizes(
     await get_owned_child(session, child_id)
     out = CurrentSizesOut()
     for size_type in ("clothing", "footwear"):
-        stmt = (
-            select(Size)
-            .where(col(Size.child_id) == child_id, col(Size.type) == size_type)
-            .order_by(col(Size.recorded_at).desc(), col(Size.created_at).desc())
-            .limit(1)
-        )
-        result = await session.execute(stmt)
-        row = result.scalars().first()
+        row = await latest_size(session, child_id, size_type)
         if row is not None:
             if size_type == "clothing":
                 out.clothing = _to_out(row)

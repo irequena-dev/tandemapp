@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from ..current_values import latest_measurement
 from ..models import (
     CurrentMeasurementsOut,
     Measurement,
@@ -60,14 +61,7 @@ async def current_measurements(
     await get_owned_child(session, child_id)
     out = CurrentMeasurementsOut()
     for mtype in ("height", "weight"):
-        stmt = (
-            select(Measurement)
-            .where(Measurement.child_id == child_id, Measurement.type == mtype)
-            .order_by(Measurement.measured_at.desc(), Measurement.created_at.desc())
-            .limit(1)
-        )
-        result = await session.execute(stmt)
-        m = result.scalar_one_or_none()
+        m = await latest_measurement(session, child_id, mtype)
         if m is not None:
             if mtype == "height":
                 out.height = MeasurementOut.model_validate(m)
