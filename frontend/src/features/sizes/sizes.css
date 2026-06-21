@@ -47,16 +47,14 @@
 
 .size-block__add-btn {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: none;
   border-radius: var(--ds-r-md);
   background: var(--ds-surface-2);
   color: var(--ds-primary);
-  font-size: 1.25rem;
-  font-weight: 600;
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
@@ -67,8 +65,8 @@
   }
 }
 .size-block__add-btn:focus-visible {
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-block__history-toggle {
@@ -138,7 +136,7 @@
   padding: 4px 10px;
   border-radius: var(--ds-r-md);
   cursor: pointer;
-  min-height: 32px;
+  min-height: 44px;
 }
 @media (hover: hover) and (pointer: fine) {
   .size-history-row__btn:hover {
@@ -172,8 +170,8 @@
 }
 .size-form__input:focus {
   border-color: var(--ds-primary);
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 0;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-form__date {
@@ -188,8 +186,8 @@
 }
 .size-form__date:focus {
   border-color: var(--ds-primary);
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 0;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-form__actions {

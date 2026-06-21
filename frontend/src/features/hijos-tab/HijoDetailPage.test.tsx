@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import '@testing-library/jest-dom/vitest'
 import { HttpResponse, http } from 'msw'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
@@ -271,5 +272,49 @@ describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Visitas' }))
 
     expect(screen.getByRole('heading', { name: 'Visitas médicas' })).toBeTruthy()
+  })
+})
+
+describe('HijoDetailPage — vocabulario de componentes consistente', () => {
+  it('los botones de acción de fila cumplen WCAG 2.5.5 (44px mínimo)', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
+
+    // Botones de acción en fila de medida (editar/borrar)
+    const editBtn = await screen.findByRole('button', { name: 'Editar medida' })
+    const deleteBtn = screen.getByRole('button', { name: 'Borrar medida' })
+
+    // Verificar que tienen la clase correcta que define 44px
+    expect(editBtn).toHaveClass('growth-row__action')
+    expect(deleteBtn).toHaveClass('growth-row__action')
+  })
+
+  it('los botones de acción de visita cumplen WCAG 2.5.5 (44px mínimo)', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Visitas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Visitas' }))
+
+    // Botones de acción en fila de visita
+    const editBtn = await screen.findByRole('button', { name: 'Editar visita' })
+    const deleteBtn = screen.getByRole('button', { name: 'Borrar visita' })
+
+    expect(editBtn).toHaveClass('visita-action-btn')
+    expect(deleteBtn).toHaveClass('visita-action-btn')
+  })
+
+  it('los botones de añadir usan el estilo surface-2 consistente', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
+
+    const addBtn = screen.getByRole('button', { name: 'Registrar medida' })
+    expect(addBtn).toHaveClass('hijo-detail__add-btn')
   })
 })
