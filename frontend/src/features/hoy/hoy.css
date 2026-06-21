@@ -241,8 +241,10 @@
   border-top: none;
 }
 
-.hoy-row:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .hoy-row:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .hoy-row:focus-visible {

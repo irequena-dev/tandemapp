@@ -50,9 +50,11 @@
   transition: all 0.2s ease;
 }
 
-.display-name-overlay__close:hover {
-  background: var(--ds-surface-hover);
-  color: var(--ds-text);
+@media (hover: hover) and (pointer: fine) {
+  .display-name-overlay__close:hover {
+    background: var(--ds-surface-hover);
+    color: var(--ds-text);
+  }
 }
 
 .display-name-overlay__content {

@@ -140,7 +140,8 @@ async def test_today_children_status_overdue(
 async def test_today_children_status_followup(
     auth_client: AsyncClient, identity: dict
 ) -> None:
-    """Un Evento médico `pending` en los próximos 7 días → children_status "seguimiento"."""
+    """Evento médico `pending` en próximos 7 días → children_status "seguimiento"."""
+
     _as(identity, "org_today_csfol", "user_today_csfol")
     child_id = await _create_child(auth_client, "Mateo")
     med_id = await _get_event_type_id(auth_client, "Médico")

@@ -118,8 +118,10 @@
   border-top: 1px solid var(--ds-border);
 }
 
-.compra-item:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .compra-item:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 /* Checkbox — el glyph es 16px pero el área de toque sube a 44px (piso móvil). */
@@ -222,9 +224,11 @@
     background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.compra-item__menu-button:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .compra-item__menu-button:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 
 .compra-item__menu-button:focus-visible {
@@ -267,8 +271,10 @@
     background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.compra-item__menu-option:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .compra-item__menu-option:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .compra-item__menu-option--danger:hover {

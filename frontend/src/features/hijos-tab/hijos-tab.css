@@ -39,8 +39,10 @@
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.hijo-card:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .hijo-card:hover {
+    background: var(--ds-surface-2);
+  }
 }
 .hijo-card:focus-visible {
   outline: 2px solid var(--ds-primary);
@@ -196,8 +198,10 @@
   cursor: pointer;
   min-height: 36px;
 }
-.hijo-detail__add-btn:hover {
-  background: var(--ds-border);
+@media (hover: hover) and (pointer: fine) {
+  .hijo-detail__add-btn:hover {
+    background: var(--ds-border);
+  }
 }
 
 /* Growth chart */
@@ -332,8 +336,10 @@
   color: inherit;
   font: inherit;
 }
-.visita-row__btn:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .visita-row__btn:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .visita-row__actions {
@@ -410,8 +416,10 @@
   cursor: pointer;
   min-height: 36px;
 }
-.hijo-detail__add-btn:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .hijo-detail__add-btn:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 /* Visita form (inline) */
@@ -485,8 +493,10 @@
   background: var(--ds-primary);
   color: var(--ds-bg);
 }
-.visita-form__btn--primary:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .visita-form__btn--primary:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .visita-form__btn--secondary {
@@ -710,8 +720,10 @@
   background: var(--ds-primary);
   color: var(--ds-bg);
 }
-.measurement-form__btn--primary:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .measurement-form__btn--primary:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .measurement-form__btn--secondary {
@@ -719,8 +731,10 @@
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
 }
-.measurement-form__btn--secondary:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .measurement-form__btn--secondary:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 /* ---------- Growth row actions ---------- */
@@ -741,12 +755,14 @@
   color: var(--ds-muted);
   cursor: pointer;
 }
-.growth-row__action:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
-}
-.growth-row__action--danger:hover {
-  color: var(--ds-danger);
+@media (hover: hover) and (pointer: fine) {
+  .growth-row__action:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
+  .growth-row__action--danger:hover {
+    color: var(--ds-danger);
+  }
 }
 
 /* Confirmación inline de borrado (patrón .hijo-confirm) dentro de una fila de

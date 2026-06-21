@@ -54,9 +54,11 @@
     color var(--ds-dur-fast) var(--ds-ease),
     border-color var(--ds-dur-fast) var(--ds-ease);
 }
-.eventos__toggle:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .eventos__toggle:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 .eventos__toggle--active {
   background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
@@ -117,9 +119,11 @@
     color var(--ds-dur-fast) var(--ds-ease),
     border-color var(--ds-dur-fast) var(--ds-ease);
 }
-.eventos__filter:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .eventos__filter:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 .eventos__filter:focus-visible {
   outline: 2px solid var(--ds-primary);
@@ -218,8 +222,10 @@
   border-top: 1px solid var(--ds-border);
 }
 
-.evento-item:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .evento-item:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 /* Completed: muted, struck-through — recedes without disappearing. */
@@ -528,8 +534,10 @@
     background-color var(--ds-dur-fast) var(--ds-ease),
     transform var(--ds-dur-fast) var(--ds-ease);
 }
-.eventos__fab:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .eventos__fab:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 .eventos__fab:active {
   transform: scale(0.96);
