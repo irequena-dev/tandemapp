@@ -106,7 +106,9 @@ describe('HijoDetailPage — borrados destructivos (confirmación + deshacer)', 
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Crecimiento')
+    // La ficha se organiza en pestañas; Crecimiento no es la vista por defecto.
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
 
     // El botón de borrar existe pero no dispara el borrado directamente.
     fireEvent.click(screen.getByRole('button', { name: 'Borrar medida' }))
@@ -134,7 +136,8 @@ describe('HijoDetailPage — borrados destructivos (confirmación + deshacer)', 
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Crecimiento')
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Borrar medida' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
@@ -157,7 +160,8 @@ describe('HijoDetailPage — borrados destructivos (confirmación + deshacer)', 
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Crecimiento')
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Borrar medida' }))
     fireEvent.click(screen.getByRole('button', { name: 'Borrar' }))
@@ -180,7 +184,8 @@ describe('HijoDetailPage — borrados destructivos (confirmación + deshacer)', 
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Visitas médicas')
+    await screen.findByRole('tab', { name: 'Visitas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Visitas' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Borrar visita' }))
     expect(deletes).toHaveLength(0)
@@ -201,7 +206,8 @@ describe('HijoDetailPage — feedback de mutaciones (pending + error)', () => {
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Crecimiento')
+    await screen.findByRole('tab', { name: 'Crecimiento' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Crecimiento' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar medida' }))
     fireEvent.change(screen.getByLabelText('Valor en cm'), { target: { value: '95' } })
@@ -219,12 +225,49 @@ describe('HijoDetailPage — feedback de mutaciones (pending + error)', () => {
     )
 
     render(<HijoDetailPage />, { wrapper: makeWrapper() })
-    await screen.findByText('Visitas médicas')
+    await screen.findByRole('tab', { name: 'Visitas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Visitas' }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Registrar visita' }))
     fireEvent.change(screen.getByLabelText('Diagnóstico'), { target: { value: 'Gripe' } })
     fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
 
     await screen.findByText(/No se pudo registrar la visita/i)
+  })
+})
+
+describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
+  it('muestra tres pestañas y arranca en Resumen (Tallas visible, sin gráficas)', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Resumen' })
+
+    expect(screen.getByRole('tab', { name: 'Crecimiento' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Visitas' })).toBeTruthy()
+
+    // Resumen incluye las Tallas; la cabecera de Crecimiento no.
+    expect(screen.getByRole('tab', { name: 'Resumen' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('heading', { name: 'Crecimiento' })).toBeNull()
+  })
+
+  it('al pulsar Crecimiento muestra esa sección y oculta Tallas', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Crecimiento' }))
+
+    expect(screen.getByRole('heading', { name: 'Crecimiento' })).toBeTruthy()
+    // La sección Tallas (Resumen) ya no está visible.
+    expect(screen.queryByTestId('sizes-section')).toBeNull()
+  })
+
+  it('al pulsar Visitas muestra esa sección', async () => {
+    server.use(...stubData())
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    fireEvent.click(await screen.findByRole('tab', { name: 'Visitas' }))
+
+    expect(screen.getByRole('heading', { name: 'Visitas médicas' })).toBeTruthy()
   })
 })
