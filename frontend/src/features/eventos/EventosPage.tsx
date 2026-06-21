@@ -395,6 +395,8 @@ export function EventosPage() {
   // Serie cuyo "Borrar futuras" está pidiendo confirmación inline (destructivo
   // bulk): null = ninguna. Espeja el patrón de confirmación por-fila de Pautas.
   const [confirmingSeriesId, setConfirmingSeriesId] = useState<string | null>(null)
+  // Eventos borrados recientemente para deshacer persistente (no timed toast)
+  const [recentlyDeleted, setRecentlyDeleted] = useState<EventOut[]>([])
 
   const { data: eventTypes } = useEventTypes()
   const { data: childrenData } = useChildren()
@@ -460,33 +462,30 @@ export function EventosPage() {
     setEditingId(null)
   }
 
-  // Borrado con deshacer: la eliminación es optimista (ya desaparece de la
-  // lista) y ofrecemos un toast con "Deshacer" que re-crea el Evento. Así un
-  // resbalón de pulgar nunca es irreversible. Ver STATE-NEVER-COLOR-ALONE:
-  // el toast confirma con icono + palabra, no solo color.
+  // Borrado con deshacer persistente: la eliminación es optimista (ya desaparece de la
+  // lista) y el evento se guarda en "Reciente borrado" para deshacer manual.
+  // Así un resbalón de pulgar nunca es irreversible, incluso si el Miembro es interrumpido.
   const handleDelete = (ev: EventOut) => {
     deleteMut.mutate(ev.id, {
       onError: () => toast.error('No se pudo borrar el evento'),
       onSuccess: () => {
-        toast.info(
-          <>
-            <strong>Evento eliminado.</strong>{' '}
-            <button
-              type="button"
-              className="toast__action"
-              onClick={() =>
-                createMut.mutate(toDraft(ev), {
-                  onError: () => toast.error('No se pudo restaurar el evento'),
-                })
-              }
-            >
-              Deshacer
-            </button>
-          </>,
-          { duration: 6000 },
-        )
+        setRecentlyDeleted((prev) => [ev, ...prev])
       },
     })
+  }
+
+  const handleUndoDelete = (ev: EventOut) => {
+    createMut.mutate(toDraft(ev), {
+      onSuccess: () => {
+        setRecentlyDeleted((prev) => prev.filter((e) => e.id !== ev.id))
+        toast.success('Evento restaurado')
+      },
+      onError: () => toast.error('No se pudo restaurar el evento'),
+    })
+  }
+
+  const handleClearRecentlyDeleted = () => {
+    setRecentlyDeleted([])
   }
 
   const handleDone = (ev: EventOut) => {
@@ -770,6 +769,58 @@ export function EventosPage() {
               {done.map((ev) => renderItem(ev, { done: true }))}
             </ul>
           )}
+        </section>
+      )}
+
+      {!eventsLoading && !eventsError && recentlyDeleted.length > 0 && (
+        <section className="eventos__section eventos__section--deleted">
+          <div className="eventos__section-header">
+            <h2 className="eventos__section-title eventos__section-title--deleted">
+              Reciente borrado
+              <span className="eventos__section-count ds-nums">{recentlyDeleted.length}</span>
+            </h2>
+            <button
+              type="button"
+              className="eventos__clear-deleted"
+              onClick={handleClearRecentlyDeleted}
+              aria-label="Limpiar recientes borrados"
+            >
+              Limpiar
+            </button>
+          </div>
+          <ul className="eventos__list eventos__list--muted">
+            {recentlyDeleted.map((ev) => (
+              <li className="evento-item evento-item--deleted" key={ev.id}>
+                <div className="evento-item__titlerow">
+                  <span className="evento-item__title">{ev.title}</span>
+                </div>
+                <div className="evento-item__metarow">
+                  <span className="evento-item__icon" aria-hidden="true">{eventIcon(ev.event_type?.icon ?? 'calendar')}</span>
+                  <div className="evento-item__meta">
+                    <span className="evento-chip evento-chip--date ds-nums">
+                      {relativeDay(ev.date, today) && <span className="evento-chip__rel">{relativeDay(ev.date, today)}</span>}
+                      <span className="evento-chip__abs">{formatDate(ev.date)}</span>
+                    </span>
+                    {ev.time && (
+                      <span className="evento-chip evento-chip--time ds-nums">{formatTime(ev.time)}</span>
+                    )}
+                    {ev.event_type && <span className="evento-chip">{ev.event_type.name}</span>}
+                    {ev.child && <span className="evento-chip">{ev.child.name}</span>}
+                  </div>
+                </div>
+                <div className="evento-item__footer">
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    onClick={() => handleUndoDelete(ev)}
+                    aria-label={`Deshacer ${ev.title}`}
+                  >
+                    Deshacer
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

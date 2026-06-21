@@ -201,12 +201,16 @@ describe('EventosPage — agrupación temporal', () => {
 })
 
 describe('EventosPage — borrado con deshacer', () => {
-  it('borra un Evento y ofrece "Deshacer" que lo re-crea', async () => {
+  it('borra un Evento y lo muestra en "Reciente borrado" con botón deshacer', async () => {
     const deletedIds: string[] = []
     const created: { title?: string }[] = []
+    let shouldReturnEmpty = false
     seed([
-      http.get(EVENTS_URL, () =>
-        HttpResponse.json([
+      http.get(EVENTS_URL, () => {
+        if (shouldReturnEmpty) {
+          return HttpResponse.json([])
+        }
+        return HttpResponse.json([
           {
             id: 'ev-del',
             family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null,
@@ -214,10 +218,11 @@ describe('EventosPage — borrado con deshacer', () => {
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
-        ]),
-      ),
+        ])
+      }),
       http.delete('http://localhost:8000/events/ev-del', () => {
         deletedIds.push('ev-del')
+        shouldReturnEmpty = true
         return new HttpResponse(null, { status: 204 })
       }),
       http.post(EVENTS_URL, async ({ request }) => {
@@ -235,12 +240,51 @@ describe('EventosPage — borrado con deshacer', () => {
     fireEvent.click(screen.getByRole('button', { name: /Borrar Trámite/ }))
     await waitFor(() => expect(deletedIds).toContain('ev-del'))
 
-    // El toast de deshacer aparece.
-    const undo = await screen.findByRole('button', { name: 'Deshacer' })
+    // Aparece en la sección "Reciente borrado"
+    await waitFor(() => expect(screen.getByText('Reciente borrado')).toBeTruthy())
+    expect(screen.getByText('Trámite', { selector: '.evento-item__title' })).toBeTruthy()
+
+    // Tiene un botón de deshacer
+    const undo = screen.getByRole('button', { name: /Deshacer Trámite/ })
     fireEvent.click(undo)
 
     await waitFor(() => expect(created.length).toBe(1))
     expect(created[0].title).toBe('Trámite')
+  })
+})
+
+describe('EventosPage — borrado persistente (reciente borrado)', () => {
+  it('permite limpiar manualmente la sección "Reciente borrado"', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-del',
+            family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+      http.delete('http://localhost:8000/events/ev-del', () => {
+        return new HttpResponse(null, { status: 204 })
+      }),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Trámite')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: /Borrar Trámite/ }))
+    await waitFor(() => expect(screen.getByText('Reciente borrado')).toBeTruthy())
+
+    // Hay un botón para limpiar la sección
+    const clearButton = screen.getByRole('button', { name: /Limpiar/ })
+    expect(clearButton).toBeTruthy()
+
+    // Al hacer clic, la sección desaparece
+    fireEvent.click(clearButton)
+    await waitFor(() => expect(screen.queryByText('Reciente borrado')).toBeNull())
   })
 })
 
