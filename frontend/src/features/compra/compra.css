@@ -139,6 +139,11 @@
 .compra-item__check--done {
   background: var(--ds-success);
   border-color: var(--ds-success);
+  /* El glyph usa currentColor: le damos una tinta que invierte por tema para
+     que el check no desaparezca en dark mode (antes stroke="#fff" sobre la
+     sage clara #93b382 fallaba contraste). --ds-success-ink es oscura en
+     claro y clara en oscuro. */
+  color: var(--ds-success-ink);
 }
 
 .compra-item__text {

@@ -320,3 +320,38 @@ describe('CompraPage — acciones de fila accesibles en táctil (hover:none, 44p
   })
 })
 
+describe('CompraPage — glyph del check invertible por tema (dark mode)', () => {
+  // CheckIcon hardcodeaba stroke="#fff": en dark mode el success es una sage
+  // clara (#93b382) y blanco sobre sage clara falla contraste — el check casi
+  // desaparece. El fix es que el glyph use currentColor y un color de tinta que
+  // invierte por tema. Anclamos ambos a nivel fuente y DOM.
+  const tsx = readFileSync(resolve(__dirname, 'CompraPage.tsx'), 'utf8')
+
+  it('el glyph del check no hardcodea blanco (#fff)', () => {
+    expect(tsx).not.toMatch(/stroke="#fff"/)
+  })
+
+  it('el glyph del check usa currentColor para heredar el contraste del padre', () => {
+    expect(tsx).toMatch(/stroke="currentColor"/)
+  })
+
+  it('el CSS pinta el check done con una tinta que invierte por tema (--ds-success-ink)', () => {
+    const cssSrc = readFileSync(resolve(__dirname, 'compra.css'), 'utf8')
+    // La regla del check marcado define el color del glyph (currentColor arriba).
+    expect(cssSrc).toMatch(/compra-item__check--done[^{]*\{[^}]*color:\s*var\(--ds-success-ink\)/)
+  })
+
+  it('al renderizar un ítem comprado, el check no lleva stroke="#fff" literal', async () => {
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json([boughtItem('Pan')])),
+    )
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Pan')).toBeTruthy())
+
+    const checkSvg = document.querySelector('.compra-item__check svg')
+    expect(checkSvg).not.toBeNull()
+    expect(checkSvg!.getAttribute('stroke')).not.toBe('#fff')
+  })
+})
+
