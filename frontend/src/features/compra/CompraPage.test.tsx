@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
 import { ToastProvider } from '../toasts/toasts'
@@ -236,6 +238,43 @@ describe('CompraPage — edición inline', () => {
     expect(patches).toHaveLength(0)
     // El ítem original sigue existiendo.
     expect(screen.getByText('Leche entera')).toBeTruthy()
+  })
+})
+
+describe('CompraPage — acciones de fila accesibles en táctil (hover:none, 44px, focus-visible)', () => {
+  // Las acciones de fila (editar/borrar) y el check viven con opacity:0 y se
+  // revelan sólo en :hover/:focus-within — pero en un móvil no hay hover, así
+  // que son invisibles. El fix es CSS puro (no se ve en el DOM), así que este
+  // test ancla las reglas a nivel de fuente para evitar regresiones.
+  const css = readFileSync(
+    resolve(__dirname, 'compra.css'),
+    'utf8',
+  )
+
+  it('mantiene las acciones visibles en dispositivos sin hover (@media hover: none)', () => {
+    expect(css).toMatch(/@media\s*\(\s*hover:\s*none\s*\)/)
+    // Dentro del bloque hover:none, las acciones deben forzar opacity:1.
+    const hoverNoneBlock = css.match(/@media\s*\(\s*hover:\s*none\s*\)\s*{([^}]*)}/)
+    expect(hoverNoneBlock).not.toBeNull()
+    expect(hoverNoneBlock![1]).toMatch(/compra-item__actions/)
+    expect(hoverNoneBlock![1]).toMatch(/opacity:\s*1/)
+  })
+
+  it('agrandaba el área de toque del check y de las acciones a >=44px', () => {
+    // El check pasa de 24px a un área de 44px vía padding/size.
+    expect(css).toMatch(/compra-item__check[^{]*\{[^}]*min-width:\s*44px/)
+    expect(css).toMatch(/compra-item__check[^{]*\{[^}]*min-height:\s*44px/)
+    // Los botones de acción pasan de 32px a 44px.
+    expect(css).toMatch(/compra-item__action[^{]*\{[^}]*min-width:\s*44px/)
+    expect(css).toMatch(/compra-item__action[^{]*\{[^}]*min-height:\s*44px/)
+  })
+
+  it('añade un :focus-visible outline a acciones, toggles y al botón de limpiar', () => {
+    // Antes sólo el input de alta tenía focus ring; ahora también las acciones
+    // de fila, el check/toggle y el botón de limpiar lo tienen.
+    expect(css).toMatch(/compra-item__action:focus-visible/)
+    expect(css).toMatch(/compra-item__check:focus-visible/)
+    expect(css).toMatch(/compra__clear:focus-visible/)
   })
 })
 

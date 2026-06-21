@@ -113,12 +113,14 @@
   background: var(--ds-surface-2);
 }
 
-/* Checkbox */
+/* Checkbox — el glyph es 16px pero el área de toque sube a 44px (piso móvil). */
 .compra-item__check {
   flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--ds-r-sm);
   border: 2px solid var(--ds-border);
   background: transparent;
   display: grid;
@@ -189,11 +191,21 @@
   opacity: 1;
 }
 
+/* En un dispositivo táctil no hay hover: sin esta regla, Editar/Borrar quedan
+   invisibles hasta que el usuario tropieza con el foco. Forzamos opacity:1. */
+@media (hover: none) {
+  .compra-item__actions {
+    opacity: 1;
+  }
+}
+
 .compra-item__action {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   border-radius: var(--ds-r-sm);
   background: transparent;
@@ -212,6 +224,19 @@
 
 .compra-item__action--danger:hover {
   color: var(--ds-danger);
+}
+
+/* Antes sólo el input de alta tenía focus ring. Ahora lo llevan también las
+   acciones de fila, el check y el botón de limpiar: el foco visible contra los
+   tonos cálidos no puede depender del cambio de color por sí solo. */
+.compra-item__action:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.compra-item__check:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
 }
 
 /* Undo button (bought row) */
@@ -270,6 +295,10 @@
 }
 .compra__clear:hover {
   color: var(--ds-danger);
+}
+.compra__clear:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
 }
 
 /* ---------- Inline "Limpiar comprados" confirm (patrón .hijo-confirm) ---------- */
