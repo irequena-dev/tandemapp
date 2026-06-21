@@ -288,6 +288,120 @@ describe('EventosPage — borrado persistente (reciente borrado)', () => {
   })
 })
 
+describe('EventosPage — atajos de teclado', () => {
+  it('abre el diálogo de crear con la tecla "n"', async () => {
+    seed([
+      http.get(EVENTS_URL, () => HttpResponse.json([])),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Eventos' })).toBeTruthy())
+
+    // Press 'n' to open create dialog
+    fireEvent.keyDown(window, { key: 'n' })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Crear' })).toBeTruthy())
+  })
+
+  it('navega entre eventos con "j" y "k"', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev1',
+            family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev2',
+            family_id: 'f', title: 'Evento 2', date: isoOffset(2), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Evento 1')).toBeTruthy())
+
+    // Press 'j' to select first event (when nothing is selected)
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      const selected = document.querySelector('.evento-item--selected')
+      expect(selected).toBeTruthy()
+      expect(selected?.textContent).toContain('Evento 1')
+    })
+
+    // Press 'j' again to select next event
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => {
+      const selected = document.querySelector('.evento-item--selected')
+      expect(selected).toBeTruthy()
+      expect(selected?.textContent).toContain('Evento 2')
+    })
+
+    // Press 'k' to select previous event
+    fireEvent.keyDown(window, { key: 'k' })
+    await waitFor(() => {
+      const selected = document.querySelector('.evento-item--selected')
+      expect(selected).toBeTruthy()
+      expect(selected?.textContent).toContain('Evento 1')
+    })
+  })
+
+  it('marca como hecho el evento seleccionado con "x"', async () => {
+    let doneId: string | null = null
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev1',
+            family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+      http.post('http://localhost:8000/events/ev1/done', () => {
+        doneId = 'ev1'
+        return new HttpResponse(null, { status: 204 })
+      }),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Evento 1')).toBeTruthy())
+
+    // Select the event with 'j'
+    fireEvent.keyDown(window, { key: 'j' })
+    await waitFor(() => expect(document.querySelector('.evento-item--selected')).toBeTruthy())
+
+    // Press 'x' to mark as done
+    fireEvent.keyDown(window, { key: 'x' })
+    await waitFor(() => expect(doneId).toBe('ev1'))
+  })
+
+  it('muestra el modal de ayuda con "?"', async () => {
+    seed([
+      http.get(EVENTS_URL, () => HttpResponse.json([])),
+    ])
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Eventos' })).toBeTruthy())
+
+    // Press '?' to show help
+    fireEvent.keyDown(window, { key: '?' })
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Atajos de teclado' })).toBeTruthy())
+
+    // Press 'Escape' to close
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Atajos de teclado' })).toBeNull())
+  })
+})
+
 describe('EventosPage — filtros', () => {
   const type2 = {
     id: 't2',

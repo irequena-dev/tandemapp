@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
@@ -397,6 +397,9 @@ export function EventosPage() {
   const [confirmingSeriesId, setConfirmingSeriesId] = useState<string | null>(null)
   // Eventos borrados recientemente para deshacer persistente (no timed toast)
   const [recentlyDeleted, setRecentlyDeleted] = useState<EventOut[]>([])
+  // Atajos de teclado: evento seleccionado y modal de ayuda
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false)
 
   const { data: eventTypes } = useEventTypes()
   const { data: childrenData } = useChildren()
@@ -445,6 +448,11 @@ export function EventosPage() {
     ].filter((s) => s.items.length > 0) as { key: SectionKey; title: string; overdue?: boolean; items: EventOut[] }[]
     return { sections, done }
   }, [filtered, today])
+
+  // Lista plana de todos los eventos visibles (pendientes) para navegación por teclado
+  const allVisibleEvents = useMemo(() => {
+    return sections.flatMap(s => s.items)
+  }, [sections])
 
   const handleCreate = (data: EventDraft) => {
     createMut.mutate(data, {
@@ -519,10 +527,80 @@ export function EventosPage() {
     (doneMut.isPending && doneMut.variables === ev.id) ||
     (undoMut.isPending && undoMut.variables === ev.id)
 
+  // Manejo de atajos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignorar si estamos en un input/textarea para no interferir con la escritura
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return
+      }
+
+      // Ignorar si hay modificadores (Ctrl, Alt, Meta) para no interferir con atajos del navegador
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return
+      }
+
+      switch (e.key) {
+        case 'n':
+          e.preventDefault()
+          setShowCreate(true)
+          setEditingId(null)
+          setShowSeries(false)
+          break
+        case 'j':
+          e.preventDefault()
+          if (allVisibleEvents.length > 0) {
+            const currentIndex = selectedEventId ? allVisibleEvents.findIndex(ev => ev.id === selectedEventId) : -1
+            const nextIndex = currentIndex < allVisibleEvents.length - 1 ? currentIndex + 1 : 0
+            setSelectedEventId(allVisibleEvents[nextIndex].id)
+          }
+          break
+        case 'k':
+          e.preventDefault()
+          if (allVisibleEvents.length > 0) {
+            const currentIndex = selectedEventId ? allVisibleEvents.findIndex(ev => ev.id === selectedEventId) : 0
+            const prevIndex = currentIndex > 0 ? currentIndex - 1 : allVisibleEvents.length - 1
+            setSelectedEventId(allVisibleEvents[prevIndex].id)
+          }
+          break
+        case 'x':
+          e.preventDefault()
+          if (selectedEventId) {
+            const selectedEvent = allVisibleEvents.find(ev => ev.id === selectedEventId)
+            if (selectedEvent) {
+              if (selectedEvent.status === 'done') {
+                handleUndo(selectedEvent)
+              } else {
+                handleDone(selectedEvent)
+              }
+            }
+          }
+          break
+        case '?':
+          e.preventDefault()
+          setShowKeyboardHelp(true)
+          break
+        case 'Escape':
+          if (showKeyboardHelp) {
+            setShowKeyboardHelp(false)
+          }
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [allVisibleEvents, selectedEventId, showKeyboardHelp, handleDone, handleUndo])
+
   const renderItem = (ev: EventOut, opts: { done?: boolean } = {}) => {
     const rel = relativeDay(ev.date, today)
+    const isSelected = selectedEventId === ev.id
     return (
-      <li className={`evento-item${opts.done ? ' evento-item--done' : ''}`} key={ev.id}>
+      <li className={`evento-item${opts.done ? ' evento-item--done' : ''}${isSelected ? ' evento-item--selected' : ''}`} key={ev.id}>
         <div className="evento-item__titlerow">
           <span className="evento-item__title">{ev.title}</span>
         </div>
@@ -822,6 +900,51 @@ export function EventosPage() {
             ))}
           </ul>
         </section>
+      )}
+
+      {showKeyboardHelp && (
+        <div className="eventos__keyboard-help" role="dialog" aria-modal="true" aria-labelledby="keyboard-help-title">
+          <div className="eventos__keyboard-help-backdrop" onClick={() => setShowKeyboardHelp(false)} aria-hidden="true" />
+          <div className="eventos__keyboard-help-panel">
+            <div className="eventos__keyboard-help-header">
+              <h2 id="keyboard-help-title" className="eventos__keyboard-help-title">Atajos de teclado</h2>
+              <button
+                type="button"
+                className="eventos__keyboard-help-close"
+                aria-label="Cerrar ayuda"
+                onClick={() => setShowKeyboardHelp(false)}
+              >
+                <XIcon />
+              </button>
+            </div>
+            <div className="eventos__keyboard-help-body">
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">n</kbd>
+                <span>Crear nuevo evento</span>
+              </div>
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">j</kbd>
+                <span>Siguiente evento</span>
+              </div>
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">k</kbd>
+                <span>Evento anterior</span>
+              </div>
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">x</kbd>
+                <span>Marcar/desmarcar como hecho</span>
+              </div>
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">?</kbd>
+                <span>Mostrar esta ayuda</span>
+              </div>
+              <div className="eventos__keyboard-help-item">
+                <kbd className="eventos__keyboard-help-key">Esc</kbd>
+                <span>Cerrar ayuda</span>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <button

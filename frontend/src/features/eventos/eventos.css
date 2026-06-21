@@ -402,6 +402,12 @@
   opacity: 0.6;
 }
 
+/* Selected state for keyboard navigation */
+.evento-item--selected {
+  background: color-mix(in srgb, var(--ds-primary) 8%, var(--ds-surface));
+  border-left: 3px solid var(--ds-primary);
+}
+
 /* Row 1 — title gets the full card width so it never compresses under the
    action cluster. */
 .evento-item__titlerow {
@@ -976,4 +982,119 @@
 .evento-form__preview-more {
   font-style: italic;
   opacity: 0.7;
+}
+
+/* ---------- Keyboard shortcuts help modal ---------- */
+.eventos__keyboard-help {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ds-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.eventos__keyboard-help-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ds-ink) 40%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.eventos__keyboard-help-panel {
+  position: relative;
+  width: 100%;
+  max-width: 32rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  padding: var(--ds-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-md);
+  box-shadow: var(--ds-shadow-floating);
+  animation: eventos-fade-in var(--ds-dur-base) var(--ds-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventos__keyboard-help-panel {
+    animation: none;
+  }
+}
+
+@keyframes eventos-fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.eventos__keyboard-help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-md);
+}
+
+.eventos__keyboard-help-title {
+  font-family: var(--ds-font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.eventos__keyboard-help-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .eventos__keyboard-help-close:hover {
+    background: var(--ds-border);
+    color: var(--ds-ink);
+  }
+}
+.eventos__keyboard-help-close:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.eventos__keyboard-help-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-sm);
+}
+
+.eventos__keyboard-help-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-md);
+  font-size: 0.9375rem;
+}
+
+.eventos__keyboard-help-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  padding: 0 var(--ds-sm);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-sm);
+  background: var(--ds-surface-2);
+  color: var(--ds-ink);
+  font-family: var(--ds-font-mono, monospace);
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ds-ink) 8%, transparent);
 }
