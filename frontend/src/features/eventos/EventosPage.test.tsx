@@ -243,3 +243,126 @@ describe('EventosPage — borrado con deshacer', () => {
     expect(created[0].title).toBe('Trámite')
   })
 })
+
+describe('EventosPage — filtros', () => {
+  const type2 = {
+    id: 't2',
+    family_id: null,
+    name: 'Médico',
+    icon: 'stethoscope',
+    is_system: false,
+  }
+
+  const child1 = {
+    id: 'c1',
+    family_id: 'f',
+    name: 'Lía',
+    birth_date: '2020-01-01',
+    created_at: '2026-06-17T10:00:00Z',
+  }
+
+  it('muestra los filtros en un sheet, filtra por tipo y permite limpiar', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-cole',
+            family_id: 'f', title: 'Cole', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev-med',
+            family_id: 'f', title: 'Cita médica', date: isoOffset(2), time: null,
+            event_type_id: 't2', event_type: type2, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+    server.use(http.get(TYPES_URL, () => HttpResponse.json([type1, type2])))
+    server.use(http.get(CHILDREN_URL, () => HttpResponse.json([])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Cole')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: /Filtros/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Filtros' })).toBeTruthy(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Médico' }))
+    await waitFor(() => {
+      expect(screen.queryByText('Cole')).toBeNull()
+      expect(screen.getByText('Cita médica')).toBeTruthy()
+    })
+
+    const badge = screen.getByRole('button', { name: /Filtros/ }).querySelector('.eventos__filter-badge')
+    expect(badge?.textContent).toBe('1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar filtros' }))
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Filtros' })).toBeNull(),
+    )
+
+    expect(screen.getByRole('button', { name: /Quitar filtro Médico/ })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Limpiar' }))
+    await waitFor(() => expect(screen.getByText('Cole')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: /Quitar filtro/ })).toBeNull()
+  })
+
+  it('combina filtros de tipo e Hijo con lógica AND', async () => {
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-cole-lia',
+            family_id: 'f', title: 'Cole Lía', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: 'c1', child: child1,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev-cole-solo',
+            family_id: 'f', title: 'Cole solo', date: isoOffset(1), time: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+          {
+            id: 'ev-med-lia',
+            family_id: 'f', title: 'Médico Lía', date: isoOffset(2), time: null,
+            event_type_id: 't2', event_type: type2, child_id: 'c1', child: child1,
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+    server.use(http.get(TYPES_URL, () => HttpResponse.json([type1, type2])))
+    server.use(http.get(CHILDREN_URL, () => HttpResponse.json([child1])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Cole Lía')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: /Filtros/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Filtros' })).toBeTruthy(),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Médico' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Lía' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Médico Lía')).toBeTruthy()
+      expect(screen.queryByText('Cole Lía')).toBeNull()
+      expect(screen.queryByText('Cole solo')).toBeNull()
+    })
+
+    const badge = screen.getByRole('button', { name: /Filtros/ }).querySelector('.eventos__filter-badge')
+    expect(badge?.textContent).toBe('2')
+  })
+})

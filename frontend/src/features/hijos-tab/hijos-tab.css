@@ -184,6 +184,53 @@
   line-height: 1.2;
 }
 
+/* ---------- Tabbed sub-nav ---------- */
+.hijo-detail__tabs {
+  display: flex;
+  gap: var(--ds-s-sm);
+  border-bottom: 1px solid var(--ds-border);
+  padding-bottom: var(--ds-s-sm);
+  margin-bottom: var(--ds-s-md);
+}
+
+.hijo-detail__tab {
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  background: none;
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+
+.hijo-detail__tab:hover {
+  color: var(--ds-ink);
+  background: var(--ds-surface-2);
+}
+
+.hijo-detail__tab[aria-selected="true"] {
+  color: var(--ds-primary);
+  background: var(--ds-surface-2);
+  font-weight: 600;
+}
+
+.hijo-detail__tab:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.hijo-detail__tab-panel {
+  display: none;
+}
+
+.hijo-detail__tab-panel[aria-hidden="false"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
 .hijo-detail__add-btn {
   display: inline-flex;
   align-items: center;

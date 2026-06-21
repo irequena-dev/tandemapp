@@ -39,6 +39,7 @@
 .eventos__toggle {
   display: inline-flex;
   align-items: center;
+  gap: var(--ds-s-xs);
   min-height: 44px;
   padding: 0 var(--ds-s-md);
   border: 1px solid var(--ds-border);
@@ -72,12 +73,84 @@
 }
 
 /* ---------- Filters ---------- */
-/* Two labelled taxonomies (Por tipo / Por Hijo) instead of one flat row that
-   conflated them with implicit AND-logic and >4 options per decision point. */
-.eventos__filters {
+/* Filters live in a bottom sheet; only the active chips stay on the surface
+   so the view stays scannable while the applied context remains visible. */
+.eventos__filter-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 4px;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-primary);
+  color: var(--ds-on-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.eventos__active-filters {
   display: flex;
-  flex-direction: column;
-  gap: var(--ds-s-md);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  min-height: 0;
+}
+
+.eventos__active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  min-height: 32px;
+  padding: 0 var(--ds-s-sm) 0 var(--ds-s-md);
+  border: 1px solid var(--ds-primary);
+  border-radius: var(--ds-r-pill);
+  background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
+  color: var(--ds-primary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .eventos__active-filter:hover {
+    background: color-mix(in srgb, var(--ds-primary) 20%, transparent);
+  }
+}
+.eventos__active-filter:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+.eventos__active-filter svg {
+  width: 14px;
+  height: 14px;
+}
+
+.eventos__clear-filters {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--ds-s-sm);
+  border: none;
+  border-radius: var(--ds-r-sm);
+  background: none;
+  color: var(--ds-muted);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .eventos__clear-filters:hover {
+    color: var(--ds-ink);
+  }
+}
+.eventos__clear-filters:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
 }
 
 .eventos__filter-group {
@@ -134,6 +207,98 @@
   color: var(--ds-primary);
   border-color: var(--ds-primary);
   font-weight: 600;
+}
+
+/* Bottom sheet for filters — slides up from the thumb zone, dismissible by
+   backdrop, close button or Escape. */
+.eventos__filter-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ds-z-modal);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.eventos__filter-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ds-ink) 40%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.eventos__filter-sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 40rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--ds-surface);
+  border-top: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg) var(--ds-r-lg) 0 0;
+  padding: var(--ds-s-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-lg);
+  box-shadow: var(--ds-shadow-floating);
+  animation: eventos-sheet-slide-up var(--ds-dur-base) var(--ds-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eventos__filter-sheet-panel {
+    animation: none;
+  }
+}
+
+@keyframes eventos-sheet-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.eventos__filter-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-s-md);
+}
+
+.eventos__filter-sheet-title {
+  font-family: var(--ds-font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.eventos__filter-sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--ds-r-pill);
+  background: var(--ds-surface-2);
+  color: var(--ds-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .eventos__filter-sheet-close:hover {
+    background: var(--ds-border);
+    color: var(--ds-ink);
+  }
+}
+.eventos__filter-sheet-close:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.eventos__filter-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
 }
 
 /* ---------- Sections (temporal grouping) ---------- */

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
@@ -80,6 +80,14 @@ function PlusIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function FilterIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
     </svg>
   )
 }
@@ -223,6 +231,154 @@ function EventForm({ types, children, initial, onSubmit, onCancel, submitLabel }
   )
 }
 
+/* ---------- Filter panel (shared between sheet and inline active chips) ---------- */
+
+type FilterPanelProps = {
+  types: EventTypeOut[]
+  kids: { id: string; name: string }[]
+  typeFilter: string | null
+  childFilter: string | null
+  setTypeFilter: (v: string | null) => void
+  setChildFilter: (v: string | null) => void
+}
+
+function FilterPanel({ types, kids, typeFilter, childFilter, setTypeFilter, setChildFilter }: FilterPanelProps) {
+  return (
+    <div className="eventos__filter-sheet-body">
+      <div className="eventos__filter-group">
+        <span className="eventos__filter-label" id="ev-filter-tipo">Por tipo</span>
+        <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-tipo">
+          <button
+            type="button"
+            aria-pressed={!typeFilter}
+            className={`eventos__filter${!typeFilter ? ' eventos__filter--active' : ''}`}
+            onClick={() => setTypeFilter(null)}
+          >
+            Todos
+          </button>
+          {types.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              aria-pressed={typeFilter === t.id}
+              className={`eventos__filter${typeFilter === t.id ? ' eventos__filter--active' : ''}`}
+              onClick={() => setTypeFilter(typeFilter === t.id ? null : t.id)}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      {kids.length > 0 && (
+        <div className="eventos__filter-group">
+          <span className="eventos__filter-label" id="ev-filter-hijo">Por Hijo</span>
+          <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-hijo">
+            <button
+              type="button"
+              aria-pressed={!childFilter}
+              className={`eventos__filter${!childFilter ? ' eventos__filter--active' : ''}`}
+              onClick={() => setChildFilter(null)}
+            >
+              Todos
+            </button>
+            {kids.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                aria-pressed={childFilter === c.id}
+                className={`eventos__filter${childFilter === c.id ? ' eventos__filter--active' : ''}`}
+                onClick={() => setChildFilter(childFilter === c.id ? null : c.id)}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type FilterSheetProps = FilterPanelProps & {
+  open: boolean
+  onClose: () => void
+}
+
+function FilterSheet({ open, onClose, ...panelProps }: FilterSheetProps) {
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <div id="ev-filters-sheet" className="eventos__filter-sheet" role="dialog" aria-modal="true" aria-labelledby="ev-filters-title">
+      <div className="eventos__filter-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+      <div className="eventos__filter-sheet-panel">
+        <div className="eventos__filter-sheet-header">
+          <h2 id="ev-filters-title" className="eventos__filter-sheet-title">Filtros</h2>
+          <button
+            type="button"
+            className="eventos__filter-sheet-close"
+            aria-label="Cerrar filtros"
+            onClick={onClose}
+          >
+            <XIcon />
+          </button>
+        </div>
+        <FilterPanel {...panelProps} />
+      </div>
+    </div>
+  )
+}
+
+type ActiveFilterChipsProps = FilterPanelProps
+
+function ActiveFilterChips({ types, kids, typeFilter, childFilter, setTypeFilter, setChildFilter }: ActiveFilterChipsProps) {
+  const typeName = typeFilter ? types.find((t) => t.id === typeFilter)?.name : null
+  const childName = childFilter ? kids.find((c) => c.id === childFilter)?.name : null
+  if (!typeName && !childName) return null
+
+  return (
+    <div className="eventos__active-filters" aria-label="Filtros activos">
+      {typeName && (
+        <button
+          type="button"
+          className="eventos__active-filter"
+          onClick={() => setTypeFilter(null)}
+          aria-label={`Quitar filtro ${typeName}`}
+        >
+          <span>{typeName}</span>
+          <XIcon />
+        </button>
+      )}
+      {childName && (
+        <button
+          type="button"
+          className="eventos__active-filter"
+          onClick={() => setChildFilter(null)}
+          aria-label={`Quitar filtro ${childName}`}
+        >
+          <span>{childName}</span>
+          <XIcon />
+        </button>
+      )}
+      <button
+        type="button"
+        className="eventos__clear-filters"
+        onClick={() => { setTypeFilter(null); setChildFilter(null) }}
+      >
+        Limpiar
+      </button>
+    </div>
+  )
+}
+
 /* ---------- Main ---------- */
 
 type SectionKey = 'atrasados' | 'hoy' | 'proximos'
@@ -234,6 +390,7 @@ export function EventosPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showSeries, setShowSeries] = useState(false)
   const [showDone, setShowDone] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   // Serie cuyo "Borrar futuras" está pidiendo confirmación inline (destructivo
   // bulk): null = ninguna. Espeja el patrón de confirmación por-fila de Pautas.
@@ -459,6 +616,22 @@ export function EventosPage() {
         <div className="eventos__head-actions">
           <button
             type="button"
+            aria-expanded={filtersOpen}
+            aria-controls="ev-filters-sheet"
+            aria-pressed={filtersOpen}
+            className={`eventos__toggle${filtersOpen ? ' eventos__toggle--active' : ''}`}
+            onClick={() => setFiltersOpen((v) => !v)}
+          >
+            <FilterIcon />
+            <span>Filtros</span>
+            {(typeFilter || childFilter) && (
+              <span className="eventos__filter-badge">
+                {(typeFilter ? 1 : 0) + (childFilter ? 1 : 0)}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             aria-pressed={showTypes}
             className={`eventos__toggle${showTypes ? ' eventos__toggle--active' : ''}`}
             onClick={() => setShowTypes((v) => !v)}
@@ -524,61 +697,25 @@ export function EventosPage() {
         />
       )}
 
-      {/* Filtros separados en dos taxonomías etiquetadas: antes era una fila
-          plana que mezclaba Tipo y Hijo con un AND implícito (>4 opciones en
-          un punto de decisión). Ahora cada dimensión es explícita. */}
-      <div className="eventos__filters">
-        <div className="eventos__filter-group">
-          <span className="eventos__filter-label" id="ev-filter-tipo">Por tipo</span>
-          <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-tipo">
-            <button
-              type="button"
-              aria-pressed={!typeFilter}
-              className={`eventos__filter${!typeFilter ? ' eventos__filter--active' : ''}`}
-              onClick={() => setTypeFilter(null)}
-            >
-              Todos
-            </button>
-            {types.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                aria-pressed={typeFilter === t.id}
-                className={`eventos__filter${typeFilter === t.id ? ' eventos__filter--active' : ''}`}
-                onClick={() => setTypeFilter(typeFilter === t.id ? null : t.id)}
-              >
-                {t.name}
-              </button>
-            ))}
-          </div>
-        </div>
-        {kids.length > 0 && (
-          <div className="eventos__filter-group">
-            <span className="eventos__filter-label" id="ev-filter-hijo">Por Hijo</span>
-            <div className="eventos__filter-pills" role="group" aria-labelledby="ev-filter-hijo">
-              <button
-                type="button"
-                aria-pressed={!childFilter}
-                className={`eventos__filter${!childFilter ? ' eventos__filter--active' : ''}`}
-                onClick={() => setChildFilter(null)}
-              >
-                Todos
-              </button>
-              {kids.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  aria-pressed={childFilter === c.id}
-                  className={`eventos__filter${childFilter === c.id ? ' eventos__filter--active' : ''}`}
-                  onClick={() => setChildFilter(childFilter === c.id ? null : c.id)}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      <ActiveFilterChips
+        types={types}
+        kids={kids}
+        typeFilter={typeFilter}
+        childFilter={childFilter}
+        setTypeFilter={setTypeFilter}
+        setChildFilter={setChildFilter}
+      />
+
+      <FilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        types={types}
+        kids={kids}
+        typeFilter={typeFilter}
+        childFilter={childFilter}
+        setTypeFilter={setTypeFilter}
+        setChildFilter={setChildFilter}
+      />
 
       {eventsLoading && <EventListSkeleton />}
 

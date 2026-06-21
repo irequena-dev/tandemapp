@@ -298,6 +298,7 @@ export function HijoDetailPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
+  const [activeTab, setActiveTab] = useState<'resumen' | 'crecimiento' | 'visitas'>('resumen')
 
   // Confirmación inline de borrado (patrón .hijo-confirm): cada fila destructiva
   // pasa por un "¿Borrar? [Borrar] [Cancelar]" antes de mutar. Al borrar con
@@ -415,11 +416,64 @@ export function HijoDetailPage() {
         </div>
       </div>
 
-      {/* Tallas */}
-      {childId && <SizesSection childId={childId} />}
+      {/* Tabbed sub-nav */}
+      <div className="hijo-detail__tabs" role="tablist" aria-label="Secciones del detalle">
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'resumen'}
+          aria-controls="panel-resumen"
+          id="tab-resumen"
+          onClick={() => setActiveTab('resumen')}
+        >
+          Resumen
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'crecimiento'}
+          aria-controls="panel-crecimiento"
+          id="tab-crecimiento"
+          onClick={() => setActiveTab('crecimiento')}
+        >
+          Crecimiento
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'visitas'}
+          aria-controls="panel-visitas"
+          id="tab-visitas"
+          onClick={() => setActiveTab('visitas')}
+        >
+          Visitas
+        </button>
+      </div>
 
-      {/* Crecimiento */}
-      <section className="hijo-detail__section">
+      {/* Resumen tab panel */}
+      <div
+        id="panel-resumen"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-resumen"
+        aria-hidden={activeTab !== 'resumen'}
+      >
+        {/* Tallas */}
+        {childId && <SizesSection childId={childId} />}
+      </div>
+
+      {/* Crecimiento tab panel */}
+      <div
+        id="panel-crecimiento"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-crecimiento"
+        aria-hidden={activeTab !== 'crecimiento'}
+      >
+        <section className="hijo-detail__section">
         <div className="hijo-detail__section-header">
           <h2 className="hijo-detail__section-title">Crecimiento</h2>
           {!showForm && (
@@ -518,28 +572,37 @@ export function HijoDetailPage() {
           </>
         )}
       </section>
+      </div>
 
-      {/* Visitas médicas */}
-      <VisitasSection
-        childId={childId}
-        visitas={visitas}
-        createVisit={createVisit}
-        updateVisit={updateVisit}
-        deleteVisit={deleteVisit}
-        showForm={showVisitForm}
-        setShowForm={setShowVisitForm}
-        editing={editingVisit}
-        setEditing={setEditingVisit}
-        detail={visitDetail}
-        setDetail={setVisitDetail}
-        filterFrom={filterFrom}
-        setFilterFrom={setFilterFrom}
-        filterTo={filterTo}
-        setFilterTo={setFilterTo}
-        confirmingVisit={confirmingVisit}
-        setConfirmingVisit={setConfirmingVisit}
-        onConfirmDeleteVisit={handleConfirmDeleteVisit}
-      />
+      {/* Visitas tab panel */}
+      <div
+        id="panel-visitas"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-visitas"
+        aria-hidden={activeTab !== 'visitas'}
+      >
+        <VisitasSection
+          childId={childId}
+          visitas={visitas}
+          createVisit={createVisit}
+          updateVisit={updateVisit}
+          deleteVisit={deleteVisit}
+          showForm={showVisitForm}
+          setShowForm={setShowVisitForm}
+          editing={editingVisit}
+          setEditing={setEditingVisit}
+          detail={visitDetail}
+          setDetail={setVisitDetail}
+          filterFrom={filterFrom}
+          setFilterFrom={setFilterFrom}
+          filterTo={filterTo}
+          setFilterTo={setFilterTo}
+          confirmingVisit={confirmingVisit}
+          setConfirmingVisit={setConfirmingVisit}
+          onConfirmDeleteVisit={handleConfirmDeleteVisit}
+        />
+      </div>
     </div>
   )
 }

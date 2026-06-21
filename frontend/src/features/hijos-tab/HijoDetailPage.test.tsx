@@ -247,7 +247,8 @@ describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
     expect(screen.getByRole('tab', { name: 'Visitas' })).toBeTruthy()
 
     // Resumen incluye las Tallas; la cabecera de Crecimiento no.
-    expect(screen.getByRole('tab', { name: 'Resumen' })).toHaveAttribute('aria-selected', 'true')
+    const resumenTab = screen.getByRole('tab', { name: 'Resumen' })
+    expect(resumenTab.getAttribute('aria-selected')).toBe('true')
     expect(screen.queryByRole('heading', { name: 'Crecimiento' })).toBeNull()
   })
 
@@ -258,8 +259,9 @@ describe('HijoDetailPage — pestañas Resumen / Crecimiento / Visitas', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Crecimiento' }))
 
     expect(screen.getByRole('heading', { name: 'Crecimiento' })).toBeTruthy()
-    // La sección Tallas (Resumen) ya no está visible.
-    expect(screen.queryByTestId('sizes-section')).toBeNull()
+    // La sección Tallas (Resumen) está oculta via aria-hidden.
+    const sizesPanel = screen.getByTestId('sizes-section').closest('[role="tabpanel"]')
+    expect(sizesPanel?.getAttribute('aria-hidden')).toBe('true')
   })
 
   it('al pulsar Visitas muestra esa sección', async () => {
