@@ -286,7 +286,9 @@ describe('EventosPage — filtros', () => {
     server.use(http.get(CHILDREN_URL, () => HttpResponse.json([])))
 
     render(<EventosPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Cole')).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText('Cole', { selector: '.evento-item__title' })).toBeTruthy(),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: /Filtros/ }))
     await waitFor(() =>
@@ -295,8 +297,8 @@ describe('EventosPage — filtros', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Médico' }))
     await waitFor(() => {
-      expect(screen.queryByText('Cole')).toBeNull()
-      expect(screen.getByText('Cita médica')).toBeTruthy()
+      expect(screen.queryByText('Cole', { selector: '.evento-item__title' })).toBeNull()
+      expect(screen.getByText('Cita médica', { selector: '.evento-item__title' })).toBeTruthy()
     })
 
     const badge = screen.getByRole('button', { name: /Filtros/ }).querySelector('.eventos__filter-badge')
@@ -310,7 +312,9 @@ describe('EventosPage — filtros', () => {
     expect(screen.getByRole('button', { name: /Quitar filtro Médico/ })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Limpiar' }))
-    await waitFor(() => expect(screen.getByText('Cole')).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText('Cole', { selector: '.evento-item__title' })).toBeTruthy(),
+    )
     expect(screen.queryByRole('button', { name: /Quitar filtro/ })).toBeNull()
   })
 
