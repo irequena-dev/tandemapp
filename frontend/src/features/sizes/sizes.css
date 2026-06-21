@@ -219,3 +219,18 @@
 .size-form__btn--secondary:hover {
   background: var(--ds-border);
 }
+
+/* Confirmación inline de borrado (patrón .hijo-confirm de Hijos) dentro de una
+   fila del historial de tallas: ocupa el hueco de las acciones sin añadir borde
+   superior (las filas ya se separan). */
+.size-history-row__confirm {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border-top: none;
+  gap: var(--ds-s-xs);
+}
+.size-history-row__confirm .hijo-confirm__label {
+  margin-right: 0;
+  font-size: 0.8125rem;
+}

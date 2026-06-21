@@ -748,3 +748,24 @@
 .growth-row__action--danger:hover {
   color: var(--ds-danger);
 }
+
+/* Confirmación inline de borrado (patrón .hijo-confirm) dentro de una fila de
+   medida: la fila es flex con varias celdas, así que el bloque confirma ocupa
+   el hueco de las acciones sin borde superior (ya hay separador entre filas). */
+.growth-row__confirm,
+.visita-row__confirm {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border-top: none;
+  gap: var(--ds-s-xs);
+}
+.growth-row__confirm .hijo-confirm__label,
+.visita-row__confirm .hijo-confirm__label {
+  margin-right: 0;
+  font-size: 0.8125rem;
+}
+
+.visita-row__confirm {
+  padding-right: var(--ds-s-sm);
+}

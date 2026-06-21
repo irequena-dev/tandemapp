@@ -10,6 +10,7 @@ import {
   useUpdateMeasurement,
 } from '../measurements/api'
 import type { Measurement, MeasurementInput } from '../measurements/types'
+import { useToast } from '../toasts/useToast'
 import {
   useCreateHealthVisit,
   useDeleteHealthVisit,
@@ -268,6 +269,8 @@ export function HijoDetailPage() {
   const { data: measurements = [] } = useMeasurements(childId ?? '')
   const { data: currentM } = useCurrentMeasurements(childId ?? '')
   const deleteMutation = useDeleteMeasurement(childId ?? '')
+  const createMeasurement = useCreateMeasurement(childId ?? '')
+  const toast = useToast()
 
   // Visitas médicas — real API
   const { data: visitas = [] } = useHealthVisits(childId ?? '')
@@ -283,6 +286,13 @@ export function HijoDetailPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
+
+  // Confirmación inline de borrado (patrón .hijo-confirm): cada fila destructiva
+  // pasa por un "¿Borrar? [Borrar] [Cancelar]" antes de mutar. Al borrar con
+  // éxito ofrecemos un toast con "Deshacer" que re-crea la entidad vía create —
+  // un resbalón de pulgar nunca debe destruir silenciosamente un registro.
+  const [confirmingMeasurement, setConfirmingMeasurement] = useState<string | null>(null)
+  const [confirmingVisit, setConfirmingVisit] = useState<string | null>(null)
 
   if (!childId) {
     return (
@@ -315,6 +325,63 @@ export function HijoDetailPage() {
   function handleFormDone() {
     setShowForm(false)
     setEditingMeasurement(undefined)
+  }
+
+  function handleConfirmDeleteMeasurement(m: Measurement) {
+    deleteMutation.mutate(m.id, {
+      onSuccess: () => {
+        setConfirmingMeasurement(null)
+        toast.success(
+          <>
+            <strong>Medida borrada.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() =>
+                createMeasurement.mutate({
+                  type: m.type,
+                  value: m.value,
+                  unit: m.unit,
+                  measured_at: m.measured_at,
+                })
+              }
+            >
+              Deshacer
+            </button>
+          </>,
+          { duration: 6000 },
+        )
+      },
+      onError: () => toast.error('No se pudo borrar la medida'),
+    })
+  }
+
+  function handleConfirmDeleteVisit(v: HealthVisit) {
+    deleteVisit.mutate(v.id, {
+      onSuccess: () => {
+        setConfirmingVisit(null)
+        toast.success(
+          <>
+            <strong>Visita borrada.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() =>
+                createVisit.mutate({
+                  visited_at: v.visited_at,
+                  diagnosis: v.diagnosis,
+                  notes: v.notes ?? undefined,
+                })
+              }
+            >
+              Deshacer
+            </button>
+          </>,
+          { duration: 6000 },
+        )
+      },
+      onError: () => toast.error('No se pudo borrar la visita'),
+    })
   }
 
   return (
@@ -389,24 +456,50 @@ export function HijoDetailPage() {
                   <span className="growth-row__type">
                     {m.type === 'height' ? 'Altura' : 'Peso'}
                   </span>
-                  <span className="growth-row__actions">
-                    <button
-                      type="button"
-                      className="growth-row__action"
-                      onClick={() => handleEdit(m)}
-                      aria-label="Editar medida"
-                    >
-                      <EditIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className="growth-row__action growth-row__action--danger"
-                      onClick={() => deleteMutation.mutate(m.id)}
+                  {confirmingMeasurement === m.id ? (
+                    <div
+                      className="hijo-confirm growth-row__confirm"
+                      role="group"
                       aria-label="Borrar medida"
                     >
-                      <TrashIcon />
-                    </button>
-                  </span>
+                      <span className="hijo-confirm__label">¿Borrar?</span>
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => setConfirmingMeasurement(null)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger-solid btn--sm"
+                        onClick={() => handleConfirmDeleteMeasurement(m)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        {deleteMutation.isPending ? 'Borrando…' : 'Borrar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="growth-row__actions">
+                      <button
+                        type="button"
+                        className="growth-row__action"
+                        onClick={() => handleEdit(m)}
+                        aria-label="Editar medida"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="growth-row__action growth-row__action--danger"
+                        onClick={() => setConfirmingMeasurement(m.id)}
+                        aria-label="Borrar medida"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -431,6 +524,9 @@ export function HijoDetailPage() {
         setFilterFrom={setFilterFrom}
         filterTo={filterTo}
         setFilterTo={setFilterTo}
+        confirmingVisit={confirmingVisit}
+        setConfirmingVisit={setConfirmingVisit}
+        onConfirmDeleteVisit={handleConfirmDeleteVisit}
       />
     </div>
   )
@@ -454,6 +550,9 @@ type VisitasSectionProps = {
   setFilterFrom: (v: string) => void
   filterTo: string
   setFilterTo: (v: string) => void
+  confirmingVisit: string | null
+  setConfirmingVisit: (v: string | null) => void
+  onConfirmDeleteVisit: (v: HealthVisit) => void
 }
 
 function VisitasSection({
@@ -471,6 +570,9 @@ function VisitasSection({
   setFilterFrom,
   filterTo,
   setFilterTo,
+  confirmingVisit,
+  setConfirmingVisit,
+  onConfirmDeleteVisit,
 }: VisitasSectionProps) {
   const filtered = visitas
     .filter((v) => !filterFrom || v.visited_at >= filterFrom)
@@ -589,24 +691,50 @@ function VisitasSection({
                 <span className="visita-row__date">{formatDate(v.visited_at)}</span>
                 <span className="visita-row__diagnosis">{v.diagnosis}</span>
               </button>
-              <span className="visita-row__actions">
-                <button
-                  type="button"
-                  className="visita-action-btn"
-                  onClick={() => { setEditing(v); setShowForm(true) }}
-                  aria-label="Editar visita"
-                >
-                  <EditIcon />
-                </button>
-                <button
-                  type="button"
-                  className="visita-action-btn visita-action-btn--danger"
-                  onClick={() => deleteVisit.mutate(v.id)}
+              {confirmingVisit === v.id ? (
+                <div
+                  className="hijo-confirm visita-row__confirm"
+                  role="group"
                   aria-label="Borrar visita"
                 >
-                  <TrashIcon />
-                </button>
-              </span>
+                  <span className="hijo-confirm__label">¿Borrar?</span>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    onClick={() => setConfirmingVisit(null)}
+                    disabled={deleteVisit.isPending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger-solid btn--sm"
+                    onClick={() => onConfirmDeleteVisit(v)}
+                    disabled={deleteVisit.isPending}
+                  >
+                    {deleteVisit.isPending ? 'Borrando…' : 'Borrar'}
+                  </button>
+                </div>
+              ) : (
+                <span className="visita-row__actions">
+                  <button
+                    type="button"
+                    className="visita-action-btn"
+                    onClick={() => { setEditing(v); setShowForm(true) }}
+                    aria-label="Editar visita"
+                  >
+                    <EditIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="visita-action-btn visita-action-btn--danger"
+                    onClick={() => setConfirmingVisit(v.id)}
+                    aria-label="Borrar visita"
+                  >
+                    <TrashIcon />
+                  </button>
+                </span>
+              )}
             </li>
           ))}
         </ul>
