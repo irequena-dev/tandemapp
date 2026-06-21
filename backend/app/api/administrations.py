@@ -11,14 +11,12 @@ si hay otra dentro de la ventana corta configurable.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
-    DUPLICATE_GUARD_MINUTES,
     Administration,
     AdministrationCreate,
     AdministrationOut,
@@ -26,6 +24,7 @@ from ..models import (
     Member,
     Pauta,
 )
+from ..pautas_service import create_or_duplicate_administration
 from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["administrations"])
@@ -102,39 +101,10 @@ async def create_administration(
             detail="No se puede registrar una Administración en una Pauta finalizada",
         )
 
-    administered_at = data.administered_at or datetime.now(UTC)
-
-    # Guarda de duplicado: buscar Administraciones dentro de la ventana
-    window_start = administered_at - timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-    window_end = administered_at + timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-    stmt = (
-        select(Administration)
-        .where(
-            Administration.pauta_id == pauta_id,
-            Administration.administered_at >= window_start,
-            Administration.administered_at <= window_end,
-        )
-        .order_by(Administration.administered_at.desc())
-        .limit(1)
+    admin, is_dup = await create_or_duplicate_administration(
+        session, pauta, scope.member_id, administered_at=data.administered_at
     )
-    result = await session.execute(stmt)
-    existing = result.scalars().first()
-
-    if existing is not None:
-        response.status_code = status.HTTP_200_OK
-        return await _to_out(session, existing)
-
-    # No hay duplicado → crear
-    admin = Administration(
-        family_id=scope.family_id,
-        pauta_id=pauta_id,
-        administered_at=administered_at,
-        administered_by=scope.member_id,
-    )
-    session.add(admin)
-    await session.flush()
-    await session.refresh(admin)
-    response.status_code = status.HTTP_201_CREATED
+    response.status_code = status.HTTP_200_OK if is_dup else status.HTTP_201_CREATED
     return await _to_out(session, admin)
 
 

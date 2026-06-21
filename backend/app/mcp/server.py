@@ -37,8 +37,6 @@ from starlette.routing import Route
 
 from ..database import get_sessionmaker
 from ..models import (
-    DUPLICATE_GUARD_MINUTES,
-    Administration,
     Child,
     Event,
     EventType,
@@ -47,6 +45,11 @@ from ..models import (
     Pauta,
     ShoppingItem,
     Size,
+)
+from ..pautas_service import (
+    create_or_duplicate_administration,
+    expire_due_pautas,
+    load_pauta_views,
 )
 from ..tenancy import open_family_scope
 from .auth import extract_bearer, resolve_token
@@ -431,41 +434,15 @@ async def do_record_administration(ctx: ToolContext, arguments: dict) -> dict[st
     if pauta.status == "finished":
         raise ToolError({"error": "finished", "message": "La Pauta ya está finalizada"})
 
-    now = datetime.now(UTC)
-    window_start = now - timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-    existing = (
-        await ctx.session.execute(
-            select(Administration)
-            .where(Administration.pauta_id == pid)
-            .where(Administration.administered_at >= window_start)
-            .order_by(Administration.administered_at.desc())
-            .limit(1)
-        )
-    ).scalar_one_or_none()
-    if existing is not None:
-        return {
-            "id": str(existing.id),
-            "pauta_id": str(existing.pauta_id),
-            "administered_at": existing.administered_at.isoformat(),
-            "administered_by": existing.administered_by,
-            "duplicate": True,
-        }
-
-    admin = Administration(
-        family_id=ctx.family_id,
-        pauta_id=pid,
-        administered_at=now,
-        administered_by=ctx.member_id,
+    admin, is_dup = await create_or_duplicate_administration(
+        ctx.session, pauta, ctx.member_id
     )
-    ctx.session.add(admin)
-    await ctx.session.flush()
-    await ctx.session.refresh(admin)
     return {
         "id": str(admin.id),
         "pauta_id": str(admin.pauta_id),
         "administered_at": admin.administered_at.isoformat(),
         "administered_by": admin.administered_by,
-        "duplicate": False,
+        "duplicate": is_dup,
     }
 
 
@@ -501,6 +478,7 @@ async def do_finish_pauta(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
 async def do_list_active_pautas(
     ctx: ToolContext, arguments: dict
 ) -> list[dict[str, Any]]:
+    await expire_due_pautas(ctx.session)
     child_name: str | None = arguments.get("child_name")
     stmt = select(Pauta).where(Pauta.status == "active")
     if child_name is not None:
@@ -509,19 +487,23 @@ async def do_list_active_pautas(
             raise ToolError.child_match_error(result)
         stmt = stmt.where(Pauta.child_id == result.id)
     stmt = stmt.order_by(Pauta.started_at.desc())
-    rows = (await ctx.session.execute(stmt)).scalars().all()
+    rows = list((await ctx.session.execute(stmt)).scalars().all())
+    views = await load_pauta_views(
+        ctx.session, rows, today=datetime.now(UTC).date(), tz=UTC
+    )
     return [
         {
-            "id": str(p.id),
-            "child_id": str(p.child_id),
-            "medication": p.medication,
-            "dose": p.dose,
-            "interval_hours": p.interval_hours,
-            "duration_days": p.duration_days,
-            "started_at": p.started_at.isoformat(),
-            "status": p.status,
+            "id": str(v.pauta.id),
+            "child_id": str(v.pauta.child_id),
+            "medication": v.pauta.medication,
+            "dose": v.pauta.dose,
+            "interval_hours": v.pauta.interval_hours,
+            "duration_days": v.pauta.duration_days,
+            "started_at": v.pauta.started_at.isoformat(),
+            "status": v.pauta.status,
+            "next_dose_at": v.next_dose_at.isoformat() if v.next_dose_at else None,
         }
-        for p in rows
+        for v in views
     ]
 
 

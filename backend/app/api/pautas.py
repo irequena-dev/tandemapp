@@ -1,86 +1,50 @@
 """Router REST para Pautas (tratamientos): iniciar, listar, detalle, finalizar.
 
+Adaptador fino sobre `app.pautas_service`: la matemática de próxima toma, la
+expiración lazy y el enriquecimiento batch-loaded viven en el módulo de dominio.
+Aquí solo se filtra/proyecta.
+
 Convenciones:
 - Cross-Hijo: `/pautas` lista todas las Pautas de la Familia.
 - Filtros por query params: `status` (active/finished) y `child_id`.
 - `ends_at` y `day_number` son calculados, no persistidos.
-- Lazy finish: si `now >= ends_at`, se marca `finished` al consultar.
+- Expiración lazy: `expire_due_pautas` se llama UNA vez al inicio de la lectura.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
-    Administration,
     AdministrationOut,
-    Member,
     Pauta,
     PautaCreate,
     PautaOut,
 )
+from ..pautas_service import PautaView, expire_due_pautas, load_pauta_views
 from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["pautas"])
 
 
-async def _to_out(pauta: Pauta, session: AsyncSession) -> PautaOut:
-    """Convierte un modelo Pauta a PautaOut con campos calculados.
-
-    Calcula `next_dose_at` (última Administración + interval) y
-    `todays_administrations` (Administraciones de hoy).
-    """
-    now = datetime.now(UTC)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # Última Administración → next_dose_at
-    last_stmt = (
-        select(Administration)
-        .where(Administration.pauta_id == pauta.id)
-        .order_by(Administration.administered_at.desc())
-        .limit(1)
-    )
-    last_result = await session.execute(last_stmt)
-    last_admin = last_result.scalars().first()
-
-    next_dose_at: datetime | None = None
-    if pauta.status == "active":
-        if last_admin is not None:
-            next_dose_at = last_admin.administered_at + timedelta(
-                hours=pauta.interval_hours
-            )
-        else:
-            next_dose_at = pauta.started_at + timedelta(hours=pauta.interval_hours)
-
-    # Administraciones de hoy
-    today_stmt = (
-        select(Administration)
-        .where(
-            Administration.pauta_id == pauta.id,
-            Administration.administered_at >= today_start,
+def _to_out(view: PautaView) -> PautaOut:
+    """Proyección pura de un `PautaView` a `PautaOut`. Sin consultas."""
+    pauta = view.pauta
+    todays_out = [
+        AdministrationOut(
+            id=a.id,
+            pauta_id=a.pauta_id,
+            administered_at=a.administered_at,
+            administered_by=a.administered_by,
+            member_name=member_name,
+            created_at=a.created_at,
         )
-        .order_by(Administration.administered_at.asc())
-    )
-    today_result = await session.execute(today_stmt)
-    today_admins = list(today_result.scalars().all())
-
-    todays_out: list[AdministrationOut] = []
-    for a in today_admins:
-        member = await session.get(Member, a.administered_by)
-        todays_out.append(
-            AdministrationOut(
-                id=a.id,
-                pauta_id=a.pauta_id,
-                administered_at=a.administered_at,
-                administered_by=a.administered_by,
-                member_name=member.display_name if member else None,
-                created_at=a.created_at,
-            )
+        for a, member_name in (
+            (av.admin, av.member_name) for av in view.todays_administrations
         )
-
+    ]
     return PautaOut(
         id=pauta.id,
         family_id=pauta.family_id,
@@ -96,22 +60,12 @@ async def _to_out(pauta: Pauta, session: AsyncSession) -> PautaOut:
         created_by=pauta.created_by,
         created_at=pauta.created_at,
         day_number=pauta.day_number,
-        next_dose_at=next_dose_at,
+        next_dose_at=view.next_dose_at,
         todays_administrations=todays_out,
     )
 
 
-async def _lazy_finish(pauta: Pauta, session: AsyncSession) -> Pauta:
-    """Finalización automática lazy: si `now >= ends_at`, marca finished."""
-    if pauta.status == "active" and pauta.is_expired:
-        pauta.status = "finished"
-        session.add(pauta)
-        await session.flush()
-        await session.refresh(pauta)
-    return pauta
-
-
-async def _get_owned_pauta(session: AsyncSession, pauta_id: uuid.UUID) -> Pauta:
+async def _get_owned_pauta(session, pauta_id: uuid.UUID) -> Pauta:
     """Carga una Pauta de la Familia activa o lanza 404."""
     pauta = await session.get(Pauta, pauta_id)
     if pauta is None:
@@ -119,6 +73,12 @@ async def _get_owned_pauta(session: AsyncSession, pauta_id: uuid.UUID) -> Pauta:
             status_code=status.HTTP_404_NOT_FOUND, detail="Pauta no encontrada"
         )
     return pauta
+
+
+async def _enrich_one(scope: FamilyScope, pauta: Pauta) -> PautaOut:
+    today = datetime.now(UTC).date()
+    views = await load_pauta_views(scope.session, [pauta], today=today, tz=UTC)
+    return _to_out(views[0])
 
 
 @router.post("/pautas", status_code=status.HTTP_201_CREATED)
@@ -145,7 +105,7 @@ async def create_pauta(
     session.add(pauta)
     await session.flush()
     await session.refresh(pauta)
-    return await _to_out(pauta, session)
+    return await _enrich_one(scope, pauta)
 
 
 @router.get("/pautas")
@@ -154,24 +114,27 @@ async def list_pautas(
     status_filter: str | None = Query(None, alias="status"),
     child_id: uuid.UUID | None = Query(None),
 ) -> list[PautaOut]:
-    session = scope.session
     """Lista las Pautas de la Familia, con filtros opcionales por status/child_id."""
+    session = scope.session
+    await expire_due_pautas(session)
+
     stmt = select(Pauta)
     if child_id:
         stmt = stmt.where(Pauta.child_id == child_id)
     stmt = stmt.order_by(Pauta.started_at.desc())
-    result = await session.execute(stmt)
-    pautas = list(result.scalars().all())
+    pautas = list((await session.execute(stmt)).scalars().all())
 
-    out: list[PautaOut] = []
-    for p in pautas:
-        p = await _lazy_finish(p, session)
-        # El filtrado por status se aplica tras _lazy_finish: una Pauta caducada
-        # se marca finished aquí mismo, así ?status=active no la devuelve como activa.
-        if status_filter and p.status != status_filter:
-            continue
-        out.append(await _to_out(p, session))
-    return out
+    # status_filter se aplica tras la expiración lazy: una Pauta caducada ya está
+    # 'finished', así ?status=active no la devuelve como activa.
+    if status_filter:
+        kept = [p for p in pautas if p.status == status_filter]
+    else:
+        kept = pautas
+
+    views = await load_pauta_views(
+        session, kept, today=datetime.now(UTC).date(), tz=UTC
+    )
+    return [_to_out(v) for v in views]
 
 
 @router.get("/pautas/{pauta_id}")
@@ -181,9 +144,9 @@ async def get_pauta(
 ) -> PautaOut:
     """Detalle de una Pauta con campos calculados."""
     session = scope.session
+    await expire_due_pautas(session)
     pauta = await _get_owned_pauta(session, pauta_id)
-    pauta = await _lazy_finish(pauta, session)
-    return await _to_out(pauta, session)
+    return await _enrich_one(scope, pauta)
 
 
 @router.post("/pautas/{pauta_id}/finish")
@@ -203,7 +166,7 @@ async def finish_pauta(
     session.add(pauta)
     await session.flush()
     await session.refresh(pauta)
-    return await _to_out(pauta, session)
+    return await _enrich_one(scope, pauta)
 
 
 @router.post("/pautas/{pauta_id}/reactivate")
@@ -214,7 +177,7 @@ async def reactivate_pauta(
     """Reactiva una Pauta finalizada manualmente (deshacer "Finalizar Pauta").
 
     Solo aplica a Pautas finalizadas que aún no han caducado: una Pauta cuyo
-    `ends_at` ya pasó volvería a `finished` en el próximo lazy-finish, así que
+    `ends_at` ya pasó volvería a `finished` en el próximo expire, así que
     reactivarla no tendría efecto y devolvemos 409.
     """
     session = scope.session
@@ -233,4 +196,4 @@ async def reactivate_pauta(
     session.add(pauta)
     await session.flush()
     await session.refresh(pauta)
-    return await _to_out(pauta, session)
+    return await _enrich_one(scope, pauta)
