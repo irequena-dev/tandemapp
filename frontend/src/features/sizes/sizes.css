@@ -47,26 +47,26 @@
 
 .size-block__add-btn {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border: none;
   border-radius: var(--ds-r-md);
   background: var(--ds-surface-2);
   color: var(--ds-primary);
-  font-size: 1.25rem;
-  font-weight: 600;
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.size-block__add-btn:hover {
-  background: var(--ds-primary);
-  color: var(--ds-bg);
+@media (hover: hover) and (pointer: fine) {
+  .size-block__add-btn:hover {
+    background: var(--ds-primary);
+    color: var(--ds-bg);
+  }
 }
 .size-block__add-btn:focus-visible {
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-block__history-toggle {
@@ -136,15 +136,17 @@
   padding: 4px 10px;
   border-radius: var(--ds-r-md);
   cursor: pointer;
-  min-height: 32px;
+  min-height: 44px;
 }
-.size-history-row__btn:hover {
-  background: var(--ds-primary);
-  color: var(--ds-bg);
-}
-.size-history-row__btn--danger:hover {
-  background: var(--ds-danger);
-  color: #fff;
+@media (hover: hover) and (pointer: fine) {
+  .size-history-row__btn:hover {
+    background: var(--ds-primary);
+    color: var(--ds-bg);
+  }
+  .size-history-row__btn--danger:hover {
+    background: var(--ds-danger);
+    color: #fff;
+  }
 }
 
 /* ---------- Inline form ---------- */
@@ -168,8 +170,8 @@
 }
 .size-form__input:focus {
   border-color: var(--ds-primary);
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 0;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-form__date {
@@ -184,8 +186,8 @@
 }
 .size-form__date:focus {
   border-color: var(--ds-primary);
-  outline: 2px solid var(--ds-primary);
-  outline-offset: 0;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .size-form__actions {
@@ -208,14 +210,33 @@
   background: var(--ds-primary);
   color: var(--ds-bg);
 }
-.size-form__btn--primary:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .size-form__btn--primary:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .size-form__btn--secondary {
   background: var(--ds-surface-2);
   color: var(--ds-ink);
 }
-.size-form__btn--secondary:hover {
-  background: var(--ds-border);
+@media (hover: hover) and (pointer: fine) {
+  .size-form__btn--secondary:hover {
+    background: var(--ds-border);
+  }
+}
+
+/* Confirmación inline de borrado (patrón .hijo-confirm de Hijos) dentro de una
+   fila del historial de tallas: ocupa el hueco de las acciones sin añadir borde
+   superior (las filas ya se separan). */
+.size-history-row__confirm {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border-top: none;
+  gap: var(--ds-s-xs);
+}
+.size-history-row__confirm .hijo-confirm__label {
+  margin-right: 0;
+  font-size: 0.8125rem;
 }

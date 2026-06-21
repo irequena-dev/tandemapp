@@ -60,7 +60,7 @@ class TimelineEntry(BaseModel):
     time: str  # HH:MM
     title: str
     subtitle: str | None = None
-    status: str  # "done" | "upcoming" | "pending"
+    status: str  # "done" | "upcoming" | "pending" | "due"
     pauta_id: str | None = None
     administration_id: str | None = None
     event_id: str | None = None
@@ -71,7 +71,7 @@ class TodaySummary(BaseModel):
     pautas_active_count: int
     pautas_finished_count: int
     next_medical_event: EventOut | None = None
-    children_status: str  # v1: siempre "up_to_date"
+    children_status: str  # "al_dia" | "revision_vencida" | "seguimiento"
 
 
 class TodayOut(BaseModel):
@@ -222,7 +222,7 @@ def _dose_timeline_pairs(
                     ),
                 )
             )
-        upcoming_status = "pending" if state.next_dose_at <= now else "upcoming"
+        upcoming_status = "due" if state.next_dose_at <= now else "upcoming"
         entries.append(
             (
                 state.next_dose_at,
@@ -320,6 +320,44 @@ async def _next_medical_event(session: AsyncSession, today: date) -> EventOut | 
     return await _enrich(session, ev) if ev else None
 
 
+async def _children_status(session: AsyncSession, today: date) -> str:
+    """Estado de seguimiento de los Hijos de la Familia (RLS vía `session`).
+
+    - `revision_vencida`: hay algún Evento `pending` con `date < today`.
+    - `seguimiento`: si no, hay algún Evento médico `pending` en los próximos
+      7 días (`today <= date <= today + 7d`).
+    - `al_dia`: en caso contrario.
+    """
+    overdue = (
+        await session.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(Event.status == "pending", Event.date < today)
+        )
+    ).scalar_one()
+    if overdue > 0:
+        return "revision_vencida"
+
+    horizon = today + timedelta(days=7)
+    followup = (
+        await session.execute(
+            select(func.count())
+            .select_from(Event)
+            .join(EventType, Event.event_type_id == EventType.id)
+            .where(
+                EventType.name == MEDICAL_TYPE_NAME,
+                Event.status == "pending",
+                Event.date >= today,
+                Event.date <= horizon,
+            )
+        )
+    ).scalar_one()
+    if followup > 0:
+        return "seguimiento"
+
+    return "al_dia"
+
+
 # ---------- Endpoint ---------- #
 
 
@@ -382,6 +420,7 @@ async def get_today(
     hero = _dose_hero(dose_states, now) or _event_hero(events_today, today, device_tz)
 
     next_medical = await _next_medical_event(session, today)
+    children_status = await _children_status(session, today)
 
     return TodayOut(
         hero=hero,
@@ -391,6 +430,6 @@ async def get_today(
             pautas_active_count=len(active_pautas),
             pautas_finished_count=finished_count,
             next_medical_event=next_medical,
-            children_status="up_to_date",
+            children_status=children_status,
         ),
     )

@@ -39,8 +39,10 @@
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.hijo-card:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .hijo-card:hover {
+    background: var(--ds-surface-2);
+  }
 }
 .hijo-card:focus-visible {
   outline: 2px solid var(--ds-primary);
@@ -157,11 +159,6 @@
   margin-top: 2px;
 }
 
-.hijo-detail__summary-metrics {
-  display: flex;
-  gap: var(--ds-s-lg);
-  margin-top: var(--ds-s-sm);
-}
 
 /* ---------- Section ---------- */
 .hijo-detail__section {
@@ -182,6 +179,53 @@
   line-height: 1.2;
 }
 
+/* ---------- Tabbed sub-nav ---------- */
+.hijo-detail__tabs {
+  display: flex;
+  gap: var(--ds-s-sm);
+  border-bottom: 1px solid var(--ds-border);
+  padding-bottom: var(--ds-s-sm);
+  margin-bottom: var(--ds-s-md);
+}
+
+.hijo-detail__tab {
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+  background: none;
+  border: none;
+  border-radius: var(--ds-r-md);
+  cursor: pointer;
+  transition: all var(--ds-dur-fast) var(--ds-ease);
+}
+
+.hijo-detail__tab:hover {
+  color: var(--ds-ink);
+  background: var(--ds-surface-2);
+}
+
+.hijo-detail__tab[aria-selected="true"] {
+  color: var(--ds-primary);
+  background: var(--ds-surface-2);
+  font-weight: 600;
+}
+
+.hijo-detail__tab:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+
+.hijo-detail__tab-panel {
+  display: none;
+}
+
+.hijo-detail__tab-panel[aria-hidden="false"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+}
+
 .hijo-detail__add-btn {
   display: inline-flex;
   align-items: center;
@@ -196,8 +240,10 @@
   cursor: pointer;
   min-height: 36px;
 }
-.hijo-detail__add-btn:hover {
-  background: var(--ds-border);
+@media (hover: hover) and (pointer: fine) {
+  .hijo-detail__add-btn:hover {
+    background: var(--ds-border);
+  }
 }
 
 /* Growth chart */
@@ -332,8 +378,10 @@
   color: inherit;
   font: inherit;
 }
-.visita-row__btn:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .visita-row__btn:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .visita-row__actions {
@@ -374,19 +422,33 @@
 .visita-action-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: none;
-  border-radius: var(--ds-r-sm);
-  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-md);
+  background: transparent;
   color: var(--ds-muted);
   cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
 }
-.visita-action-btn:hover {
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .visita-action-btn:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
+  .visita-action-btn--danger:hover:not(:disabled) {
+    color: var(--ds-danger);
+  }
 }
-.visita-action-btn--danger:hover {
-  color: var(--ds-danger);
+.visita-action-btn:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+.visita-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* Section header with add button */
@@ -394,24 +456,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.hijo-detail__add-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ds-s-xs);
-  padding: 8px 14px;
-  border: none;
-  border-radius: var(--ds-r-md);
-  background: var(--ds-primary);
-  color: var(--ds-bg);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  min-height: 36px;
-}
-.hijo-detail__add-btn:hover {
-  background: var(--ds-primary-hover);
 }
 
 /* Visita form (inline) */
@@ -446,7 +490,7 @@
 .visita-form__input:focus {
   outline: none;
   border-color: var(--ds-primary);
-  box-shadow: 0 0 0 2px var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .visita-form__textarea {
@@ -463,7 +507,7 @@
 .visita-form__textarea:focus {
   outline: none;
   border-color: var(--ds-primary);
-  box-shadow: 0 0 0 2px var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .visita-form__actions {
@@ -485,8 +529,10 @@
   background: var(--ds-primary);
   color: var(--ds-bg);
 }
-.visita-form__btn--primary:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .visita-form__btn--primary:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .visita-form__btn--secondary {
@@ -684,7 +730,7 @@
 .measurement-form__input:focus {
   outline: none;
   border-color: var(--ds-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ds-primary) 25%, transparent);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
 }
 
 .measurement-form__date {
@@ -710,8 +756,10 @@
   background: var(--ds-primary);
   color: var(--ds-bg);
 }
-.measurement-form__btn--primary:hover {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .measurement-form__btn--primary:hover {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .measurement-form__btn--secondary {
@@ -719,8 +767,10 @@
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
 }
-.measurement-form__btn--secondary:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .measurement-form__btn--secondary:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 /* ---------- Growth row actions ---------- */
@@ -733,18 +783,52 @@
 .growth-row__action {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: none;
-  border-radius: var(--ds-r-sm);
+  border-radius: var(--ds-r-md);
   background: transparent;
   color: var(--ds-muted);
   cursor: pointer;
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    color var(--ds-dur-fast) var(--ds-ease);
 }
-.growth-row__action:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .growth-row__action:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
+  .growth-row__action--danger:hover:not(:disabled) {
+    color: var(--ds-danger);
+  }
 }
-.growth-row__action--danger:hover {
-  color: var(--ds-danger);
+.growth-row__action:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+}
+.growth-row__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Confirmación inline de borrado (patrón .hijo-confirm) dentro de una fila de
+   medida: la fila es flex con varias celdas, así que el bloque confirma ocupa
+   el hueco de las acciones sin borde superior (ya hay separador entre filas). */
+.growth-row__confirm,
+.visita-row__confirm {
+  margin-left: auto;
+  padding: 0;
+  background: none;
+  border-top: none;
+  gap: var(--ds-s-xs);
+}
+.growth-row__confirm .hijo-confirm__label,
+.visita-row__confirm .hijo-confirm__label {
+  margin-right: 0;
+  font-size: 0.8125rem;
+}
+
+.visita-row__confirm {
+  padding-right: var(--ds-s-sm);
 }

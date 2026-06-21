@@ -1,0 +1,106 @@
+/* Toasts — transient confirmation layer. See DESIGN.md §4 (Elevation):
+   shadow is reserved for genuinely transient layers (sheets, FAB, toasts);
+   this viewport carries the `--ds-shadow-toast` + `--ds-z-toast` tokens.
+   Calm by default: warm surface, ink text, a small leading glyph that pairs
+   with the variant color (State-Is-Never-Color-Alone). One tone per toast. */
+
+.toast-viewport {
+  position: fixed;
+  z-index: var(--ds-z-toast);
+  bottom: max(var(--ds-s-xl), env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100% - 2 * var(--ds-s-lg), 32rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+  /* Anuncia los toasts a lectores de pantalla sin interrumpir la lectura en
+     curso: assertive para errores, polite para confirmaciones. */
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-s-sm);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  box-shadow: var(--ds-shadow-toast);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  animation: toast-in var(--ds-dur-base) var(--ds-ease) both;
+}
+
+.toast.is-leaving {
+  animation: toast-out var(--ds-dur-fast) var(--ds-ease) forwards;
+}
+
+/* El leading glyph lleva el color semántico; el texto permanece en ink para
+   legibilidad. Así el tono se confirma con icono + color, no color solo. */
+.toast__icon {
+  flex: none;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+}
+
+.toast__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast__text b,
+.toast__text strong {
+  font-weight: 600;
+}
+
+/* Inline action (e.g. "Deshacer" on an optimistic delete). Stays in ink so the
+   toast reads calm; the affordance is the underlined label, not color. */
+.toast__action {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ds-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.toast__action:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Success → sage. Error → danger. info se queda neutro (sin acento de color). */
+.toast--success .toast__icon {
+  color: var(--ds-success);
+}
+.toast--error .toast__icon {
+  color: var(--ds-danger);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

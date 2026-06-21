@@ -35,9 +35,11 @@
     background-color var(--ds-dur-fast) var(--ds-ease),
     color var(--ds-dur-fast) var(--ds-ease);
 }
-.shell-header__settings:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .shell-header__settings:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 .shell-header__settings:focus-visible {
   outline: 2px solid var(--ds-primary);

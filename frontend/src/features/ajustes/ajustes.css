@@ -71,9 +71,11 @@
     background-color var(--ds-dur-fast) var(--ds-ease),
     color var(--ds-dur-fast) var(--ds-ease);
 }
-.ajustes__close:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .ajustes__close:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 .ajustes__close:focus-visible {
   outline: 2px solid var(--ds-primary);
@@ -185,9 +187,11 @@
     border-color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.ajustes-theme__option:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .ajustes-theme__option:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 
 .ajustes-theme__option--active {

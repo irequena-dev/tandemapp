@@ -81,6 +81,12 @@ describe('usePautas', () => {
 
 describe('useFinishPauta (optimistic)', () => {
   it('marca la Pauta como finished de inmediato y reconcilia', async () => {
+    const mockToast = {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      dismiss: vi.fn(),
+    }
     const store: Pauta[] = [activePauta]
     server.use(
       http.get(URL, () => HttpResponse.json(store)),
@@ -93,7 +99,7 @@ describe('useFinishPauta (optimistic)', () => {
     )
 
     const { result } = renderHook(
-      () => ({ list: usePautas(), finish: useFinishPauta() }),
+      () => ({ list: usePautas(), finish: useFinishPauta(mockToast) }),
       { wrapper: makeWrapper() },
     )
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
@@ -111,13 +117,19 @@ describe('useFinishPauta (optimistic)', () => {
   })
 
   it('señala error si la finalización falla en el servidor', async () => {
+    const mockToast = {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      dismiss: vi.fn(),
+    }
     server.use(
       http.get(URL, () => HttpResponse.json([activePauta])),
       http.post(`${URL}/:id/finish`, () => new HttpResponse(null, { status: 500 })),
     )
 
     const { result } = renderHook(
-      () => ({ list: usePautas(), finish: useFinishPauta() }),
+      () => ({ list: usePautas(), finish: useFinishPauta(mockToast) }),
       { wrapper: makeWrapper() },
     )
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true))

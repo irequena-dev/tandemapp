@@ -96,8 +96,10 @@
   background: var(--ds-primary);
   color: var(--ds-on-primary);
 }
-.btn--primary:hover:not(:disabled) {
-  background: var(--ds-primary-hover);
+@media (hover: hover) and (pointer: fine) {
+  .btn--primary:hover:not(:disabled) {
+    background: var(--ds-primary-hover);
+  }
 }
 
 .btn--secondary {
@@ -105,8 +107,10 @@
   color: var(--ds-ink);
   border: 1px solid var(--ds-border);
 }
-.btn--secondary:hover:not(:disabled) {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .btn--secondary:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+  }
 }
 
 /* Light: white on dark-red (5.3:1). Dark: the danger token lightens, so the
@@ -115,8 +119,10 @@
   background: var(--ds-danger);
   color: #fff;
 }
-.btn--danger-solid:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ds-danger), #000 10%);
+@media (hover: hover) and (pointer: fine) {
+  .btn--danger-solid:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ds-danger), #000 10%);
+  }
 }
 
 .btn__icon {
@@ -139,13 +145,15 @@
     background-color var(--ds-dur-fast) var(--ds-ease),
     color var(--ds-dur-fast) var(--ds-ease);
 }
-.icon-btn:hover:not(:disabled) {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
-}
-.icon-btn--danger:hover:not(:disabled) {
-  color: var(--ds-danger);
-  background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+@media (hover: hover) and (pointer: fine) {
+  .icon-btn:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
+  .icon-btn--danger:hover:not(:disabled) {
+    color: var(--ds-danger);
+    background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+  }
 }
 .icon-btn:focus-visible {
   outline: 2px solid var(--ds-primary);
@@ -295,8 +303,10 @@
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.cal__nav:hover:not(:disabled) {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .cal__nav:hover:not(:disabled) {
+    background: var(--ds-surface-2);
+  }
 }
 .cal__nav:disabled {
   color: var(--ds-muted);
@@ -316,8 +326,10 @@
   text-transform: capitalize;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.cal__caption:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .cal__caption:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .cal__weekdays,
@@ -359,8 +371,10 @@
     background-color var(--ds-dur-fast) var(--ds-ease),
     color var(--ds-dur-fast) var(--ds-ease);
 }
-.cal__day:hover:not(:disabled):not(.cal__day--selected) {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .cal__day:hover:not(:disabled):not(.cal__day--selected) {
+    background: var(--ds-surface-2);
+  }
 }
 .cal__day--today {
   box-shadow: inset 0 0 0 1px var(--ds-border);
@@ -395,8 +409,10 @@
   cursor: pointer;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.cal__cell:hover:not(:disabled):not(.cal__cell--selected) {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .cal__cell:hover:not(:disabled):not(.cal__cell--selected) {
+    background: var(--ds-surface-2);
+  }
 }
 .cal__cell--selected {
   background: var(--ds-primary);
@@ -651,8 +667,10 @@
     transform var(--ds-dur-fast) var(--ds-ease);
   background: var(--mono-bg, var(--ds-surface-2));
 }
-.color-swatch:hover:not(.color-swatch--selected) {
-  transform: scale(1.1);
+@media (hover: hover) and (pointer: fine) {
+  .color-swatch:hover:not(.color-swatch--selected) {
+    transform: scale(1.1);
+  }
 }
 .color-swatch--selected {
   border-color: var(--ds-ink);

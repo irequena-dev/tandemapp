@@ -16,7 +16,7 @@ export type TimelineEntry = {
   time: string
   title: string
   subtitle: string | null
-  status: 'done' | 'upcoming' | 'pending'
+  status: 'done' | 'upcoming' | 'pending' | 'due'
   pauta_id?: string
   administration_id?: string
   event_id?: string
@@ -27,7 +27,7 @@ export type TodaySummary = {
   pautas_active_count: number
   pautas_finished_count: number
   next_medical_event: EventOut | null
-  children_status: string
+  children_status: 'al_dia' | 'revision_vencida' | 'seguimiento'
 }
 
 export type TodayOut = {

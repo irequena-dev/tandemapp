@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import {
   useShoppingItems,
   useCreateShoppingItem,
@@ -9,12 +9,13 @@ import {
   useUndoShoppingItem,
 } from './api'
 import { useMembers } from '../members/api'
+import { useToast } from '../toasts/useToast'
 import type { ShoppingItem } from './types'
 import './compra.css'
 
 function CheckIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <polyline points="20 6 9 17 4 12" />
     </svg>
   )
@@ -58,6 +59,112 @@ function PencilIcon() {
   )
 }
 
+function MoreVerticalIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="5" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="12" cy="19" r="1.5" />
+    </svg>
+  )
+}
+
+function ItemMenu({
+  itemText,
+  onEdit,
+  onDelete,
+}: {
+  itemText: string
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+
+  useEffect(() => {
+    if (!open) return
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (
+        menuRef.current?.contains(target) ||
+        buttonRef.current?.contains(target)
+      ) {
+        return
+      }
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('touchstart', handlePointerDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('touchstart', handlePointerDown)
+    }
+  }, [open])
+
+  const handleEdit = () => {
+    setOpen(false)
+    onEdit()
+  }
+
+  const handleDelete = () => {
+    setOpen(false)
+    onDelete()
+  }
+
+  return (
+    <div className="compra-item__menu">
+      <button
+        ref={buttonRef}
+        type="button"
+        className="compra-item__menu-button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={menuId}
+        aria-label={`Menú de acciones de ${itemText}`}
+      >
+        <MoreVerticalIcon />
+      </button>
+      {open && (
+        <div
+          ref={menuRef}
+          id={menuId}
+          className="compra-item__menu-dropdown"
+          role="menu"
+          aria-orientation="vertical"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="compra-item__menu-option"
+            role="menuitem"
+            onClick={handleEdit}
+            aria-label={`Editar ${itemText}`}
+          >
+            <PencilIcon />
+            <span>Editar</span>
+          </button>
+          <button
+            type="button"
+            className="compra-item__menu-option compra-item__menu-option--danger"
+            role="menuitem"
+            onClick={handleDelete}
+            aria-label={`Borrar ${itemText}`}
+          >
+            <TrashIcon />
+            <span>Borrar</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ItemRow({
   item,
   boughtByName,
@@ -82,6 +189,10 @@ function ItemRow({
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
+  // Commit solo con Enter explícito. Un blur (tab, scroll, notificación,
+  // navegación) se trata como descartar: nunca guardamos un texto a medias ni
+  // perdemos lo escrito por un cambio de foco ajeno al usuario. El draft vacío
+  // también descarta — un borrón nunca borra el ítem silenciosamente.
   const commitEdit = () => {
     const trimmed = draft.trim()
     if (trimmed && trimmed !== item.text) {
@@ -90,12 +201,30 @@ function ItemRow({
     setEditing(false)
   }
 
+  const cancelEdit = () => setEditing(false)
+
   return (
-    <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
+    <li 
+      className={`compra-item${isBought ? ' compra-item--done' : ''}`}
+      onClick={editing ? undefined : onToggle}
+      role={editing ? undefined : "button"}
+      tabIndex={editing ? -1 : 0}
+      onKeyDown={(e) => {
+        if (editing) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
+      aria-label={editing ? undefined : (isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`)}
+    >
       <button
         type="button"
         className={`compra-item__check${isBought ? ' compra-item__check--done' : ''}`}
-        onClick={onToggle}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
         aria-label={isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
       >
         {isBought && <CheckIcon />}
@@ -108,11 +237,12 @@ function ItemRow({
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitEdit}
+          onBlur={cancelEdit}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitEdit()
-            if (e.key === 'Escape') setEditing(false)
+            if (e.key === 'Escape') cancelEdit()
           }}
+          onClick={(e) => e.stopPropagation()}
           aria-label={`Editar ${item.text}`}
         />
       ) : (
@@ -123,34 +253,13 @@ function ItemRow({
         {isBought && boughtByName && (
           <span className="compra-item__meta">{boughtByName}</span>
         )}
-        {isBought && (
-          <button
-            type="button"
-            className="compra-item__undo"
-            onClick={onToggle}
-            aria-label={`Deshacer compra de ${item.text}`}
-          >
-            Deshacer
-          </button>
-        )}
         {!editing && (
-          <button
-            type="button"
-            className="compra-item__action"
-            onClick={startEdit}
-            aria-label={`Editar ${item.text}`}
-          >
-            <PencilIcon />
-          </button>
+          <ItemMenu
+            itemText={item.text}
+            onEdit={startEdit}
+            onDelete={onDelete}
+          />
         )}
-        <button
-          type="button"
-          className="compra-item__action compra-item__action--danger"
-          onClick={onDelete}
-          aria-label={`Borrar ${item.text}`}
-        >
-          <TrashIcon />
-        </button>
       </div>
     </li>
   )
@@ -165,8 +274,18 @@ export function CompraPage() {
   const clearBought = useClearBoughtItems()
   const buyItem = useBuyShoppingItem()
   const undoItem = useUndoShoppingItem()
+  const toast = useToast()
   const [newText, setNewText] = useState('')
-  const [boughtOpen, setBoughtOpen] = useState(false)
+  // La sección "Comprado" arranca abierta cuando hay poco (<= 8): la señal
+  // social de "quién compró qué" se ve de un vistazo. Con ruido (> 8) colapsa
+  // y deja que la píldora de conteo resuma. Como los ítems llegan tras el
+  // primer render (loading), el default se deriva del conteo hasta que el
+  // usuario lo toca; a partir de ahí respetamos su elección.
+  const [boughtOpenOverride, setBoughtOpenOverride] = useState<boolean | null>(null)
+  // "Limpiar comprados" es destructivo e irreversible por backend: lo gatingamos
+  // tras una confirmación inline (patrón .hijo-confirm de Hijos) y, al ejecutarlo,
+  // ofrecemos un toast con "Deshacer" que re-crea los ítems vía create.
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   // Resuelve bought_by (id de Clerk, p. ej. "user_xxx") al display_name del miembro.
   const nameById = useMemo(() => {
@@ -177,12 +296,46 @@ export function CompraPage() {
 
   const pending = items.filter((i) => i.status === 'pending')
   const bought = items.filter((i) => i.status === 'bought')
+  const boughtOpen =
+    boughtOpenOverride !== null ? boughtOpenOverride : bought.length <= 8
 
   const addItem = () => {
     const text = newText.trim()
     if (!text) return
     createItem.mutate({ text })
     setNewText('')
+  }
+
+  // Ejecuta la limpieza de comprados y, si quedaba algo que borrar, ofrece un
+  // "Deshacer" que re-crea los ítems (texto) vía create. Un resbalón de pulgar
+  // nunca debe borrar silenciosamente la pista de quién compró qué.
+  const confirmClearBought = () => {
+    const toClear = bought
+    setConfirmingClear(false)
+    if (toClear.length === 0) return
+    clearBought.mutate(undefined, {
+      onSuccess: () => {
+        const toastId = toast.info(
+          <>
+            <strong>{toClear.length} comprados borrados.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                for (const it of toClear) {
+                  createItem.mutate({ text: it.text })
+                }
+                toast.dismiss(toastId)
+              }}
+            >
+              Deshacer
+            </button>
+          </>,
+          { duration: 6000 },
+        )
+      },
+      onError: () => toast.error('No se pudieron borrar los comprados'),
+    })
   }
 
   return (
@@ -251,7 +404,7 @@ export function CompraPage() {
             <button
               type="button"
               className="compra__bought-toggle"
-              onClick={() => setBoughtOpen(!boughtOpen)}
+              onClick={() => setBoughtOpenOverride(!boughtOpen)}
               aria-expanded={boughtOpen}
             >
               Comprado
@@ -261,11 +414,38 @@ export function CompraPage() {
             <button
               type="button"
               className="compra__clear"
-              onClick={() => clearBought.mutate()}
+              onClick={() => setConfirmingClear(true)}
+              disabled={confirmingClear}
             >
               Limpiar comprados
             </button>
           </div>
+          {confirmingClear && (
+            <div
+              className="compra__confirm"
+              role="group"
+              aria-label={`Confirmar borrado de ${bought.length} comprados`}
+            >
+              <span className="compra__confirm-label">
+                ¿Borrar <b className="ds-nums">{bought.length}</b> comprados?
+              </span>
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                onClick={() => setConfirmingClear(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger-solid btn--sm"
+                onClick={confirmClearBought}
+                disabled={clearBought.isPending}
+              >
+                {clearBought.isPending ? 'Borrando…' : 'Sí, borrar'}
+              </button>
+            </div>
+          )}
           {boughtOpen && (
             <ul className="compra__list">
               {bought.map((item) => (

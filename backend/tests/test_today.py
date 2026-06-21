@@ -113,7 +113,50 @@ async def test_today_calm_state(auth_client: AsyncClient, identity: dict) -> Non
     assert summary["pautas_active_count"] == 0
     assert summary["pautas_finished_count"] == 0
     assert summary["next_medical_event"] is None
-    assert summary["children_status"] == "up_to_date"
+    assert summary["children_status"] == "al_dia"
+
+
+async def test_today_children_status_overdue(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Un Evento `pending` con fecha pasada → children_status "revision_vencida"."""
+    _as(identity, "org_today_csover", "user_today_csover")
+    child_id = await _create_child(auth_client, "Mateo")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    yesterday = (datetime.now(UTC).date() - timedelta(days=1)).isoformat()
+
+    await _create_event(
+        auth_client,
+        type_id=cole_id,
+        date_iso=yesterday,
+        title="Cole atrasado",
+        child_id=child_id,
+    )
+
+    resp = await auth_client.get("/api/today")
+    assert resp.json()["summary"]["children_status"] == "revision_vencida"
+
+
+async def test_today_children_status_followup(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Evento médico `pending` en próximos 7 días → children_status "seguimiento"."""
+
+    _as(identity, "org_today_csfol", "user_today_csfol")
+    child_id = await _create_child(auth_client, "Mateo")
+    med_id = await _get_event_type_id(auth_client, "Médico")
+    in_three_days = (datetime.now(UTC).date() + timedelta(days=3)).isoformat()
+
+    await _create_event(
+        auth_client,
+        type_id=med_id,
+        date_iso=in_three_days,
+        title="Control pediatra",
+        child_id=child_id,
+    )
+
+    resp = await auth_client.get("/api/today")
+    assert resp.json()["summary"]["children_status"] == "seguimiento"
 
 
 async def test_today_requires_auth(client: AsyncClient) -> None:

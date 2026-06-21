@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
+import { ToastProvider } from '../toasts/toasts'
 import { HoyPage } from './HoyPage'
 import type { TodayOut } from './types'
 
@@ -23,7 +24,9 @@ function makeWrapper() {
   })
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <MemoryRouter>
+        <ToastProvider>{children}</ToastProvider>
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -36,7 +39,7 @@ const CALM_RESPONSE: TodayOut = {
     pautas_active_count: 0,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -66,7 +69,7 @@ describe('HoyPage — estado calmado', () => {
     expect(screen.getByText('Al día')).toBeTruthy()
   })
 
-  it('no muestra la sección de timeline cuando está vacía', async () => {
+  it('muestra estado vacío tranquilo cuando el timeline no tiene entradas', async () => {
     server.use(http.get(API, () => HttpResponse.json(CALM_RESPONSE)))
 
     render(<HoyPage />, { wrapper: makeWrapper() })
@@ -74,7 +77,10 @@ describe('HoyPage — estado calmado', () => {
     await waitFor(() =>
       expect(screen.getByText(/Nada urgente ahora/)).toBeTruthy(),
     )
-    expect(screen.queryByText('Hoy', { selector: 'h2' })).toBeNull()
+    expect(screen.getByText(/Hoy está tranquilo/)).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'Agenda de hoy', level: 2 }),
+    ).toBeTruthy()
   })
 
   it('muestra estado de carga mientras se obtienen los datos', async () => {
@@ -87,7 +93,7 @@ describe('HoyPage — estado calmado', () => {
 
     render(<HoyPage />, { wrapper: makeWrapper() })
 
-    expect(screen.getByText('Cargando…')).toBeTruthy()
+    expect(screen.getByRole('status')).toBeTruthy()
   })
 
   it('muestra error si la petición falla', async () => {
@@ -98,6 +104,8 @@ describe('HoyPage — estado calmado', () => {
     await waitFor(() =>
       expect(screen.getByText(/No se pudo cargar/)).toBeTruthy(),
     )
+    expect(screen.getByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeTruthy()
   })
 })
 
@@ -113,7 +121,7 @@ describe('HoyPage — tarjeta Compra', () => {
         pautas_active_count: 0,
         pautas_finished_count: 0,
         next_medical_event: null,
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))
@@ -146,6 +154,46 @@ describe('HoyPage — tarjeta Compra', () => {
     const link = screen.getByText('Compra').closest('a')
     expect(link?.getAttribute('href')).toBe('/compra')
   })
+
+  it('refresca el conteo de Compra al volver a Hoy (remontar)', async () => {
+    server.use(
+      http.get(API, () =>
+        HttpResponse.json({
+          ...CALM_RESPONSE,
+          summary: { ...CALM_RESPONSE.summary, shopping_pending_count: 5 },
+        }),
+      ),
+    )
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <ToastProvider>{children}</ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const { unmount } = render(<HoyPage />, { wrapper })
+
+    await waitFor(() => expect(screen.getByText('5 por comprar')).toBeTruthy())
+
+    server.use(
+      http.get(API, () =>
+        HttpResponse.json({
+          ...CALM_RESPONSE,
+          summary: { ...CALM_RESPONSE.summary, shopping_pending_count: 0 },
+        }),
+      ),
+    )
+
+    unmount()
+    render(<HoyPage />, { wrapper })
+
+    await waitFor(() => expect(screen.getByText('Lista vacía')).toBeTruthy())
+  })
 })
 
 /* ---------- Aporte Fase 3: héroe dosis + timeline ---------- */
@@ -164,7 +212,7 @@ const HERO_PAUTA: TodayOut = {
     pautas_active_count: 1,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -239,7 +287,7 @@ describe('HoyPage — timeline de tomas', () => {
         pautas_active_count: 1,
         pautas_finished_count: 0,
         next_medical_event: null,
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))
@@ -271,7 +319,7 @@ const HERO_EVENT: TodayOut = {
     pautas_active_count: 0,
     pautas_finished_count: 0,
     next_medical_event: null,
-    children_status: 'up_to_date',
+    children_status: 'al_dia',
   },
 }
 
@@ -339,7 +387,7 @@ describe('HoyPage — tarjeta Próxima cita', () => {
           created_by: 'm1',
           created_at: '2026-06-17T10:00:00Z',
         },
-        children_status: 'up_to_date',
+        children_status: 'al_dia',
       },
     }
     server.use(http.get(API, () => HttpResponse.json(response)))

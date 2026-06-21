@@ -87,19 +87,20 @@ Fases 0 (identidad) + 2 (crecimiento/tallas) + 3 (visitas).
 
 - **Card resumen comprimida** con la info básica del Hijo.
 - **Crecimiento** (Fase 2): gráficas de evolución de **altura** (cm) y **peso** (kg) en el tiempo (eje X = fecha, eje Y = valor), tabla de histórico, **talla** actual y **talla de calzado** actual, y alta/corrección de Medidas y Tallas desde la PWA.
-- **Visitas médicas** (Fase 3): listado con **filtro por fecha**; **registrar** una Visita desde la PWA (US 13 de Fase 3) y **corregir/borrar**; click en una Visita abre su **detalle** (diagnóstico, notas/tratamiento) con **enlace a las Pautas** que originó.
+- **Visitas médicas** (Fase 3): listado con **filtro por fecha**; **registrar** una Visita desde la PWA (US 13 de Fase 3) y **corregir/borrar**; click en una Visita abre su **detalle** (diagnóstico, notas/tratamiento) con **enlace a las Pautas** que originó (lleva al tab **Pautas** del propio Hijo, que incluye también las finalizadas).
+- **Pautas** (Fase 3): tab por Hijo que hace de **historial** — las Pautas del Hijo en dos subsecciones, **Activas** (misma funcionalidad que la pestaña global Pautas: marcar toma, finalizar, progreso) y **Finalizadas** (recesadas, colapsadas por defecto). Filtra por el Hijo actual; no repite avatar/nombre del Hijo en cada tarjeta (contexto ya implícito).
 
 ## Pautas
 
-Fase 3. Tratamientos de **toda la Familia** (cross-Hijo).
+Fase 3. Tratamientos **activos** de **toda la Familia** (cross-Hijo). El **historial** (finalizadas) NO vive aquí: se consulta por Hijo en **HijoDetail → tab Pautas**.
 
-- **Lista** ordenada por **urgencia** (próxima toma); cada fila muestra **avatar + nombre del Hijo** al que pertenece la Pauta.
+- **Lista** de Pautas **activas** ordenada por **urgencia** (próxima toma); cada fila muestra **avatar + nombre del Hijo** al que pertenece la Pauta.
 - Cada Pauta **expandible**:
   - **Curso del tratamiento**: día X de Y, barra de progreso.
   - **Tomas del día** con estado (**Dada** / **Próxima** / **Pendiente**) y **quién** la dio.
   - Botón **"Marcar toma"** para la próxima dosis.
 - Acciones en la PWA: **marcar toma** (_optimistic_ + deshacer), **iniciar** Pauta y **finalizar** Pauta. (La voz sigue siendo el camino estrella para iniciar y administrar.)
-- Tratamientos **finalizados** aparecen **recesados** (tono apagado).
+- Al **finalizar** una Pauta sale de esta lista; su historial queda en el tab Pautas del Hijo.
 
 ## Ajustes (overlay)
 
