@@ -154,6 +154,46 @@ describe('HoyPage — tarjeta Compra', () => {
     const link = screen.getByText('Compra').closest('a')
     expect(link?.getAttribute('href')).toBe('/compra')
   })
+
+  it('refresca el conteo de Compra al volver a Hoy (remontar)', async () => {
+    server.use(
+      http.get(API, () =>
+        HttpResponse.json({
+          ...CALM_RESPONSE,
+          summary: { ...CALM_RESPONSE.summary, shopping_pending_count: 5 },
+        }),
+      ),
+    )
+
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <ToastProvider>{children}</ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const { unmount } = render(<HoyPage />, { wrapper })
+
+    await waitFor(() => expect(screen.getByText('5 por comprar')).toBeTruthy())
+
+    server.use(
+      http.get(API, () =>
+        HttpResponse.json({
+          ...CALM_RESPONSE,
+          summary: { ...CALM_RESPONSE.summary, shopping_pending_count: 0 },
+        }),
+      ),
+    )
+
+    unmount()
+    render(<HoyPage />, { wrapper })
+
+    await waitFor(() => expect(screen.getByText('Lista vacía')).toBeTruthy())
+  })
 })
 
 /* ---------- Aporte Fase 3: héroe dosis + timeline ---------- */

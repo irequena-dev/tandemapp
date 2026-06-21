@@ -19,6 +19,8 @@ export function useToday() {
       const qs = tz ? `?tz=${encodeURIComponent(tz)}` : ''
       return apiFetch<TodayOut>(`/api/today${qs}`, { token: await getToken() })
     },
+    refetchOnWindowFocus: 'always',
+    refetchOnMount: 'always',
   })
 }
 
