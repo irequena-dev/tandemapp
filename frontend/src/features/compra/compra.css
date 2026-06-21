@@ -114,6 +114,10 @@
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
+.compra-item[role="button"] {
+  cursor: pointer;
+}
+
 .compra-item + .compra-item {
   border-top: 1px solid var(--ds-border);
 }

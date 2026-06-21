@@ -89,10 +89,10 @@ function PautaCard({ pauta, childName }: { pauta: Pauta; childName: string }) {
   const [confirmingAdminId, setConfirmingAdminId] = useState<string | null>(null)
   // ¿La acción "Finalizar Pauta" está pidiendo confirmación inline? (destructiva).
   const [confirmingFinish, setConfirmingFinish] = useState(false)
-  const finishMutation = useFinishPauta()
+  const toast = useToast()
+  const finishMutation = useFinishPauta(toast)
   const createAdmin = useCreateAdministration()
   const deleteAdmin = useDeleteAdministration()
-  const toast = useToast()
   const now = new Date()
 
   const todaysAdmins = pauta.todays_administrations ?? []

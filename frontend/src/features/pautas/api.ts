@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
 import { randomId } from '../../lib/randomId'
-import { useToast } from '../toasts/useToast'
+import type { ToastApi } from '../toasts/useToast'
 import type { Administration, Pauta, PautaInput } from './types'
 
 /** Claves de caché de Pautas. */
@@ -100,10 +100,9 @@ export function useCreatePauta() {
  * desmontado no se ejecutan, así que el toast se perdía. Los de `useMutation`
  * sí se ejecutan siempre. Usamos `createElement` porque este archivo es `.ts`.
  */
-export function useFinishPauta() {
+export function useFinishPauta(toast?: ToastApi) {
   const { getToken } = useAuth()
   const qc = useQueryClient()
-  const toast = useToast()
   const reactivate = useReactivatePauta()
   return useMutation({
     mutationFn: async (pautaId: string) =>
@@ -124,7 +123,7 @@ export function useFinishPauta() {
     },
     onError: (_e, _id, ctx) => rollback(qc, ctx),
     onSuccess: (data) => {
-      toast.success(
+      const toastId = toast.success(
         createElement(
           Fragment,
           null,
@@ -135,10 +134,12 @@ export function useFinishPauta() {
             {
               type: 'button',
               className: 'toast__action',
-              onClick: () =>
+              onClick: () => {
                 reactivate.mutate(data.id, {
                   onError: () => toast.error('No se pudo reactivar la Pauta.'),
-                }),
+                })
+                toast.dismiss(toastId)
+              },
             },
             'Deshacer',
           ),

@@ -121,27 +121,29 @@ function SizeTypeBlock({ childId, sizeType, current, history }: SizeTypeBlockPro
     deleteMutation.mutate(s.id, {
       onSuccess: () => {
         setConfirmingId(null)
-        toast.success(
+        const toastId = toast.success(
           <>
             <strong>{label} borrada.</strong>{' '}
             <button
               type="button"
               className="toast__action"
-              onClick={() =>
+              onClick={() => {
                 createMutation.mutate({
                   type: s.type,
                   label: s.label,
                   recorded_at: s.recorded_at,
                 })
-              }
+                toast.dismiss(toastId)
+              }}
             >
               Deshacer
             </button>
           </>,
-          { duration: 6000 },
         )
       },
-      onError: () => toast.error(`No se pudo borrar la ${label.toLowerCase()}`),
+      onError: () => {
+        toast.error(`No se pudo borrar la ${label}`)
+      },
     })
   }
 

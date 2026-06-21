@@ -344,25 +344,25 @@ export function HijoDetailPage() {
     deleteMutation.mutate(m.id, {
       onSuccess: () => {
         setConfirmingMeasurement(null)
-        toast.success(
+        const toastId = toast.success(
           <>
             <strong>Medida borrada.</strong>{' '}
             <button
               type="button"
               className="toast__action"
-              onClick={() =>
+              onClick={() => {
                 createMeasurement.mutate({
                   type: m.type,
                   value: m.value,
                   unit: m.unit,
                   measured_at: m.measured_at,
                 })
-              }
+                toast.dismiss(toastId)
+              }}
             >
               Deshacer
             </button>
           </>,
-          { duration: 6000 },
         )
       },
       onError: () => toast.error('No se pudo borrar la medida'),
@@ -373,24 +373,24 @@ export function HijoDetailPage() {
     deleteVisit.mutate(v.id, {
       onSuccess: () => {
         setConfirmingVisit(null)
-        toast.success(
+        const toastId = toast.success(
           <>
             <strong>Visita borrada.</strong>{' '}
             <button
               type="button"
               className="toast__action"
-              onClick={() =>
+              onClick={() => {
                 createVisit.mutate({
                   visited_at: v.visited_at,
                   diagnosis: v.diagnosis,
                   notes: v.notes ?? undefined,
                 })
-              }
+                toast.dismiss(toastId)
+              }}
             >
               Deshacer
             </button>
           </>,
-          { duration: 6000 },
         )
       },
       onError: () => toast.error('No se pudo borrar la visita'),

@@ -24,6 +24,7 @@ interface ToastRecord {
   tone: ToastTone
   text: ReactNode
   leaving: boolean
+  onDismiss?: () => void
 }
 
 // Re-exportamos los tipos del hook para mantener la superficie pública estable
@@ -104,7 +105,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback((id: number) => {
     // Fase de salida: deja que corra la animación antes de retirar del DOM.
-    setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)))
+    setToasts((prev) => {
+      const toast = prev.find((t) => t.id === id)
+      if (toast?.onDismiss) {
+        toast.onDismiss()
+      }
+      return prev.map((t) => (t.id === id ? { ...t, leaving: true } : t))
+    })
     const leaveTimer = setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id))
       timers.current.delete(id)
@@ -115,12 +122,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const push = useCallback(
-    (tone: ToastTone, text: ReactNode, opts?: ToastOptions) => {
+    (tone: ToastTone, text: ReactNode, opts?: ToastOptions): number => {
       const id = nextId.current++
       const duration = opts?.duration ?? DEFAULT_DURATION[tone]
-      setToasts((prev) => [...prev, { id, tone, text, leaving: false }])
+      setToasts((prev) => [...prev, { id, tone, text, leaving: false, onDismiss: opts?.onDismiss }])
       const timer = setTimeout(() => dismiss(id), duration)
       timers.current.set(id, timer)
+      return id
     },
     [dismiss],
   )
@@ -130,8 +138,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       success: (text, opts) => push('success', text, opts),
       error: (text, opts) => push('error', text, opts),
       info: (text, opts) => push('info', text, opts),
+      dismiss,
     }),
-    [push],
+    [push, dismiss],
   )
 
   // Limpieza al desmontar el provider: cancela cualquier timer pendiente para

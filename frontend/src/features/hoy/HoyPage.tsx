@@ -258,22 +258,24 @@ function TimelineSection({ entries }: { entries: TimelineEntry[] }) {
         {entries.length === 0 ? (
           <p className="hoy-timeline__empty">Hoy está tranquilo — nada en la agenda.</p>
         ) : (
-          entries.map((e, i) => {
-            const to = e.pauta_id ? '/pautas' : '/eventos'
-            const key = e.administration_id ?? e.event_id ?? e.pauta_id ?? i
-            return (
-              <Link to={to} className="hoy-tl-item hoy-tl-item--link" key={key}>
-                <span className="hoy-tl-item__time ds-nums">{e.time}</span>
-                <div className="hoy-tl-item__body">
-                  <span className="hoy-tl-item__label hoy-clamp-2">{e.title}</span>
-                  {e.subtitle && <span className="hoy-tl-item__sub hoy-clamp-1">{e.subtitle}</span>}
-                </div>
-                <span className={`hoy-tl-item__status hoy-tl-item__status--${e.status}`}>
-                  {statusLabel(e.status)}
-                </span>
-              </Link>
-            )
-          })
+          <div className="hoy-timeline__list">
+            {entries.map((e, i) => {
+              const to = e.pauta_id ? '/pautas' : '/eventos'
+              const key = e.administration_id ?? e.event_id ?? e.pauta_id ?? i
+              return (
+                <Link to={to} className="hoy-tl-item hoy-tl-item--link" key={key}>
+                  <span className="hoy-tl-item__time ds-nums">{e.time}</span>
+                  <div className="hoy-tl-item__body">
+                    <span className="hoy-tl-item__label hoy-clamp-2">{e.title}</span>
+                    {e.subtitle && <span className="hoy-tl-item__sub hoy-clamp-1">{e.subtitle}</span>}
+                  </div>
+                  <span className={`hoy-tl-item__status hoy-tl-item__status--${e.status}`}>
+                    {statusLabel(e.status)}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
         )}
       </div>
     </section>

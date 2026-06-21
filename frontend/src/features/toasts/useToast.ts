@@ -4,12 +4,16 @@ import type { ReactNode } from 'react'
 export interface ToastOptions {
   /** Milisegundos antes del auto-cierre. Por defecto 4s; los errores duran 6s. */
   duration?: number
+  /** Callback para cerrar el toast manualmente (útil para acciones como "Deshacer") */
+  onDismiss?: () => void
 }
 
 export interface ToastApi {
-  success: (text: ReactNode, opts?: ToastOptions) => void
-  error: (text: ReactNode, opts?: ToastOptions) => void
-  info: (text: ReactNode, opts?: ToastOptions) => void
+  success: (text: ReactNode, opts?: ToastOptions) => number
+  error: (text: ReactNode, opts?: ToastOptions) => number
+  info: (text: ReactNode, opts?: ToastOptions) => number
+  /** Cierra un toast específico por su ID (interno del sistema) */
+  dismiss: (id: number) => void
 }
 
 /**

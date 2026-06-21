@@ -119,7 +119,10 @@ function ItemMenu({
         ref={buttonRef}
         type="button"
         className="compra-item__menu-button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -201,11 +204,27 @@ function ItemRow({
   const cancelEdit = () => setEditing(false)
 
   return (
-    <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
+    <li 
+      className={`compra-item${isBought ? ' compra-item--done' : ''}`}
+      onClick={editing ? undefined : onToggle}
+      role={editing ? undefined : "button"}
+      tabIndex={editing ? -1 : 0}
+      onKeyDown={(e) => {
+        if (editing) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onToggle()
+        }
+      }}
+      aria-label={editing ? undefined : (isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`)}
+    >
       <button
         type="button"
         className={`compra-item__check${isBought ? ' compra-item__check--done' : ''}`}
-        onClick={onToggle}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
         aria-label={isBought ? `Desmarcar ${item.text}` : `Marcar ${item.text} como comprado`}
       >
         {isBought && <CheckIcon />}
@@ -223,6 +242,7 @@ function ItemRow({
             if (e.key === 'Enter') commitEdit()
             if (e.key === 'Escape') cancelEdit()
           }}
+          onClick={(e) => e.stopPropagation()}
           aria-label={`Editar ${item.text}`}
         />
       ) : (
@@ -295,7 +315,7 @@ export function CompraPage() {
     if (toClear.length === 0) return
     clearBought.mutate(undefined, {
       onSuccess: () => {
-        toast.info(
+        const toastId = toast.info(
           <>
             <strong>{toClear.length} comprados borrados.</strong>{' '}
             <button
@@ -305,6 +325,7 @@ export function CompraPage() {
                 for (const it of toClear) {
                   createItem.mutate({ text: it.text })
                 }
+                toast.dismiss(toastId)
               }}
             >
               Deshacer

@@ -115,19 +115,36 @@
   padding: var(--ds-s-md) 0;
 }
 
+.hoy-timeline__list {
+  display: flex;
+  flex-direction: column;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  overflow: hidden;
+}
+
 .hoy-tl-item {
   display: flex;
   align-items: center;
   gap: var(--ds-s-md);
   min-height: 44px;
-  padding: var(--ds-s-md) 0;
+  padding: var(--ds-s-md) var(--ds-s-md);
   position: relative;
   text-decoration: none;
   color: inherit;
+  background: var(--ds-surface);
+  transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.hoy-tl-item + .hoy-tl-item {
+.hoy-timeline__list .hoy-tl-item + .hoy-tl-item {
   border-top: 1px solid var(--ds-border);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hoy-tl-item:hover {
+    background: var(--ds-surface-2);
+  }
 }
 
 .hoy-tl-item:focus-visible {
@@ -142,7 +159,7 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--ds-muted);
-  text-align: right;
+  text-align: left;
   padding-top: 2px;
 }
 
