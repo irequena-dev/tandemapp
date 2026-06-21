@@ -164,3 +164,78 @@ describe('CompraPage — Limpiar comprados', () => {
     expect(screen.getByText('Pan')).toBeTruthy()
   })
 })
+
+describe('CompraPage — edición inline', () => {
+  it('Enter guarda la edición; blur la descarta (no commitea por perder foco)', async () => {
+    let store: ShoppingItem[] = [pendingItem('Leche entera')]
+    const patches: { id: string; text: string }[] = []
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json(store)),
+      http.patch(`${URL}/:id`, async ({ request, params }) => {
+        const body = (await request.json()) as { text: string }
+        patches.push({ id: params['id'] as string, text: body.text })
+        store = store.map((i) =>
+          i.id === params['id'] ? { ...i, text: body.text } : i,
+        )
+        return HttpResponse.json(store[0])
+      }),
+    )
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
+
+    // Abre la edición y escribe un texto nuevo.
+    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
+    const input = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
+    fireEvent.change(input, { target: { value: 'Leche desnatada' } })
+
+    // Blur (perder foco por tab/scroll/notificación): NO commitea.
+    fireEvent.blur(input)
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: /Editar Leche entera/ })).toBeNull(),
+    )
+    expect(patches).toHaveLength(0)
+    // El texto original sigue ahí: no se perdió ni se guardó a medias.
+    expect(screen.getByText('Leche entera')).toBeTruthy()
+
+    // Ahora sí: abre, edita y pulsa Enter → commitea.
+    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
+    const input2 = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
+    fireEvent.change(input2, { target: { value: 'Leche desnatada' } })
+    fireEvent.keyDown(input2, { key: 'Enter' })
+
+    await waitFor(() => expect(patches).toHaveLength(1))
+    expect(patches[0].text).toBe('Leche desnatada')
+  })
+
+  it('un borrón en blanco (draft vacío) descarta, no borra el ítem', async () => {
+    const store: ShoppingItem[] = [pendingItem('Leche entera')]
+    const patches: { id: string; text: string }[] = []
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json(store)),
+      http.patch(`${URL}/:id`, async ({ params }) => {
+        patches.push({ id: params['id'] as string, text: '' })
+        return HttpResponse.json(store[0])
+      }),
+    )
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche entera')).toBeTruthy())
+
+    fireEvent.click(screen.getByRole('button', { name: /^Editar Leche entera/ }))
+    const input = await screen.findByRole('textbox', { name: /Editar Leche entera/ })
+    // El usuario borra todo y pulsa Enter: tratamos el draft vacío como cancelar.
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() =>
+      expect(screen.queryByRole('textbox', { name: /Editar Leche entera/ })).toBeNull(),
+    )
+    expect(patches).toHaveLength(0)
+    // El ítem original sigue existiendo.
+    expect(screen.getByText('Leche entera')).toBeTruthy()
+  })
+})
+

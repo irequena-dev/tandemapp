@@ -83,6 +83,10 @@ function ItemRow({
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
+  // Commit solo con Enter explícito. Un blur (tab, scroll, notificación,
+  // navegación) se trata como descartar: nunca guardamos un texto a medias ni
+  // perdemos lo escrito por un cambio de foco ajeno al usuario. El draft vacío
+  // también descarta — un borrón nunca borra el ítem silenciosamente.
   const commitEdit = () => {
     const trimmed = draft.trim()
     if (trimmed && trimmed !== item.text) {
@@ -90,6 +94,8 @@ function ItemRow({
     }
     setEditing(false)
   }
+
+  const cancelEdit = () => setEditing(false)
 
   return (
     <li className={`compra-item${isBought ? ' compra-item--done' : ''}`}>
@@ -109,10 +115,10 @@ function ItemRow({
           type="text"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          onBlur={commitEdit}
+          onBlur={cancelEdit}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitEdit()
-            if (e.key === 'Escape') setEditing(false)
+            if (e.key === 'Escape') cancelEdit()
           }}
           aria-label={`Editar ${item.text}`}
         />
