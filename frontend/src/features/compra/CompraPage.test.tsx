@@ -63,11 +63,14 @@ const boughtItem = (text: string, id = `b-${text}`): ShoppingItem => ({
   updated_at: '2026-06-17T09:30:00Z',
 })
 
-/** Despliega la sección "Comprado" (colapsada cuando hay ruido) y espera a que
- *  el texto de un ítem comprado sea visible. */
+/** Despliega la sección "Comprado" (puede venir abierta o cerrada según el
+ *  conteo) y espera a que el texto de un ítem comprado sea visible. */
 async function openBoughtThenSee(text: string) {
   const toggle = await screen.findByRole('button', { name: /Comprado/ })
-  fireEvent.click(toggle)
+  // Sólo togglear si está colapsada: la sección arranca abierta con poco ruido.
+  if (toggle.getAttribute('aria-expanded') === 'false') {
+    fireEvent.click(toggle)
+  }
   await waitFor(() => expect(screen.getByText(text)).toBeTruthy())
 }
 
@@ -164,6 +167,45 @@ describe('CompraPage — Limpiar comprados', () => {
 
     expect(deletes).toHaveLength(0)
     expect(screen.getByText('Pan')).toBeTruthy()
+  })
+})
+
+describe('CompraPage — sección "Comprado" abierta por defecto cuando hay poco', () => {
+  it('muestra los comprados sin desplegar cuando son <= 8 (señal social a la vista)', async () => {
+    const bought: ShoppingItem[] = Array.from({ length: 8 }, (_, i) =>
+      boughtItem(`Item ${i}`),
+    )
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json([...bought, pendingItem('Leche')])),
+    )
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche')).toBeTruthy())
+
+    // Con 8 comprados, la sección arranca ABIERTA: el "quién compró qué" se ve
+    // sin un toque extra (alivio de carga mental).
+    const toggle = screen.getByRole('button', { name: /Comprado/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Item 0')).toBeTruthy()
+  })
+
+  it('colapsa por defecto cuando hay ruido (> 8 comprados)', async () => {
+    const bought: ShoppingItem[] = Array.from({ length: 9 }, (_, i) =>
+      boughtItem(`Item ${i}`),
+    )
+    server.use(
+      membersHandler,
+      http.get(URL, () => HttpResponse.json([...bought, pendingItem('Leche')])),
+    )
+
+    renderPage()
+    await waitFor(() => expect(screen.getByText('Leche')).toBeTruthy())
+
+    // Con 9, el ruido gana: arranca colapsada y la píldora resume el conteo.
+    const toggle = screen.getByRole('button', { name: /Comprado/ })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByText('Item 0')).toBeNull()
   })
 })
 

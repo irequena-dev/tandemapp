@@ -174,7 +174,12 @@ export function CompraPage() {
   const undoItem = useUndoShoppingItem()
   const toast = useToast()
   const [newText, setNewText] = useState('')
-  const [boughtOpen, setBoughtOpen] = useState(false)
+  // La sección "Comprado" arranca abierta cuando hay poco (<= 8): la señal
+  // social de "quién compró qué" se ve de un vistazo. Con ruido (> 8) colapsa
+  // y deja que la píldora de conteo resuma. Como los ítems llegan tras el
+  // primer render (loading), el default se deriva del conteo hasta que el
+  // usuario lo toca; a partir de ahí respetamos su elección.
+  const [boughtOpenOverride, setBoughtOpenOverride] = useState<boolean | null>(null)
   // "Limpiar comprados" es destructivo e irreversible por backend: lo gatingamos
   // tras una confirmación inline (patrón .hijo-confirm de Hijos) y, al ejecutarlo,
   // ofrecemos un toast con "Deshacer" que re-crea los ítems vía create.
@@ -189,6 +194,8 @@ export function CompraPage() {
 
   const pending = items.filter((i) => i.status === 'pending')
   const bought = items.filter((i) => i.status === 'bought')
+  const boughtOpen =
+    boughtOpenOverride !== null ? boughtOpenOverride : bought.length <= 8
 
   const addItem = () => {
     const text = newText.trim()
@@ -294,7 +301,7 @@ export function CompraPage() {
             <button
               type="button"
               className="compra__bought-toggle"
-              onClick={() => setBoughtOpen(!boughtOpen)}
+              onClick={() => setBoughtOpenOverride(!boughtOpen)}
               aria-expanded={boughtOpen}
             >
               Comprado
