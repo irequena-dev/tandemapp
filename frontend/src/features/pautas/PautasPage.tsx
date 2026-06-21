@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useChildren } from '../children/api'
-import { useToast } from '../toasts/toasts'
+import { useToast } from '../toasts/useToast'
 import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas } from './api'
 import type { Administration, Pauta } from './types'
 import './pautas.css'

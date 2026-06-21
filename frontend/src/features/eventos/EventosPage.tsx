@@ -3,7 +3,7 @@ import { useChildren } from '../children/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
 import { useCreateSeries, useDeleteSeriesFuture } from './series-api'
-import { useToast } from '../toasts/toasts'
+import { useToast } from '../toasts/useToast'
 import { EventTypesManager } from './EventTypesManager'
 import { SeriesForm } from './SeriesForm'
 import type { EventOut, EventTypeOut } from './types'
@@ -253,7 +253,7 @@ export function EventosPage() {
 
   const types = eventTypes ?? []
   const kids = childrenData ?? []
-  const allEvents = events ?? []
+  const allEvents = useMemo(() => events ?? [], [events])
   const today = todayISO()
 
   const filtered = useMemo(
@@ -279,11 +279,11 @@ export function EventosPage() {
     const hoy = pending.filter((e) => e.date === today).sort(byDateAsc)
     const proximos = pending.filter((e) => e.date > today).sort(byDateAsc)
 
-    const sections: { key: SectionKey; title: string; overdue?: boolean; items: EventOut[] }[] = [
-      { key: 'atrasados', title: 'Atrasados', overdue: true, items: atrasados },
-      { key: 'hoy', title: 'Hoy', items: hoy },
-      { key: 'proximos', title: 'Próximos', items: proximos },
-    ].filter((s) => s.items.length > 0)
+    const sections = [
+      { key: 'atrasados' as const, title: 'Atrasados', overdue: true as const, items: atrasados },
+      { key: 'hoy' as const, title: 'Hoy', items: hoy },
+      { key: 'proximos' as const, title: 'Próximos', items: proximos },
+    ].filter((s) => s.items.length > 0) as { key: SectionKey; title: string; overdue?: boolean; items: EventOut[] }[]
     return { sections, done }
   }, [filtered, today])
 

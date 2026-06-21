@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
-import { useToast } from '../toasts/toasts'
+import { useToast } from '../toasts/useToast'
 import type { TodayOut } from './types'
 
 export const todayKeys = {

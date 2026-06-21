@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, startTransition, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useMarkDose, useMarkEventDone, useToday, useUndoDose, useUndoEvent } from './api'
 import type { HeroItem, TimelineEntry, TodaySummary } from './types'
@@ -75,9 +75,9 @@ function HeroUrgent({ hero }: { hero: HeroItem }) {
     const restored = readHeroUndo()
     if (!restored) return
     if (restored.kind === 'dose' && hero.type === 'pauta_dose' && hero.pauta_id === restored.pautaId) {
-      setLastAdminId(restored.adminId)
+      startTransition(() => setLastAdminId(restored.adminId))
     } else if (restored.kind === 'event' && hero.type === 'event' && hero.event_id === restored.eventId) {
-      setEventDone(true)
+      startTransition(() => setEventDone(true))
     }
   }, [hero.event_id, hero.pauta_id, hero.type])
 
