@@ -9,6 +9,7 @@ import {
   useUndoShoppingItem,
 } from './api'
 import { useMembers } from '../members/api'
+import { useToast } from '../toasts/useToast'
 import type { ShoppingItem } from './types'
 import './compra.css'
 
@@ -165,8 +166,13 @@ export function CompraPage() {
   const clearBought = useClearBoughtItems()
   const buyItem = useBuyShoppingItem()
   const undoItem = useUndoShoppingItem()
+  const toast = useToast()
   const [newText, setNewText] = useState('')
   const [boughtOpen, setBoughtOpen] = useState(false)
+  // "Limpiar comprados" es destructivo e irreversible por backend: lo gatingamos
+  // tras una confirmación inline (patrón .hijo-confirm de Hijos) y, al ejecutarlo,
+  // ofrecemos un toast con "Deshacer" que re-crea los ítems vía create.
+  const [confirmingClear, setConfirmingClear] = useState(false)
 
   // Resuelve bought_by (id de Clerk, p. ej. "user_xxx") al display_name del miembro.
   const nameById = useMemo(() => {
@@ -183,6 +189,37 @@ export function CompraPage() {
     if (!text) return
     createItem.mutate({ text })
     setNewText('')
+  }
+
+  // Ejecuta la limpieza de comprados y, si quedaba algo que borrar, ofrece un
+  // "Deshacer" que re-crea los ítems (texto) vía create. Un resbalón de pulgar
+  // nunca debe borrar silenciosamente la pista de quién compró qué.
+  const confirmClearBought = () => {
+    const toClear = bought
+    setConfirmingClear(false)
+    if (toClear.length === 0) return
+    clearBought.mutate(undefined, {
+      onSuccess: () => {
+        toast.info(
+          <>
+            <strong>{toClear.length} comprados borrados.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                for (const it of toClear) {
+                  createItem.mutate({ text: it.text })
+                }
+              }}
+            >
+              Deshacer
+            </button>
+          </>,
+          { duration: 6000 },
+        )
+      },
+      onError: () => toast.error('No se pudieron borrar los comprados'),
+    })
   }
 
   return (
@@ -261,11 +298,38 @@ export function CompraPage() {
             <button
               type="button"
               className="compra__clear"
-              onClick={() => clearBought.mutate()}
+              onClick={() => setConfirmingClear(true)}
+              disabled={confirmingClear}
             >
               Limpiar comprados
             </button>
           </div>
+          {confirmingClear && (
+            <div
+              className="compra__confirm"
+              role="group"
+              aria-label={`Confirmar borrado de ${bought.length} comprados`}
+            >
+              <span className="compra__confirm-label">
+                ¿Borrar <b className="ds-nums">{bought.length}</b> comprados?
+              </span>
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                onClick={() => setConfirmingClear(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger-solid btn--sm"
+                onClick={confirmClearBought}
+                disabled={clearBought.isPending}
+              >
+                {clearBought.isPending ? 'Borrando…' : 'Sí, borrar'}
+              </button>
+            </div>
+          )}
           {boughtOpen && (
             <ul className="compra__list">
               {bought.map((item) => (

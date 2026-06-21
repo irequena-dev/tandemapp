@@ -272,6 +272,27 @@
   color: var(--ds-danger);
 }
 
+/* ---------- Inline "Limpiar comprados" confirm (patrón .hijo-confirm) ---------- */
+.compra__confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+  padding: var(--ds-s-sm) var(--ds-s-md) var(--ds-s-md) var(--ds-s-lg);
+  background: color-mix(in srgb, var(--ds-danger) 7%, var(--ds-surface));
+  border: 1px solid color-mix(in srgb, var(--ds-danger) 18%, var(--ds-border));
+  border-radius: var(--ds-r-md);
+  margin-bottom: var(--ds-s-md);
+}
+.compra__confirm-label {
+  margin-right: auto;
+  font-size: 0.9375rem;
+  color: var(--ds-ink);
+}
+.compra__confirm-label b {
+  font-weight: 600;
+}
+
 /* ---------- Empty state ---------- */
 .compra__empty {
   display: flex;
