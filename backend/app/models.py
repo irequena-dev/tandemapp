@@ -724,3 +724,50 @@ class AdministrationOut(SQLModel):
     administered_by: str
     member_name: str | None = None
     created_at: datetime
+
+
+# ---------- Suscripciones push ----------
+
+
+class PushSubscription(SQLModel, table=True):
+    """Suscripción push por dispositivo/navegador de un Miembro.
+
+    `endpoint` es la URL del servicio de push del navegador (UNIQUE).
+    `p256dh` y `auth` son las claves públicas del cliente para el cifrado.
+    `family_id` + RLS aíslan por Familia; `member_id` atribuye al Miembro.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    member_id: str = Field(foreign_key="members.id", index=True)
+    endpoint: str = Field(sa_type=sa.Text)
+    p256dh: str = Field(sa_type=sa.Text)
+    auth: str = Field(sa_type=sa.Text)
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class PushSubscriptionCreate(SQLModel):
+    """Cuerpo del alta de una suscripción push (sin family_id ni member_id)."""
+
+    endpoint: str
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionOut(SQLModel):
+    """Suscripción push tal como la devuelve la API."""
+
+    id: uuid.UUID
+    member_id: str
+    endpoint: str
+    p256dh: str
+    auth: str
+    created_at: datetime

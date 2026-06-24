@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     app_db_role: str = "tandem_app"
     app_db_password: str = "tandem_app"
 
+    # Web Push (VAPID)
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = ""
+
     # Origen del frontend, usado para CORS y como authorized party de Clerk.
     # Admite varios separados por comas, útil para probar en red local además
     # de localhost (p. ej. http://localhost:5173,http://192.168.0.59:5173).
