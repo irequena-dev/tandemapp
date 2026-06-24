@@ -59,3 +59,9 @@ _Evitar_: Tratamiento, Prescripción, Medicación
 **Administración**:
 El acto registrado de dar una dosis concreta de una Pauta (cuándo y quién). La siguiente toma se calcula como la última Administración más el intervalo de la Pauta.
 _Evitar_: Toma, Dosis (la Dosis es la cantidad; la Administración es el evento)
+
+## Avisos
+
+**Aviso**:
+Notificación push programada que reciben los Miembros de una Familia para recordar una Administración que toca o un Evento próximo. No es una entidad editable ni se almacena como dato de dominio: se deriva del estado de la Pauta/Evento.
+_Evitar_: Recordatorio (reservado para descartar en Evento), Notificación, Alerta

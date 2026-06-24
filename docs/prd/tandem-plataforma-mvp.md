@@ -2,7 +2,7 @@
 
 > Índice raíz del producto. El detalle de cada parte vive en su **PRD de fase**; aquí solo quedan la visión, el mapa de fases y las decisiones **transversales** comunes a todas.
 >
-> Vocabulario: glosario en `CONTEXT.md`. Decisiones de calado en `docs/adr/`: ADR-0001 (token MCP por Miembro), ADR-0002 (backend sin NLP), ADR-0003 (Eventos recurrentes materializados), ADR-0004 (frontend con CSS + tokens y Radix headless; sin Tailwind).
+> Vocabulario: glosario en `CONTEXT.md`. Decisiones de calado en `docs/adr/`: ADR-0001 (token MCP por Miembro), ADR-0002 (backend sin NLP), ADR-0003 (Eventos recurrentes materializados), ADR-0004 (frontend con CSS + tokens y Radix headless; sin Tailwind), ADR-0007 (notificaciones push Web Push/VAPID por poll sin estado).
 
 ## Problem Statement
 
@@ -45,8 +45,9 @@ Comunes a todas las fases; cada PRD de fase las da por supuestas.
 
 ### Experiencia
 - PWA instalable y responsive, service worker solo para assets (**no offline-first**).
-- "Tiempo real" = **optimistic updates + refetch** (al enfocar / polling corto); sin WebSocket/push.
-- Zona horaria del **dispositivo** para mostrar/agrupar; timestamps en UTC.
+- "Tiempo real" = **optimistic updates + refetch** (al enfocar / polling corto); sin WebSocket.
+- **Notificaciones push (ADR-0007)**: Web Push (VAPID), disparadas por un poll de 1 min sin estado, para recordar la **Administración** que toca y el **Evento** próximo. Opt-in por dispositivo desde Ajustes. (Email y "notificar cualquier cambio" siguen fuera de alcance.)
+- Zona horaria del **dispositivo** para mostrar/agrupar; timestamps en UTC. Excepción: los **Avisos** de Evento se resuelven en `Europe/Madrid` (ADR-0007), ya que el backend no conoce la TZ del dispositivo.
 - **Correcciones**: todos los registros son editables/borrables desde la PWA (sin log de auditoría inmutable).
 - Pantalla de inicio **Hoy** (héroe "Ahora" + timeline del día + "Más cosas") a la que cada fase aporta su parte (próxima toma, eventos de hoy, contador de compra, próxima cita). La talla actual se asoma en el card de Hijo. Detalle en [IA y pantallas](./tandem-ia-pantallas.md).
 - Navegación: **shell de 5 pestañas** (Hoy, Compra, Eventos, Hijos, Pautas) + overlay **Ajustes**. **Una Familia por Miembro** ⇒ sin `OrganizationSwitcher` en la UI.
@@ -70,7 +71,7 @@ Principio: probar **comportamiento externo**, no internals. Postgres real (no SQ
 
 ## Out of Scope (global)
 
-- Notificaciones push y email (agenda y salud son de consulta/pull en v1).
+- Notificaciones por **email**; push de "cualquier cambio" de otro Miembro (las push se limitan a Administración y Evento, ver ADR-0007).
 - Offline-first y cola de mutaciones.
 - Multi-familia por Miembro.
 - Curvas de percentil OMS (y el sexo del Hijo).
