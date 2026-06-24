@@ -754,6 +754,31 @@ class PushSubscription(SQLModel, table=True):
     )
 
 
+class PushSentLog(SQLModel, table=True):
+    """Registro append-only de Avisos push enviados (anti-duplicado).
+
+    La clave `(pauta_id, dose_due_at)` evita reenvíos: registrar una
+    Administración cambia `next_dose_at`, así que el nuevo instante es clave
+    distinta y nunca se reenvía el viejo Aviso.
+    """
+
+    __tablename__ = "push_sent_log"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    pauta_id: uuid.UUID | None = Field(default=None, foreign_key="pautas.id")
+    dose_due_at: datetime = Field(
+        sa_column=Column(DateTime(timezone=True), nullable=False)
+    )
+    sent_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
 class PushSubscriptionCreate(SQLModel):
     """Cuerpo del alta de una suscripción push (sin family_id ni member_id)."""
 
