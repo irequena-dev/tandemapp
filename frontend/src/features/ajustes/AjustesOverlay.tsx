@@ -7,6 +7,7 @@ import { ChildList } from '../children/ChildList'
 import { useMcpTokens, useCreateMcpToken, useRevokeMcpToken } from '../mcp-tokens/api'
 import type { McpTokenCreated } from '../mcp-tokens/types'
 import { copyToClipboard } from '../../lib/clipboard'
+import { usePushNotifications } from './usePushNotifications'
 import { useTheme, type Theme } from './useTheme'
 import './ajustes.css'
 import '../children/children.css'
@@ -81,6 +82,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
 export function AjustesOverlay({ onClose }: { onClose: () => void }) {
   const [theme, setTheme] = useTheme()
+  const push = usePushNotifications()
   const [showInviteForm, setShowInviteForm] = useState(false)
 
   const { data: members = [] } = useMembers()
@@ -377,6 +379,26 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
                 No tienes tokens. Genera uno para conectar Claude.
               </p>
             )}
+          </section>
+
+          {/* Notificaciones */}
+          <section className="ajustes-section">
+            <h3 className="ajustes-section__title">Notificaciones</h3>
+            <div className="ajustes-card">
+              <label className="ajustes-row" style={{ cursor: 'pointer' }}>
+                <div className="ajustes-row__text">
+                  <span className="ajustes-row__name">Activar notificaciones</span>
+                </div>
+                <input
+                  type="checkbox"
+                  role="checkbox"
+                  aria-label="Activar notificaciones"
+                  checked={push.enabled}
+                  disabled={push.loading}
+                  onChange={push.toggle}
+                />
+              </label>
+            </div>
           </section>
 
           {/* Apariencia */}
