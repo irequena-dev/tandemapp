@@ -15,6 +15,8 @@ export function usePushNotifications() {
   const { getToken } = useAuth()
   const [enabled, setEnabled] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -54,6 +56,9 @@ export function usePushNotifications() {
   }, [])
 
   const toggle = useCallback(async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
     const token = await getToken()
 
     if (enabled) {
@@ -71,14 +76,19 @@ export function usePushNotifications() {
           })
         }
         setEnabled(false)
-      } catch {
-        // keep state
+      } catch (err) {
+        setError('No se pudo desactivar. Inténtalo de nuevo.')
+      } finally {
+        setBusy(false)
       }
     } else {
       // Activar
       try {
         const permission = await Notification.requestPermission()
-        if (permission !== 'granted') return
+        if (permission !== 'granted') {
+          setError('Permiso de notificaciones denegado.')
+          return
+        }
 
         const { vapid_public_key } = await apiFetch<{ vapid_public_key: string }>(
           '/api/push/vapid-public-key',
@@ -86,6 +96,18 @@ export function usePushNotifications() {
         )
 
         const reg = await navigator.serviceWorker.ready
+
+        // Limpiar suscripción local previa antes de crear una nueva
+        const existing = await reg.pushManager.getSubscription()
+        if (existing) {
+          await existing.unsubscribe()
+          await apiFetch('/api/push/unsubscribe', {
+            token,
+            method: 'POST',
+            body: { endpoint: existing.endpoint },
+          })
+        }
+
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapid_public_key) as BufferSource,
@@ -103,11 +125,13 @@ export function usePushNotifications() {
         })
 
         setEnabled(true)
-      } catch {
-        // keep state
+      } catch (err) {
+        setError('No se pudo activar. Inténtalo de nuevo.')
+      } finally {
+        setBusy(false)
       }
     }
-  }, [enabled, getToken])
+  }, [enabled, getToken, busy])
 
-  return { enabled, loading, toggle }
+  return { enabled, loading, busy, error, toggle }
 }

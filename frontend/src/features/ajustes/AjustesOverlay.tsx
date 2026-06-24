@@ -385,16 +385,21 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
           <section className="ajustes-section">
             <h3 className="ajustes-section__title">Notificaciones</h3>
             <div className="ajustes-card">
-              <label className="ajustes-row" style={{ cursor: 'pointer' }}>
+              <label className="ajustes-row" style={{ cursor: push.busy ? 'wait' : 'pointer' }}>
                 <div className="ajustes-row__text">
                   <span className="ajustes-row__name">Activar notificaciones</span>
+                  {push.error && (
+                    <span className="ajustes-row__role" style={{ color: 'var(--ds-danger, #e5484d)' }}>
+                      {push.error}
+                    </span>
+                  )}
                 </div>
                 <input
                   type="checkbox"
                   role="checkbox"
                   aria-label="Activar notificaciones"
                   checked={push.enabled}
-                  disabled={push.loading}
+                  disabled={push.loading || push.busy}
                   onChange={push.toggle}
                 />
               </label>
