@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     app_db_role: str = "tandem_app"
     app_db_password: str = "tandem_app"
 
+    # Zona horaria fija para resolver Eventos date+time → instante absoluto.
+    timezone: str = "Europe/Madrid"
+
     # Web Push (VAPID)
     vapid_public_key: str = ""
     vapid_private_key: str = ""
