@@ -1,11 +1,13 @@
-"""Poller de Avisos de Administración (toma): proceso único dedicado.
+"""Poller de Avisos (Administración + Evento): proceso único dedicado.
 
-Cada ~1 min relee el estado real de las Pautas activas y envía push a todos
-los Miembros de la Familia cuando una dosis ha vencido (`next_dose_at <= now`).
+Cada ~1 min relee el estado real de las Pautas activas y los Eventos
+pendientes y envía push a todos los Miembros de la Familia.
 
-Anti-duplicado por `(pauta_id, dose_due_at)` en `push_sent_log`.
-Ventana de gracia: 15 min. Si la toma venció hace > 15 min, se marca enviada
-sin mandar push.
+- Administración: `next_dose_at <= now`. Anti-duplicado `(pauta_id, dose_due_at)`.
+- Evento con hora: avisos a 60 min y 24 h antes del instante.
+- Evento de todo el día: avisos a las 8:00 del día y 8:00 del día anterior.
+- Anti-duplicado Evento: `(event_id, event_instant, alert_type)`.
+- Ventana de gracia 15 min. Eventos ya pasados nunca se avisan.
 
 Punto de entrada: `python -m app.poller`.
 """
@@ -13,16 +15,18 @@ Punto de entrada: `python -m app.poller`.
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from pywebpush import WebPushException, webpush
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from .config import get_settings
+from .config import Settings, get_settings
 from .models import (
     Administration,
     Child,
+    Event,
     Pauta,
     PushSentLog,
     PushSubscription,
@@ -41,17 +45,21 @@ def _next_dose_at(pauta: Pauta, admins: list[Administration]) -> datetime:
     return base + timedelta(hours=pauta.interval_hours)
 
 
-async def poll_once() -> int:
-    """Ejecuta un ciclo del poller. Devuelve el nº de pushes enviados."""
+async def poll_once(*, now: datetime | None = None) -> int:
+    """Ejecuta un ciclo del poller. Devuelve el nº de pushes enviados.
+
+    *now* puede inyectarse para tests; por defecto es `datetime.now(UTC)`.
+    """
     settings = get_settings()
-    now = datetime.now(UTC)
+    if now is None:
+        now = datetime.now(UTC)
     total_sent = 0
 
-    # Query families with active pautas using admin connection (bypasses RLS).
     admin_engine = create_async_engine(settings.database_url, future=True)
     try:
         async with AsyncSession(admin_engine) as admin_sess:
-            families_with_pautas = (
+            # Families with active pautas
+            families_with_pautas = set(
                 (
                     await admin_sess.execute(
                         select(Pauta.family_id)
@@ -62,12 +70,31 @@ async def poll_once() -> int:
                 .scalars()
                 .all()
             )
+
+            # Families with pending events
+            families_with_events = set(
+                (
+                    await admin_sess.execute(
+                        select(Event.family_id)
+                        .where(Event.status == "pending")
+                        .distinct()
+                    )
+                )
+                .scalars()
+                .all()
+            )
     finally:
         await admin_engine.dispose()
 
-    for family_id in families_with_pautas:
-        sent = await _process_family(family_id, now, settings)
-        total_sent += sent
+    all_families = families_with_pautas | families_with_events
+
+    for family_id in all_families:
+        if family_id in families_with_pautas:
+            sent = await _process_family(family_id, now, settings)
+            total_sent += sent
+        if family_id in families_with_events:
+            sent = await _process_family_events(family_id, now, settings)
+            total_sent += sent
 
     return total_sent
 
@@ -222,6 +249,216 @@ async def _process_family(family_id: str, now: datetime, settings: object) -> in
                     dose_due_at=dose_due,
                 )
             )
+
+    return sent
+
+
+# ---------------------------------------------------------------------------
+#  Eventos
+# ---------------------------------------------------------------------------
+
+_MORNING_HOUR = time(8, 0)
+
+
+def _event_alerts(
+    event: Event,
+    tz: ZoneInfo,
+) -> list[tuple[datetime, str]]:
+    """Calcula los instantes de alerta para un Evento.
+
+    Devuelve pares `(alert_instant_utc, alert_type)`.  El instante se
+    devuelve en UTC para poder compararlo directamente con *now*.
+    """
+    alerts: list[tuple[datetime, str]] = []
+
+    if event.time is not None:
+        # Evento con hora → instante absoluto
+        event_instant = datetime.combine(event.date, event.time, tzinfo=tz)
+        alerts.append((event_instant - timedelta(minutes=60), "lead_60m"))
+        alerts.append((event_instant - timedelta(hours=24), "lead_24h"))
+    else:
+        # Evento de todo el día → 8:00 del día y 8:00 del día anterior
+        morning_of = datetime.combine(event.date, _MORNING_HOUR, tzinfo=tz)
+        morning_before = datetime.combine(
+            event.date - timedelta(days=1),
+            _MORNING_HOUR,
+            tzinfo=tz,
+        )
+        alerts.append((morning_of, "morning_of"))
+        alerts.append((morning_before, "morning_before"))
+
+    return alerts
+
+
+def _event_instant(event: Event, tz: ZoneInfo) -> datetime:
+    """Instante absoluto del Evento (para comprobar si ya pasó)."""
+    if event.time is not None:
+        return datetime.combine(event.date, event.time, tzinfo=tz)
+    # Todo el día → fin lógico = 23:59:59 del día
+    return datetime.combine(event.date, time(23, 59, 59), tzinfo=tz)
+
+
+async def _process_family_events(
+    family_id: str,
+    now: datetime,
+    settings: Settings,
+) -> int:
+    """Procesa Eventos pendientes de una Familia."""
+    sent = 0
+    tz = ZoneInfo(settings.timezone)
+
+    async with open_family_scope(family_id, "__poller__") as scope:
+        session = scope.session
+
+        # Pending events for this family
+        events = list(
+            (
+                await session.execute(
+                    select(Event).where(
+                        Event.status == "pending",
+                        Event.family_id == family_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not events:
+            return 0
+
+        event_ids = [e.id for e in events]
+
+        # Existing event logs for anti-duplicate
+        existing_event_logs: set[tuple] = set()
+        rows = (
+            await session.execute(
+                select(
+                    PushSentLog.event_id,
+                    PushSentLog.event_instant,
+                    PushSentLog.alert_type,
+                ).where(
+                    PushSentLog.event_id.in_(event_ids),
+                )
+            )
+        ).all()
+        for eid, einstant, atype in rows:
+            existing_event_logs.add((eid, einstant, atype))
+
+        # Children names for payload
+        child_ids = {e.child_id for e in events if e.child_id is not None}
+        children: dict = {}
+        if child_ids:
+            child_rows = (
+                (await session.execute(select(Child).where(Child.id.in_(child_ids))))
+                .scalars()
+                .all()
+            )
+            children = {c.id: c for c in child_rows}
+
+        # Subscriptions for this family
+        subscriptions = list(
+            (
+                await session.execute(
+                    select(PushSubscription).where(
+                        PushSubscription.family_id == family_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        if not subscriptions:
+            return 0
+
+        for event in events:
+            ev_instant = _event_instant(event, tz)
+            # Skip events already in the past
+            if ev_instant <= now:
+                continue
+
+            for alert_at, alert_type in _event_alerts(event, tz):
+                # alert_at is timezone-aware; compare with now (also aware)
+                if alert_at > now:
+                    continue  # not yet due
+
+                # Anti-duplicate key
+                key = (event.id, alert_at, alert_type)
+                if key in existing_event_logs:
+                    continue
+
+                overdue = now - alert_at
+                if overdue > timedelta(minutes=GRACE_MINUTES):
+                    # Mark as sent without pushing
+                    session.add(
+                        PushSentLog(
+                            family_id=family_id,
+                            event_id=event.id,
+                            event_instant=alert_at,
+                            alert_type=alert_type,
+                        )
+                    )
+                    existing_event_logs.add(key)
+                    continue
+
+                # Build payload
+                child = children.get(event.child_id) if event.child_id else None
+                child_part = f" — {child.name}" if child else ""
+                if event.time is not None:
+                    time_str = event.time.strftime("%H:%M")
+                    body = f"{event.title} a las {time_str}{child_part}"
+                else:
+                    body = f"{event.title}{child_part}"
+
+                payload = {
+                    "title": f"{event.title}{child_part}",
+                    "body": body,
+                    "data": {"url": "/eventos"},
+                }
+
+                # Send to all subscriptions
+                for sub in subscriptions:
+                    sub_info = {
+                        "endpoint": sub.endpoint,
+                        "keys": {
+                            "p256dh": sub.p256dh,
+                            "auth": sub.auth,
+                        },
+                    }
+                    vapid_claims = {"sub": settings.vapid_subject}
+                    try:
+                        webpush(
+                            subscription_info=sub_info,
+                            data=json.dumps(payload),
+                            vapid_private_key=settings.vapid_private_key,
+                            vapid_claims=vapid_claims,
+                        )
+                        sent += 1
+                    except WebPushException as exc:
+                        resp = getattr(exc, "response", None)
+                        status_code = (
+                            getattr(resp, "status_code", None)
+                            if resp is not None
+                            else None
+                        )
+                        if status_code in (404, 410):
+                            await session.delete(sub)
+                            await session.flush()
+                        else:
+                            logger.exception(
+                                "Error sending push to %s",
+                                sub.endpoint,
+                            )
+
+                # Log to prevent re-send
+                session.add(
+                    PushSentLog(
+                        family_id=family_id,
+                        event_id=event.id,
+                        event_instant=alert_at,
+                        alert_type=alert_type,
+                    )
+                )
+                existing_event_logs.add(key)
 
     return sent
 

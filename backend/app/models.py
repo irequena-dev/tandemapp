@@ -757,9 +757,10 @@ class PushSubscription(SQLModel, table=True):
 class PushSentLog(SQLModel, table=True):
     """Registro append-only de Avisos push enviados (anti-duplicado).
 
-    La clave `(pauta_id, dose_due_at)` evita reenvíos: registrar una
-    Administración cambia `next_dose_at`, así que el nuevo instante es clave
-    distinta y nunca se reenvía el viejo Aviso.
+    Clave de Administración: `(pauta_id, dose_due_at)`.
+    Clave de Evento: `(event_id, event_instant, alert_type)`.
+    Ambas son UNIQUE; los campos de cada discriminador son nullable porque
+    las filas del otro tipo no los usan.
     """
 
     __tablename__ = "push_sent_log"
@@ -767,9 +768,17 @@ class PushSentLog(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     family_id: str = Field(foreign_key="families.id", index=True)
     pauta_id: uuid.UUID | None = Field(default=None, foreign_key="pautas.id")
-    dose_due_at: datetime = Field(
-        sa_column=Column(DateTime(timezone=True), nullable=False)
+    dose_due_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
     )
+    # Discriminador de Evento
+    event_id: uuid.UUID | None = Field(default=None, foreign_key="events.id")
+    event_instant: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    alert_type: str | None = Field(default=None)
     sent_at: datetime = Field(
         sa_column=Column(
             DateTime(timezone=True),
