@@ -399,3 +399,109 @@ describe('HoyPage — tarjeta Próxima cita', () => {
     expect(link?.getAttribute('href')).toBe('/eventos')
   })
 })
+
+/* ---------- Issue 03: pautas de Miembros adultos en Hoy ---------- */
+
+const HERO_MEMBER_PAUTA: TodayOut = {
+  hero: {
+    type: 'pauta_dose',
+    title: 'Omeprazol · 20 mg',
+    subtitle: 'Ana · Día 3 de 14',
+    action_label: 'Marcar toma',
+    pauta_id: 'pauta-member-1',
+  },
+  timeline: [],
+  summary: {
+    shopping_pending_count: 0,
+    pautas_active_count: 1,
+    pautas_finished_count: 0,
+    next_medical_event: null,
+    children_status: 'al_dia',
+  },
+}
+
+describe('HoyPage — pautas de Miembros adultos (issue 03)', () => {
+  it('muestra una Pauta de Miembro adulto en el héroe cuando es la más urgente', async () => {
+    server.use(http.get(API, () => HttpResponse.json(HERO_MEMBER_PAUTA)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('Omeprazol · 20 mg')).toBeTruthy())
+    expect(screen.getByText('Ana · Día 3 de 14')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Marcar toma' })).toBeTruthy()
+  })
+
+  it('marcar toma desde el héroe funciona para pautas de Miembros', async () => {
+    const markSpy = vi.fn()
+    server.use(
+      http.get(API, () => HttpResponse.json(HERO_MEMBER_PAUTA)),
+      http.post(ADMIN_POST, () => {
+        markSpy()
+        return HttpResponse.json({ id: 'admin-member-1' }, { status: 201 })
+      }),
+    )
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Marcar toma' })).toBeTruthy(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Marcar toma' }))
+
+    await waitFor(() => expect(markSpy).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Deshacer' })).toBeTruthy(),
+    )
+  })
+
+  it('mezcla pautas de Miembros y de Hijos en el timeline, ordenadas por hora', async () => {
+    const response: TodayOut = {
+      hero: null,
+      timeline: [
+        {
+          type: 'dose_upcoming',
+          time: '10:00',
+          title: 'Omeprazol · 20 mg',
+          subtitle: 'Ana',
+          status: 'upcoming',
+          pauta_id: 'p-member',
+        },
+        {
+          type: 'dose_upcoming',
+          time: '14:00',
+          title: 'Amoxicilina · 5 ml',
+          subtitle: 'Mateo',
+          status: 'upcoming',
+          pauta_id: 'p-child',
+        },
+      ],
+      summary: {
+        shopping_pending_count: 0,
+        pautas_active_count: 2,
+        pautas_finished_count: 0,
+        next_medical_event: null,
+        children_status: 'al_dia',
+      },
+    }
+    server.use(http.get(API, () => HttpResponse.json(response)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() => expect(screen.getByText('10:00')).toBeTruthy())
+    expect(screen.getByText('14:00')).toBeTruthy()
+    // Ambas pautas (adulto + hijo) aparecen con su subject_name.
+    expect(screen.getByText('Ana')).toBeTruthy()
+    expect(screen.getByText('Mateo')).toBeTruthy()
+  })
+
+  it('el empty state sigue funcionando sin pautas activas (ni de Hijos ni de Miembros)', async () => {
+    server.use(http.get(API, () => HttpResponse.json(CALM_RESPONSE)))
+
+    render(<HoyPage />, { wrapper: makeWrapper() })
+
+    await waitFor(() =>
+      expect(screen.getByText(/Nada urgente ahora/)).toBeTruthy(),
+    )
+    expect(screen.getByText(/Hoy está tranquilo/)).toBeTruthy()
+  })
+})

@@ -596,3 +596,115 @@ async def test_today_timeline_events_ordered_chronologically(
     timeline = (await auth_client.get("/api/today")).json()["timeline"]
     events = [e for e in timeline if e["type"] == "event"]
     assert [e["title"] for e in events] == ["Cole", "Cena"]
+
+
+# ---------- Issue 03: pautas de Miembros adultos en Hoy ---------- #
+
+
+async def _create_member_pauta(
+    client: AsyncClient,
+    member_id: str,
+    *,
+    medication: str = "Omeprazol",
+    dose: str = "20 mg",
+    interval_hours: int = 24,
+    duration_days: int = 14,
+) -> dict:
+    resp = await client.post(
+        "/pautas",
+        json={
+            "member_id": member_id,
+            "medication": medication,
+            "dose": dose,
+            "interval_hours": interval_hours,
+            "duration_days": duration_days,
+        },
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def test_today_hero_member_pauta(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Una Pauta de Miembro con toma vencida aparece en el héroe."""
+    _as(identity, "org_today_mhero", "user_today_mhero", name="Ana García")
+    # Pauta del propio Miembro (member_id = el user actual).
+    pauta = await _create_member_pauta(
+        auth_client, "user_today_mhero", interval_hours=8
+    )
+
+    # Administración hace 9h → next_dose_at = ahora - 1h (vencida).
+    past = (datetime.now(UTC) - timedelta(hours=9)).isoformat()
+    await auth_client.post(
+        f"/pautas/{pauta['id']}/administrations", json={"administered_at": past}
+    )
+
+    resp = await auth_client.get("/api/today")
+    hero = resp.json()["hero"]
+    assert hero is not None
+    assert hero["type"] == "pauta_dose"
+    assert hero["title"] == "Omeprazol · 20 mg"
+    assert "Ana" in hero["subtitle"]
+    assert hero["pauta_id"] == pauta["id"]
+
+
+async def test_today_member_pauta_in_timeline(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Las pautas de Miembros aparecen en el timeline mezcladas con las de Hijos."""
+    _as(identity, "org_today_mtl", "user_today_mtl", name="Carlos")
+    child_id = await _create_child(auth_client, "Mateo")
+
+    # Pauta de Hijo con admin reciente (→ dose_given + dose_upcoming).
+    child_pauta = await _create_pauta(auth_client, child_id, interval_hours=8)
+    now_iso = datetime.now(UTC).isoformat()
+    await auth_client.post(
+        f"/pautas/{child_pauta['id']}/administrations",
+        json={"administered_at": now_iso},
+    )
+
+    # Pauta de Miembro con admin reciente.
+    member_pauta = await _create_member_pauta(
+        auth_client, "user_today_mtl", interval_hours=12
+    )
+    await auth_client.post(
+        f"/pautas/{member_pauta['id']}/administrations",
+        json={"administered_at": now_iso},
+    )
+
+    resp = await auth_client.get("/api/today")
+    timeline = resp.json()["timeline"]
+    pauta_ids = {e["pauta_id"] for e in timeline if e.get("pauta_id")}
+    assert child_pauta["id"] in pauta_ids
+    assert member_pauta["id"] in pauta_ids
+
+
+async def test_today_hero_picks_member_over_child_when_more_urgent(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """El héroe elige la Pauta más urgente sin importar el tipo de sujeto."""
+    _as(identity, "org_today_mprio", "user_today_mprio", name="Ana")
+    child_id = await _create_child(auth_client, "Mateo")
+
+    # Pauta de Hijo: admin hace 9h → next_dose = ahora - 1h.
+    child_pauta = await _create_pauta(auth_client, child_id, interval_hours=8)
+    await auth_client.post(
+        f"/pautas/{child_pauta['id']}/administrations",
+        json={"administered_at": (datetime.now(UTC) - timedelta(hours=9)).isoformat()},
+    )
+
+    # Pauta de Miembro: admin hace 10h → next_dose = ahora - 2h (MÁS vencida).
+    member_pauta = await _create_member_pauta(
+        auth_client, "user_today_mprio", interval_hours=8
+    )
+    await auth_client.post(
+        f"/pautas/{member_pauta['id']}/administrations",
+        json={"administered_at": (datetime.now(UTC) - timedelta(hours=10)).isoformat()},
+    )
+
+    hero = (await auth_client.get("/api/today")).json()["hero"]
+    assert hero is not None
+    # El héroe es la del Miembro (más vencida).
+    assert hero["pauta_id"] == member_pauta["id"]
+    assert hero["title"] == "Omeprazol · 20 mg"
