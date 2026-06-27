@@ -346,7 +346,9 @@ async def do_list_active_pautas(
     return [
         {
             "id": str(v.pauta.id),
-            "child_id": str(v.pauta.child_id),
+            "child_id": str(v.pauta.child_id) if v.pauta.child_id else None,
+            "member_id": v.pauta.member_id,
+            "subject_name": v.subject_name,
             "medication": v.pauta.medication,
             "dose": v.pauta.dose,
             "interval_hours": v.pauta.interval_hours,

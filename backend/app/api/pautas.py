@@ -19,6 +19,7 @@ from sqlmodel import select
 
 from ..models import (
     AdministrationOut,
+    Member,
     Pauta,
     PautaCreate,
     PautaOut,
@@ -49,6 +50,8 @@ def _to_out(view: PautaView) -> PautaOut:
         id=pauta.id,
         family_id=pauta.family_id,
         child_id=pauta.child_id,
+        member_id=pauta.member_id,
+        subject_name=view.subject_name or "…",
         medication=pauta.medication,
         dose=pauta.dose,
         interval_hours=pauta.interval_hours,
@@ -86,12 +89,30 @@ async def create_pauta(
     data: PautaCreate,
     scope: FamilyScope = Depends(family_session),
 ) -> PautaOut:
-    """Inicia una nueva Pauta para un Hijo de la Familia autenticada."""
+    """Inicia una nueva Pauta para un Hijo o Miembro de la Familia autenticada."""
     session = scope.session
+
+    # Si sujeto es Miembro, health_visit_id debe ser NULL
+    if data.member_id is not None and data.health_visit_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="health_visit_id no aplica a Pautas de Miembros",
+        )
+
+    # Validar que member_id pertenece a la Familia
+    if data.member_id is not None:
+        member = await session.get(Member, data.member_id)
+        if member is None or member.family_id != scope.family_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El Miembro no pertenece a esta Familia",
+            )
+
     now = datetime.now(UTC)
     pauta = Pauta(
         family_id=scope.family_id,
         child_id=data.child_id,
+        member_id=data.member_id,
         medication=data.medication,
         dose=data.dose,
         interval_hours=data.interval_hours,

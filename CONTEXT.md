@@ -53,7 +53,7 @@ Evento histórico de atención sanitaria a un Hijo, con su diagnóstico. Es un r
 _Evitar_: Consulta, Cita, Registro de salud
 
 **Pauta**:
-Instrucción de tratamiento activa que se sigue en el tiempo para un Hijo (medicamento, dosis, frecuencia como intervalo, duración). Tiene un ciclo de vida (activa/finalizada) y es lo que se consulta y marca en el día a día.
+Instrucción de tratamiento activa que se sigue en el tiempo para un Hijo o un Miembro de la Familia (medicamento, dosis, frecuencia como intervalo, duración). Tiene un ciclo de vida (activa/finalizada) y es lo que se consulta y marca en el día a día. Exactamente uno de `child_id` o `member_id` identifica al sujeto.
 _Evitar_: Tratamiento, Prescripción, Medicación
 
 **Administración**:

@@ -35,10 +35,10 @@ class AdminView:
 @dataclass
 class PautaView:
     """Una Pauta enriquecida para proyección: próxima toma, admins de hoy, nombre
-    del Hijo."""
+    del sujeto (Hijo o Miembro)."""
 
     pauta: Pauta
-    child_name: str | None
+    subject_name: str | None
     next_dose_at: datetime | None
     todays_administrations: list[AdminView]
 
@@ -80,7 +80,7 @@ async def load_pauta_views(
     if not pautas:
         return []
 
-    child_ids = {p.child_id for p in pautas}
+    child_ids = {p.child_id for p in pautas if p.child_id is not None}
     child_names: dict = {}
     if child_ids:
         children = (
@@ -89,6 +89,20 @@ async def load_pauta_views(
             .all()
         )
         child_names = {c.id: c.name for c in children}
+
+    subject_member_ids = {p.member_id for p in pautas if p.member_id is not None}
+    subject_member_names: dict = {}
+    if subject_member_ids:
+        subj_members = (
+            (
+                await session.execute(
+                    select(Member).where(Member.id.in_(subject_member_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        subject_member_names = {m.id: m.display_name for m in subj_members}
 
     pauta_ids = [p.id for p in pautas]
     all_admins = list(
@@ -130,10 +144,14 @@ async def load_pauta_views(
             for a in admins
             if a.administered_at.astimezone(tz).date() == today
         ]
+        if pauta.child_id is not None:
+            subj_name = child_names.get(pauta.child_id)
+        else:
+            subj_name = subject_member_names.get(pauta.member_id)  # type: ignore[arg-type]
         views.append(
             PautaView(
                 pauta=pauta,
-                child_name=child_names.get(pauta.child_id),
+                subject_name=subj_name,
                 next_dose_at=next_dose_at,
                 todays_administrations=todays,
             )
