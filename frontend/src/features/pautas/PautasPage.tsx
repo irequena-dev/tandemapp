@@ -1,7 +1,11 @@
-import { Link } from 'react-router'
+import { useState } from 'react'
 import { useChildren } from '../children/api'
+import { useHealthVisits } from '../health-visits/api'
+import { useToast } from '../toasts/useToast'
 import { PautaCard } from './PautaCard'
-import { usePautas } from './api'
+import { PautaForm } from './PautaForm'
+import { useCreatePauta, usePautas } from './api'
+import type { PautaInput } from './types'
 import './pautas.css'
 import '../children/children.css'
 
@@ -13,13 +17,47 @@ function PulseIcon() {
   )
 }
 
+function PlusIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  )
+}
+
+function XIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  )
+}
+
 export function PautasPage() {
   const { data: pautas = [], isLoading } = usePautas()
   const { data: children = [] } = useChildren()
+  const [showCreate, setShowCreate] = useState(false)
+  const createMut = useCreatePauta()
+  const toast = useToast()
+
+  // Fetch visits for the first child to populate the form select.
+  // PautaForm filters by selected child internally.
+  const firstChildId = children[0]?.id ?? ''
+  const { data: visits = [] } = useHealthVisits(firstChildId)
 
   const childNameById = (id: string): string => {
     const child = children.find((c) => c.id === id)
     return child?.name ?? '…'
+  }
+
+  const handleCreate = (input: PautaInput) => {
+    createMut.mutate(input, {
+      onSuccess: (data) => {
+        toast.success(`Pauta de ${data.medication} creada`)
+        setShowCreate(false)
+      },
+      onError: () => toast.error('No se pudo crear la pauta'),
+    })
   }
 
   const sorted = [...pautas].sort((a, b) => {
@@ -30,12 +68,9 @@ export function PautasPage() {
     return 0
   })
 
-  // Solo mostramos Pautas activas. El historial de finalizadas vive en el tab Pautas de HijoDetail.
   const active = sorted.filter((p) => p.status === 'active')
 
   if (isLoading) {
-    // Skeleton espejo del `.hijo-skel-row` de Hijos: mono + dos líneas pulsando,
-    // no "Cargando…" en texto pelado. Dos filas bastan para anticipar la lista.
     return (
       <div className="pautas" aria-labelledby="pautas-title" aria-busy="true">
         <h1 className="pautas__title" id="pautas-title">Pautas</h1>
@@ -51,30 +86,40 @@ export function PautasPage() {
     <div className="pautas" aria-labelledby="pautas-title">
       <h1 className="pautas__title" id="pautas-title">Pautas</h1>
 
+      {showCreate && (
+        <PautaForm
+          children={children}
+          visits={visits}
+          onSubmit={handleCreate}
+          onCancel={() => setShowCreate(false)}
+          pending={createMut.isPending}
+        />
+      )}
+
       {active.length === 0 ? (
         <div className="pautas__empty">
           <span className="pautas__empty-icon" aria-hidden="true"><PulseIcon /></span>
           <p className="pautas__empty-title">Sin pautas activas</p>
           <p className="pautas__empty-text">
-            Cuando registres un tratamiento (por voz o desde una visita), aparecerá aquí con sus tomas y progreso.
+            Pulsa + para registrar la primera pauta de un tratamiento.
           </p>
-          {/* Sembrar una acción (como hace Hijos): una Pauta nace de una Visita
-              médica en la ficha de un Hijo. No hay formulario aquí a propósito
-              — la entrada habitual es por voz — así que apuntamos al camino real
-              en vez de dejar un callejón sin salida. */}
-          <Link className="btn btn--secondary btn--sm" to="/hijos">Ver los Hijos</Link>
         </div>
       ) : (
-        <>
-          {active.length > 0 && (
-            <ul className="pautas__list pautas__group">
-              {active.map((p) => (
-                <li key={p.id}><PautaCard pauta={p} childName={childNameById(p.child_id)} /></li>
-              ))}
-            </ul>
-          )}
-        </>
+        <ul className="pautas__list pautas__group">
+          {active.map((p) => (
+            <li key={p.id}><PautaCard pauta={p} childName={childNameById(p.child_id)} /></li>
+          ))}
+        </ul>
       )}
+
+      <button
+        type="button"
+        className={`pautas__fab${showCreate ? ' pautas__fab--open' : ''}`}
+        aria-label="Crear pauta"
+        onClick={() => setShowCreate((v) => !v)}
+      >
+        {showCreate ? <XIcon /> : <PlusIcon />}
+      </button>
     </div>
   )
 }

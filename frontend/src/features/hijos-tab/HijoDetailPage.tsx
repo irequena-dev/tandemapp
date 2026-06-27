@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useChildren } from '../children/api'
+import type { Child } from '../children/types'
 import { formatAge } from '../children/age'
 import {
   useCreateMeasurement,
@@ -18,8 +19,9 @@ import {
 } from '../health-visits/api'
 import type { HealthVisit } from '../health-visits/types'
 import { PautaCard } from '../pautas/PautaCard'
-import { usePautas } from '../pautas/api'
-import type { Pauta } from '../pautas/types'
+import { PautaForm } from '../pautas/PautaForm'
+import { useCreatePauta, usePautas } from '../pautas/api'
+import type { Pauta, PautaInput } from '../pautas/types'
 import { SizesSection } from '../sizes/SizesSection'
 import '../sizes/sizes.css'
 import './hijos-tab.css'
@@ -615,6 +617,8 @@ export function HijoDetailPage() {
           childId={childId}
           childName={child?.name ?? ''}
           pautas={pautas}
+          visits={visitas}
+          children={children ?? []}
         />
       </div>
     </div>
@@ -944,9 +948,25 @@ type PautasSectionProps = {
   childId: string
   childName: string
   pautas: Pauta[]
+  visits: HealthVisit[]
+  children: Child[]
 }
 
-function PautasSection({ childId, childName, pautas }: PautasSectionProps) {
+function PautasSection({ childId, childName, pautas, visits, children }: PautasSectionProps) {
+  const [showForm, setShowForm] = useState(false)
+  const createMut = useCreatePauta()
+  const toast = useToast()
+
+  const handleCreate = (input: PautaInput) => {
+    createMut.mutate(input, {
+      onSuccess: (data) => {
+        toast.success(`Pauta de ${data.medication} creada`)
+        setShowForm(false)
+      },
+      onError: () => toast.error('No se pudo crear la pauta'),
+    })
+  }
+
   // Filtrar Pautas por Hijo (cliente-side para mantener consistencia con cache global)
   const childPautas = pautas.filter(p => p.child_id === childId)
   const active = childPautas.filter(p => p.status === 'active')
@@ -965,60 +985,73 @@ function PautasSection({ childId, childName, pautas }: PautasSectionProps) {
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 
-  if (childPautas.length === 0) {
-    return (
-      <section className="hijo-detail__section">
-        <div className="hijo-detail__section-header">
-          <h2 className="hijo-detail__section-title">Pautas</h2>
-        </div>
-        <div className="hijo-detail__empty">
-          <p>{childName} no tiene pautas registradas</p>
-          <p className="hijo-detail__empty-hint">
-            Las pautas se crean desde una visita médica
-          </p>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="hijo-detail__section">
       <div className="hijo-detail__section-header">
         <h2 className="hijo-detail__section-title">Pautas</h2>
-      </div>
-
-      {/* Activas */}
-      <div className="pautas-section">
-        <h3 className="pautas-section__title">Activas</h3>
-        {sortedActive.length > 0 ? (
-          <ul className="pautas__list">
-            {sortedActive.map((p) => (
-              <li key={p.id}>
-                <PautaCard pauta={p} childName={childName} showChild={false} />
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="hijo-detail__empty hijo-detail__empty--compact">
-            <p>Sin pautas activas para {childName}</p>
-          </div>
+        {!showForm && (
+          <button
+            type="button"
+            className="hijo-detail__add-btn"
+            onClick={() => setShowForm(true)}
+            aria-label="Registrar pauta"
+          >
+            <PlusIcon /> Pauta
+          </button>
         )}
       </div>
 
-      {/* Finalizadas - colapsable por defecto */}
-      {sortedFinished.length > 0 && (
-        <details className="pautas-section__group" open={false}>
-          <summary className="pautas-section__summary">
-            Finalizadas ({sortedFinished.length})
-          </summary>
-          <ul className="pautas__list">
-            {sortedFinished.map((p) => (
-              <li key={p.id}>
-                <PautaCard pauta={p} childName={childName} showChild={false} />
-              </li>
-            ))}
-          </ul>
-        </details>
+      {showForm && (
+        <PautaForm
+          childId={childId}
+          children={children}
+          visits={visits}
+          onSubmit={handleCreate}
+          onCancel={() => setShowForm(false)}
+          pending={createMut.isPending}
+        />
+      )}
+
+      {childPautas.length === 0 && !showForm ? (
+        <div className="hijo-detail__empty">
+          <p>{childName} no tiene pautas registradas</p>
+        </div>
+      ) : (
+        <>
+          {/* Activas */}
+          <div className="pautas-section">
+            <h3 className="pautas-section__title">Activas</h3>
+            {sortedActive.length > 0 ? (
+              <ul className="pautas__list">
+                {sortedActive.map((p) => (
+                  <li key={p.id}>
+                    <PautaCard pauta={p} childName={childName} showChild={false} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="hijo-detail__empty hijo-detail__empty--compact">
+                <p>Sin pautas activas para {childName}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Finalizadas - colapsable por defecto */}
+          {sortedFinished.length > 0 && (
+            <details className="pautas-section__group" open={false}>
+              <summary className="pautas-section__summary">
+                Finalizadas ({sortedFinished.length})
+              </summary>
+              <ul className="pautas__list">
+                {sortedFinished.map((p) => (
+                  <li key={p.id}>
+                    <PautaCard pauta={p} childName={childName} showChild={false} />
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
       )}
     </section>
   )

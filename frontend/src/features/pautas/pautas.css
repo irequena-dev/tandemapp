@@ -496,6 +496,95 @@
   transform: rotate(180deg);
 }
 
+/* ---------- FAB (create pauta) ---------- */
+.pautas__fab {
+  position: fixed;
+  right: max(var(--ds-s-lg), env(safe-area-inset-right));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--ds-s-md));
+  z-index: calc(var(--ds-z-sticky) + 1);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--ds-shadow-floating);
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    transform var(--ds-dur-fast) var(--ds-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .pautas__fab:hover {
+    background: var(--ds-primary-hover);
+  }
+}
+.pautas__fab:active {
+  transform: scale(0.96);
+}
+.pautas__fab:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 3px;
+}
+.pautas__fab--open {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-floating);
+}
+
+/* ---------- Pauta form (inline create) ---------- */
+.pauta-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  margin-bottom: var(--ds-s-md);
+}
+
+.pauta-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+
+.pauta-form__input {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-bg);
+  color: var(--ds-ink);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  min-height: 44px;
+}
+.pauta-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
+}
+
+.pauta-form__row {
+  display: flex;
+  gap: var(--ds-s-sm);
+}
+.pauta-form__row > .pauta-form__label {
+  flex: 1;
+}
+
+.pauta-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  justify-content: flex-end;
+}
+
 /* ---------- Loading skeleton ---------- */
 /* Espejo del `.hijo-skel-row` / `.skel` de Hijos: una tarjeta fantasma con
    mono + dos líneas, no "Cargando…" en texto pelado. Pulsa con skel-pulse

@@ -16,8 +16,9 @@ vi.mock('@clerk/react', () => ({
 
 const URL_PAUTAS = 'http://localhost:8000/pautas'
 const URL_CHILDREN = 'http://localhost:8000/children'
+const URL_VISITS = 'http://localhost:8000/children/hijo-1/health-visits'
 
-function renderPage(pautas: Pauta[] = []) {
+function renderPage(pautas: Pauta[] = [], visits: unknown[] = []) {
   server.use(
     http.get(URL_PAUTAS, () => HttpResponse.json(pautas)),
     http.get(URL_CHILDREN, () =>
@@ -25,6 +26,7 @@ function renderPage(pautas: Pauta[] = []) {
         { id: 'hijo-1', family_id: 'fam', name: 'Mateo', birth_date: '2020-03-15' },
       ]),
     ),
+    http.get(URL_VISITS, () => HttpResponse.json(visits)),
   )
 
   const qc = new QueryClient({
@@ -455,5 +457,87 @@ describe('PautasPage (costura de ruta/página)', () => {
     // P3: should NOT show the "Última toma" hint (the recent toma block)
     // because it would duplicate the information already shown in "Tomas de hoy"
     expect(screen.queryByText(/próxima disponible en 15 min/)).toBeNull()
+  })
+
+  // --- FAB + creación de Pauta desde PautasPage ---
+
+  it('muestra un FAB para crear Pauta', async () => {
+    renderPage([])
+    await waitFor(() => {
+      expect(screen.queryByText('Sin pautas activas')).not.toBeNull()
+    })
+    expect(screen.getByRole('button', { name: 'Crear pauta' })).not.toBeNull()
+  })
+
+  it('el FAB abre el formulario de Pauta al hacer clic', async () => {
+    renderPage([])
+    await waitFor(() => {
+      expect(screen.queryByText('Sin pautas activas')).not.toBeNull()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Crear pauta' }))
+
+    // El formulario debe estar visible con los campos esperados
+    expect(screen.getByLabelText('Medicamento')).not.toBeNull()
+    expect(screen.getByLabelText('Dosis')).not.toBeNull()
+    expect(screen.getByLabelText('Cada')).not.toBeNull()
+    expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
+    expect(screen.getByLabelText('Hijo')).not.toBeNull()
+  })
+
+  it('crea una Pauta desde el formulario del FAB y muestra toast de éxito', async () => {
+    const created: Record<string, unknown>[] = []
+    server.use(
+      http.post(URL_PAUTAS, async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        created.push(body)
+        return HttpResponse.json(
+          { ...samplePauta, ...body, id: 'pauta-new' },
+          { status: 201 },
+        )
+      }),
+    )
+
+    renderPage([], [])
+    await waitFor(() => {
+      expect(screen.queryByText('Sin pautas activas')).not.toBeNull()
+    })
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Crear pauta' }))
+
+    await user.selectOptions(screen.getByLabelText('Hijo'), 'hijo-1')
+    await user.type(screen.getByLabelText('Medicamento'), 'Dalsy')
+    await user.type(screen.getByLabelText('Dosis'), '5 ml')
+    await user.selectOptions(screen.getByLabelText('Cada'), '8')
+    await user.clear(screen.getByLabelText('Duración (días)'))
+    await user.type(screen.getByLabelText('Duración (días)'), '7')
+    await user.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    await waitFor(() => {
+      expect(created.length).toBe(1)
+    })
+    expect(created[0]).toMatchObject({
+      child_id: 'hijo-1',
+      medication: 'Dalsy',
+      dose: '5 ml',
+      interval_hours: 8,
+      duration_days: 7,
+    })
+
+    // Toast informativo
+    await waitFor(() => {
+      expect(screen.queryByText(/Pauta de Dalsy creada/)).not.toBeNull()
+    })
+  })
+
+  it('el empty state actualizado guía al FAB', async () => {
+    renderPage([])
+    await waitFor(() => {
+      expect(screen.queryByText('Sin pautas activas')).not.toBeNull()
+    })
+    // El texto debe guiar al botón +
+    expect(screen.queryByText(/Pulsa \+ para registrar/)).not.toBeNull()
   })
 })
