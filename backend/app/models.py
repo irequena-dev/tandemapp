@@ -599,8 +599,9 @@ PautaStatus = Literal["active", "finished"]
 
 
 class Pauta(SQLModel, table=True):
-    """Pauta: instrucción de tratamiento activa para un Hijo.
+    """Pauta: instrucción de tratamiento activa para un Hijo o un Miembro.
 
+    Exactamente uno de `child_id` / `member_id` está relleno (CHECK en DB).
     `ends_at` y `day_number` son calculados (no persistidos). La finalización
     automática se aplica lazily al consultar (si `now >= started_at + duration_days`).
     """
@@ -609,7 +610,10 @@ class Pauta(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     family_id: str = Field(foreign_key="families.id", index=True)
-    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    child_id: uuid.UUID | None = Field(
+        default=None, foreign_key="children.id", index=True
+    )
+    member_id: str | None = Field(default=None, foreign_key="members.id", index=True)
     medication: str
     dose: str
     interval_hours: int
@@ -640,14 +644,29 @@ class Pauta(SQLModel, table=True):
 
 
 class PautaCreate(SQLModel):
-    """Cuerpo para iniciar una Pauta (sin family_id/created_by: servidor)."""
+    """Cuerpo para iniciar una Pauta (sin family_id/created_by: servidor).
 
-    child_id: uuid.UUID
+    Exactamente uno de `child_id` / `member_id` debe estar presente.
+    Si el sujeto es Miembro, `health_visit_id` debe ser None.
+    """
+
+    child_id: uuid.UUID | None = None
+    member_id: str | None = None
     medication: str
     dose: str
     interval_hours: int
     duration_days: int
     health_visit_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_subject(self) -> "PautaCreate":
+        has_child = self.child_id is not None
+        has_member = self.member_id is not None
+        if has_child == has_member:
+            raise ValueError(
+                "Exactamente uno de child_id o member_id debe estar presente"
+            )
+        return self
 
 
 class PautaOut(SQLModel):
@@ -655,7 +674,9 @@ class PautaOut(SQLModel):
 
     id: uuid.UUID
     family_id: str
-    child_id: uuid.UUID
+    child_id: uuid.UUID | None
+    member_id: str | None
+    subject_name: str
     medication: str
     dose: str
     interval_hours: int

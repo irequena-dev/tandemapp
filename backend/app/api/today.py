@@ -99,7 +99,7 @@ class DoseState:
     """Estado calculado de la próxima toma de una Pauta activa."""
 
     pauta: Pauta
-    child_name: str
+    subject_name: str
     next_dose_at: datetime
     # (administración, nombre del Miembro que la dio) para las dadas hoy.
     todays_admins: list[tuple[Administration, str | None]] = field(default_factory=list)
@@ -120,7 +120,7 @@ async def _compute_doses(
         states.append(
             DoseState(
                 pauta=v.pauta,
-                child_name=v.child_name or "…",
+                subject_name=v.subject_name or "…",
                 next_dose_at=v.next_dose_at,  # type: ignore[arg-type]
                 todays_admins=[
                     (av.admin, av.member_name) for av in v.todays_administrations
@@ -139,7 +139,8 @@ def _dose_hero(states: list[DoseState], now: datetime) -> HeroItem | None:
         return None
     chosen = min(eligible, key=lambda s: s.next_dose_at)
     pauta = chosen.pauta
-    subtitle = f"{chosen.child_name} · Día {pauta.day_number} de {pauta.duration_days}"
+    name = chosen.subject_name
+    subtitle = f"{name} · Día {pauta.day_number} de {pauta.duration_days}"
     return HeroItem(
         type="pauta_dose",
         title=f"{pauta.medication} · {pauta.dose}",
@@ -185,7 +186,7 @@ def _dose_timeline_pairs(
                     type="dose_upcoming",
                     time=state.next_dose_at.astimezone(device_tz).strftime("%H:%M"),
                     title=title,
-                    subtitle=state.child_name,
+                    subtitle=state.subject_name,
                     status=upcoming_status,
                     pauta_id=str(pauta.id),
                 ),

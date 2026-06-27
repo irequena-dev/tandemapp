@@ -27,6 +27,7 @@ from .models import (
     Administration,
     Child,
     Event,
+    Member,
     Pauta,
     PushSentLog,
     PushSubscription,
@@ -152,8 +153,8 @@ async def _process_family(family_id: str, now: datetime, settings: object) -> in
         for log_pauta_id, log_dose_due_at in logs:
             existing_logs.add((log_pauta_id, log_dose_due_at))
 
-        # Children names for payload
-        child_ids = {p.child_id for p in pautas}
+        # Subject names for payload (children or members)
+        child_ids = {p.child_id for p in pautas if p.child_id is not None}
         children = {}
         if child_ids:
             rows = (
@@ -162,6 +163,20 @@ async def _process_family(family_id: str, now: datetime, settings: object) -> in
                 .all()
             )
             children = {c.id: c for c in rows}
+
+        subject_member_ids = {p.member_id for p in pautas if p.member_id is not None}
+        subject_members: dict[str, Member] = {}
+        if subject_member_ids:
+            m_rows = (
+                (
+                    await session.execute(
+                        select(Member).where(Member.id.in_(subject_member_ids))
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            subject_members = {m.id: m for m in m_rows}
 
         # Subscriptions for this family
         subscriptions = list(
@@ -190,8 +205,14 @@ async def _process_family(family_id: str, now: datetime, settings: object) -> in
             if key in existing_logs:
                 continue
 
-            child = children.get(pauta.child_id)
-            child_name = child.name if child else "Hijo"
+            if pauta.child_id is not None:
+                child = children.get(pauta.child_id)
+                subject_name = child.name if child else "Hijo"
+            else:
+                member = subject_members.get(pauta.member_id)  # type: ignore[arg-type]
+                subject_name = (
+                    member.display_name if member and member.display_name else "Miembro"
+                )
 
             overdue = now - dose_due
             if overdue > timedelta(minutes=GRACE_MINUTES):
@@ -207,8 +228,8 @@ async def _process_family(family_id: str, now: datetime, settings: object) -> in
 
             # Build payload
             payload = {
-                "title": f"Toca toma — {child_name}",
-                "body": f"{child_name}: {pauta.medication} {pauta.dose}",
+                "title": f"Toca toma — {subject_name}",
+                "body": f"{subject_name}: {pauta.medication} {pauta.dose}",
                 "data": {"url": "/"},
             }
 
