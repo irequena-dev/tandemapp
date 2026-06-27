@@ -61,6 +61,8 @@ const PAUTA_ACTIVE = {
   id: 'pauta-1',
   family_id: 'fam',
   child_id: 'c1',
+  member_id: null,
+  subject_name: 'Leo',
   medication: 'Amoxicilina',
   dose: '5 ml',
   interval_hours: 8,
@@ -138,6 +140,11 @@ function stubData(overrides: Partial<{ measurements: unknown[]; visits: unknown[
     ),
     http.get(`${baseUrl}/pautas`, () =>
       HttpResponse.json(overrides.pautas ?? [PAUTA_ACTIVE, PAUTA_FINISHED]),
+    ),
+    http.get(`${baseUrl}/members`, () =>
+      HttpResponse.json([
+        { id: 'mem-ana', family_id: 'fam', display_name: 'Ana' },
+      ]),
     ),
   ]
 }
@@ -607,8 +614,8 @@ describe('HijoDetailPage — tab Pautas (historial por Hijo)', () => {
     expect(screen.getByLabelText('Dosis')).not.toBeNull()
     expect(screen.getByLabelText('Cada')).not.toBeNull()
     expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
-    // No debe mostrar selector de Hijo (estamos en contexto de un Hijo)
-    expect(screen.queryByLabelText('Hijo')).toBeNull()
+    // No debe mostrar selector de sujeto (estamos en contexto de un Hijo)
+    expect(screen.queryByLabelText('Para quién')).toBeNull()
   })
 
   it('crea una Pauta desde HijoDetail y muestra toast de éxito', async () => {

@@ -64,7 +64,9 @@ export function useCreatePauta() {
       const optimistic: Pauta = {
         id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
-        child_id: input.child_id,
+        child_id: input.child_id ?? null,
+        member_id: input.member_id ?? null,
+        subject_name: '…',
         medication: input.medication,
         dose: input.dose,
         interval_hours: input.interval_hours,

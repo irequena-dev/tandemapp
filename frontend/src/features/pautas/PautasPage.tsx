@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useChildren } from '../children/api'
 import { useHealthVisits } from '../health-visits/api'
+import { useMembers } from '../members/api'
 import { useToast } from '../toasts/useToast'
 import { PautaCard } from './PautaCard'
 import { PautaForm } from './PautaForm'
@@ -36,6 +37,7 @@ function XIcon() {
 export function PautasPage() {
   const { data: pautas = [], isLoading } = usePautas()
   const { data: children = [] } = useChildren()
+  const { data: members = [] } = useMembers()
   const [showCreate, setShowCreate] = useState(false)
   const createMut = useCreatePauta()
   const toast = useToast()
@@ -44,11 +46,6 @@ export function PautasPage() {
   // PautaForm filters by selected child internally.
   const firstChildId = children[0]?.id ?? ''
   const { data: visits = [] } = useHealthVisits(firstChildId)
-
-  const childNameById = (id: string): string => {
-    const child = children.find((c) => c.id === id)
-    return child?.name ?? '…'
-  }
 
   const handleCreate = (input: PautaInput) => {
     createMut.mutate(input, {
@@ -89,6 +86,7 @@ export function PautasPage() {
       {showCreate && (
         <PautaForm
           children={children}
+          members={members}
           visits={visits}
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
@@ -107,7 +105,7 @@ export function PautasPage() {
       ) : (
         <ul className="pautas__list pautas__group">
           {active.map((p) => (
-            <li key={p.id}><PautaCard pauta={p} childName={childNameById(p.child_id)} /></li>
+            <li key={p.id}><PautaCard pauta={p} subjectName={p.subject_name} /></li>
           ))}
         </ul>
       )}

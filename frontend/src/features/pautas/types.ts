@@ -14,7 +14,9 @@ export type Administration = {
 export type Pauta = {
   id: string
   family_id: string
-  child_id: string
+  child_id: string | null
+  member_id: string | null
+  subject_name: string
   medication: string
   dose: string
   interval_hours: number
@@ -31,7 +33,8 @@ export type Pauta = {
 }
 
 export type PautaInput = {
-  child_id: string
+  child_id?: string | null
+  member_id?: string | null
   medication: string
   dose: string
   interval_hours: number

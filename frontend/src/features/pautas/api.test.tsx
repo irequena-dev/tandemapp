@@ -29,6 +29,8 @@ const activePauta: Pauta = {
   id: 'pauta-1',
   family_id: 'fam',
   child_id: 'hijo-1',
+  member_id: null,
+  subject_name: 'Mateo',
   medication: 'Amoxicilina',
   dose: '5 ml',
   interval_hours: 8,
