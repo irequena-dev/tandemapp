@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { UserButton } from '@clerk/react'
+import { UserButton, useOrganization } from '@clerk/react'
 import { useMembers, useInvitations, useCreateInvitation, useRevokeInvitation } from '../members/api'
 import { useChildrenWithMetrics, useCreateChild } from '../children/api'
 import { ChildForm } from '../children/ChildForm'
@@ -85,6 +85,10 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
   const push = usePushNotifications()
   const [showInviteForm, setShowInviteForm] = useState(false)
 
+  // Nombre de la organización de Clerk
+  const { organization: org } = useOrganization()
+  const orgName = org?.name ?? 'Mi Familia'
+
   const { data: members = [] } = useMembers()
   const { data: invitations = [] } = useInvitations()
   const revokeInvitation = useRevokeInvitation()
@@ -150,7 +154,7 @@ export function AjustesOverlay({ onClose }: { onClose: () => void }) {
             <div className="ajustes-card">
               <div className="ajustes-row">
                 <div className="ajustes-row__text">
-                  <span className="ajustes-row__name">Mi Familia</span>
+                  <span className="ajustes-row__name">{orgName}</span>
                 </div>
               </div>
             </div>

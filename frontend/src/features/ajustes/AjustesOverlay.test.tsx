@@ -15,6 +15,11 @@ vi.mock('@clerk/react', () => ({
       UserButton
     </div>
   ),
+  useOrganization: () => ({ organization: { id: 'test-org', name: 'Familia Prueba' } }),
+  useOrganizationList: () => ({
+    organizationList: [{ id: 'test-org', name: 'Familia Prueba' }],
+    setActive: async () => {},
+  }),
   useUser: () => ({
     user: { fullName: 'Ana Martínez', primaryEmailAddress: { emailAddress: 'ana@test.com' } },
   }),
