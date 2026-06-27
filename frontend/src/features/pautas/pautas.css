@@ -574,6 +574,7 @@
 .pauta-form__row {
   display: flex;
   gap: var(--ds-s-sm);
+  flex-wrap: wrap;
 }
 .pauta-form__row > .pauta-form__label {
   flex: 1;
