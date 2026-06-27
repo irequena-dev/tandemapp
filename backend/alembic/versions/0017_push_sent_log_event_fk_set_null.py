@@ -21,7 +21,9 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.drop_constraint(
-        "push_sent_log_event_id_fkey", "push_sent_log", type_="foreignkey",
+        "push_sent_log_event_id_fkey",
+        "push_sent_log",
+        type_="foreignkey",
     )
     op.create_foreign_key(
         "push_sent_log_event_id_fkey",
@@ -35,7 +37,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_constraint(
-        "push_sent_log_event_id_fkey", "push_sent_log", type_="foreignkey",
+        "push_sent_log_event_id_fkey",
+        "push_sent_log",
+        type_="foreignkey",
     )
     op.create_foreign_key(
         "push_sent_log_event_id_fkey",
