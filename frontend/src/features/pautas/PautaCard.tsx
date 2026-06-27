@@ -72,11 +72,11 @@ function isRecentAdmin(iso: string, now: Date): boolean {
 
 type PautaCardProps = {
   pauta: Pauta
-  childName: string
-  showChild?: boolean
+  subjectName: string
+  showSubject?: boolean
 }
 
-export function PautaCard({ pauta, childName, showChild = true }: PautaCardProps) {
+export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardProps) {
   const [open, setOpen] = useState(false)
   // ID de la Administración cuyo "Deshacer" está pidiendo confirmación inline.
   // null = ninguna. Es por-fila: solo una toma se confirma a la vez.
@@ -196,15 +196,15 @@ export function PautaCard({ pauta, childName, showChild = true }: PautaCardProps
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleOpen() } }}
       >
         <div className="pauta-card__head">
-          {showChild && (
-            <span className="hijo-mono hijo-mono--lg" data-tone={toneOf(childName)}>
-              {initialOf(childName)}
+          {showSubject && (
+            <span className="hijo-mono hijo-mono--lg" data-tone={toneOf(subjectName)}>
+              {initialOf(subjectName)}
             </span>
           )}
           <div className="pauta-card__headinfo">
             <span className="pauta-card__title">{pauta.medication} · {pauta.dose}</span>
-            {showChild && (
-              <span className="pauta-card__child">{childName}</span>
+            {showSubject && (
+              <span className="pauta-card__child">{subjectName}</span>
             )}
             <div className="pauta-card__chips">
               <span className="pauta-card__chip ds-nums">Cada {pauta.interval_hours} h</span>

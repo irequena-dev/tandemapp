@@ -4,10 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { PautaForm } from './PautaForm'
 import type { Child } from '../children/types'
 import type { HealthVisit } from '../health-visits/types'
+import type { Member } from '../members/types'
 
 const CHILDREN: Child[] = [
   { id: 'h1', family_id: 'fam', name: 'Mateo', birth_date: '2020-03-15', avatar_color: 'sage' },
   { id: 'h2', family_id: 'fam', name: 'Lucía', birth_date: '2022-01-10', avatar_color: 'ochre' },
+]
+
+const MEMBERS: Member[] = [
+  { id: 'mem-ana', family_id: 'fam', display_name: 'Ana' },
+  { id: 'mem-carlos', family_id: 'fam', display_name: 'Carlos' },
 ]
 
 const VISITS: HealthVisit[] = [
@@ -17,10 +23,11 @@ const VISITS: HealthVisit[] = [
 ]
 
 describe('PautaForm', () => {
-  it('renderiza todos los campos del formulario', () => {
+  it('renderiza todos los campos del formulario con selector unificado "Para quién"', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -31,13 +38,14 @@ describe('PautaForm', () => {
     expect(screen.getByLabelText('Dosis')).not.toBeNull()
     expect(screen.getByLabelText('Cada')).not.toBeNull()
     expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
-    expect(screen.getByLabelText('Hijo')).not.toBeNull()
+    expect(screen.getByLabelText('Para quién')).not.toBeNull()
   })
 
   it('muestra placeholders descriptivos', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -48,39 +56,68 @@ describe('PautaForm', () => {
     expect(screen.getByPlaceholderText('Ej: 5 ml cada toma')).not.toBeNull()
   })
 
-  it('oculta el selector de Hijo cuando se pasa childId (contexto HijoDetail)', () => {
+  it('oculta el selector de sujeto cuando se pasa childId (contexto HijoDetail)', () => {
     render(
       <PautaForm
         childId="h1"
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />,
     )
 
-    expect(screen.queryByLabelText('Hijo')).toBeNull()
+    expect(screen.queryByLabelText('Para quién')).toBeNull()
   })
 
-  it('preselecciona el Hijo si solo hay uno', () => {
+  it('preselecciona el Hijo si solo hay uno y no hay Miembros', () => {
     const oneChild = [CHILDREN[0]]
     render(
       <PautaForm
         children={oneChild}
+        members={[]}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />,
     )
 
-    const select = screen.getByLabelText('Hijo') as HTMLSelectElement
-    expect(select.value).toBe('h1')
+    const select = screen.getByLabelText('Para quién') as HTMLSelectElement
+    expect(select.value).toBe('child:h1')
+  })
+
+  it('muestra optgroups "Hijos" y "Miembros" en el selector unificado', () => {
+    render(
+      <PautaForm
+        children={CHILDREN}
+        members={MEMBERS}
+        visits={[]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const select = screen.getByLabelText('Para quién') as HTMLSelectElement
+    const optgroups = Array.from(select.querySelectorAll('optgroup'))
+    expect(optgroups).toHaveLength(2)
+    expect(optgroups[0].label).toBe('Hijos')
+    expect(optgroups[1].label).toBe('Miembros')
+
+    // Children options inside first optgroup
+    const childOptions = Array.from(optgroups[0].querySelectorAll('option'))
+    expect(childOptions.map(o => o.textContent)).toEqual(['Mateo', 'Lucía'])
+
+    // Member options inside second optgroup
+    const memberOptions = Array.from(optgroups[1].querySelectorAll('option'))
+    expect(memberOptions.map(o => o.textContent)).toEqual(['Ana', 'Carlos'])
   })
 
   it('muestra las opciones predefinidas de intervalo (4, 6, 8, 12, 24) + Otro', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -103,6 +140,7 @@ describe('PautaForm', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -118,6 +156,7 @@ describe('PautaForm', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={VISITS}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -125,7 +164,7 @@ describe('PautaForm', () => {
     )
 
     // Select Mateo
-    await user.selectOptions(screen.getByLabelText('Hijo'), 'h1')
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'child:h1')
 
     const visitSelect = screen.getByLabelText('Visita asociada')
     expect(visitSelect).not.toBeNull()
@@ -136,19 +175,20 @@ describe('PautaForm', () => {
     expect(options[0].textContent).toMatch(/Sin visita/)
   })
 
-  it('envía los datos correctos al submit', async () => {
+  it('envía child_id al submit cuando se selecciona un Hijo', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={onSubmit}
         onCancel={vi.fn()}
       />,
     )
 
-    await user.selectOptions(screen.getByLabelText('Hijo'), 'h1')
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'child:h1')
     await user.type(screen.getByLabelText('Medicamento'), 'Dalsy')
     await user.type(screen.getByLabelText('Dosis'), '5 ml')
     await user.selectOptions(screen.getByLabelText('Cada'), '8')
@@ -167,19 +207,51 @@ describe('PautaForm', () => {
     })
   })
 
+  it('envía member_id al submit cuando se selecciona un Miembro', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <PautaForm
+        children={CHILDREN}
+        members={MEMBERS}
+        visits={[]}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'member:mem-ana')
+    await user.type(screen.getByLabelText('Medicamento'), 'Ibuprofeno')
+    await user.type(screen.getByLabelText('Dosis'), '400 mg')
+    await user.selectOptions(screen.getByLabelText('Cada'), '8')
+    await user.clear(screen.getByLabelText('Duración (días)'))
+    await user.type(screen.getByLabelText('Duración (días)'), '5')
+
+    await user.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      member_id: 'mem-ana',
+      medication: 'Ibuprofeno',
+      dose: '400 mg',
+      interval_hours: 8,
+      duration_days: 5,
+    })
+  })
+
   it('envía health_visit_id cuando se selecciona una visita', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={VISITS}
         onSubmit={onSubmit}
         onCancel={vi.fn()}
       />,
     )
 
-    await user.selectOptions(screen.getByLabelText('Hijo'), 'h1')
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'child:h1')
     await user.type(screen.getByLabelText('Medicamento'), 'Dalsy')
     await user.type(screen.getByLabelText('Dosis'), '5 ml')
     await user.selectOptions(screen.getByLabelText('Cada'), '8')
@@ -199,12 +271,34 @@ describe('PautaForm', () => {
     })
   })
 
+  it('oculta campo visita asociada al seleccionar un Miembro', async () => {
+    const user = userEvent.setup()
+    render(
+      <PautaForm
+        children={CHILDREN}
+        members={MEMBERS}
+        visits={VISITS}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    // Select a Hijo first so the visit field appears
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'child:h1')
+    expect(screen.queryByLabelText('Visita asociada')).not.toBeNull()
+
+    // Switch to a Miembro: visit field should disappear
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'member:mem-ana')
+    expect(screen.queryByLabelText('Visita asociada')).toBeNull()
+  })
+
   it('llama onCancel al pulsar Cancelar', async () => {
     const onCancel = vi.fn()
     const user = userEvent.setup()
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={onCancel}
@@ -220,14 +314,15 @@ describe('PautaForm', () => {
       <PautaForm
         childId="h1"
         children={CHILDREN}
+        members={MEMBERS}
         visits={VISITS}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />,
     )
 
-    // No child selector
-    expect(screen.queryByLabelText('Hijo')).toBeNull()
+    // No subject selector
+    expect(screen.queryByLabelText('Para quién')).toBeNull()
 
     // Visit selector should show visits for h1
     const visitSelect = screen.getByLabelText('Visita asociada')
@@ -238,6 +333,7 @@ describe('PautaForm', () => {
     render(
       <PautaForm
         children={CHILDREN}
+        members={MEMBERS}
         visits={[]}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}

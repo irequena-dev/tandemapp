@@ -18,6 +18,7 @@ import {
   useUpdateHealthVisit,
 } from '../health-visits/api'
 import type { HealthVisit } from '../health-visits/types'
+import { useMembers } from '../members/api'
 import { PautaCard } from '../pautas/PautaCard'
 import { PautaForm } from '../pautas/PautaForm'
 import { useCreatePauta, usePautas } from '../pautas/api'
@@ -282,6 +283,7 @@ export function HijoDetailPage() {
   const updateVisit = useUpdateHealthVisit(childId ?? '')
   const deleteVisit = useDeleteHealthVisit(childId ?? '')
   const { data: pautas = [] } = usePautas()
+  const { data: members = [] } = useMembers()
 
   const [showVisitForm, setShowVisitForm] = useState(false)
   const [editingVisit, setEditingVisit] = useState<HealthVisit | undefined>()
@@ -619,6 +621,7 @@ export function HijoDetailPage() {
           pautas={pautas}
           visits={visitas}
           children={children ?? []}
+          members={members}
         />
       </div>
     </div>
@@ -950,9 +953,10 @@ type PautasSectionProps = {
   pautas: Pauta[]
   visits: HealthVisit[]
   children: Child[]
+  members: import('../members/types').Member[]
 }
 
-function PautasSection({ childId, childName, pautas, visits, children }: PautasSectionProps) {
+function PautasSection({ childId, childName, pautas, visits, children, members }: PautasSectionProps) {
   const [showForm, setShowForm] = useState(false)
   const createMut = useCreatePauta()
   const toast = useToast()
@@ -1005,6 +1009,7 @@ function PautasSection({ childId, childName, pautas, visits, children }: PautasS
         <PautaForm
           childId={childId}
           children={children}
+          members={members}
           visits={visits}
           onSubmit={handleCreate}
           onCancel={() => setShowForm(false)}
@@ -1025,7 +1030,7 @@ function PautasSection({ childId, childName, pautas, visits, children }: PautasS
               <ul className="pautas__list">
                 {sortedActive.map((p) => (
                   <li key={p.id}>
-                    <PautaCard pauta={p} childName={childName} showChild={false} />
+                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
                   </li>
                 ))}
               </ul>
@@ -1045,7 +1050,7 @@ function PautasSection({ childId, childName, pautas, visits, children }: PautasS
               <ul className="pautas__list">
                 {sortedFinished.map((p) => (
                   <li key={p.id}>
-                    <PautaCard pauta={p} childName={childName} showChild={false} />
+                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
                   </li>
                 ))}
               </ul>

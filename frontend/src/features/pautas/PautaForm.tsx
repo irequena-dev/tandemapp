@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Child } from '../children/types'
 import type { HealthVisit } from '../health-visits/types'
+import type { Member } from '../members/types'
 import type { PautaInput } from './types'
 
 const INTERVAL_PRESETS = [
@@ -15,6 +16,7 @@ const INTERVAL_PRESETS = [
 type PautaFormProps = {
   childId?: string
   children: Child[]
+  members: Member[]
   visits: HealthVisit[]
   onSubmit: (input: PautaInput) => void
   onCancel: () => void
@@ -32,15 +34,19 @@ function formatVisitLabel(v: HealthVisit): string {
 export function PautaForm({
   childId,
   children,
+  members,
   visits,
   onSubmit,
   onCancel,
   pending = false,
 }: PautaFormProps) {
-  const singleChild = children.length === 1
-  const [selectedChild, setSelectedChild] = useState(
-    childId ?? (singleChild ? children[0].id : ''),
-  )
+  const singleSubject = children.length + members.length === 1
+  const defaultSubject = childId
+    ? `child:${childId}`
+    : singleSubject
+      ? children.length === 1 ? `child:${children[0].id}` : `member:${members[0].id}`
+      : ''
+  const [selectedSubject, setSelectedSubject] = useState(defaultSubject)
   const [medication, setMedication] = useState('')
   const [dose, setDose] = useState('')
   const [intervalPreset, setIntervalPreset] = useState('8')
@@ -48,41 +54,62 @@ export function PautaForm({
   const [durationDays, setDurationDays] = useState('')
   const [visitId, setVisitId] = useState('')
 
-  const effectiveChildId = childId ?? selectedChild
-  const childVisits = visits
-    .filter((v) => v.child_id === effectiveChildId)
-    .slice(0, 3)
+  const effectiveSubject = childId ? `child:${childId}` : selectedSubject
+  const isChild = effectiveSubject.startsWith('child:')
+  const effectiveChildId = isChild ? effectiveSubject.slice(6) : null
+  const effectiveMemberId = !isChild && effectiveSubject.startsWith('member:') ? effectiveSubject.slice(7) : null
+
+  const childVisits = effectiveChildId
+    ? visits.filter((v) => v.child_id === effectiveChildId).slice(0, 3)
+    : []
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const interval =
       intervalPreset === 'other' ? Number(customInterval) : Number(intervalPreset)
-    if (!effectiveChildId || !medication.trim() || !dose.trim() || !interval || !Number(durationDays)) return
-    onSubmit({
-      child_id: effectiveChildId,
-      medication: medication.trim(),
-      dose: dose.trim(),
-      interval_hours: interval,
-      duration_days: Number(durationDays),
-      health_visit_id: visitId || null,
-    })
+    if ((!effectiveChildId && !effectiveMemberId) || !medication.trim() || !dose.trim() || !interval || !Number(durationDays)) return
+    if (effectiveChildId) {
+      onSubmit({
+        child_id: effectiveChildId,
+        medication: medication.trim(),
+        dose: dose.trim(),
+        interval_hours: interval,
+        duration_days: Number(durationDays),
+        health_visit_id: visitId || null,
+      })
+    } else {
+      onSubmit({
+        member_id: effectiveMemberId!,
+        medication: medication.trim(),
+        dose: dose.trim(),
+        interval_hours: interval,
+        duration_days: Number(durationDays),
+      })
+    }
   }
 
   return (
     <form className="pauta-form" onSubmit={handleSubmit}>
       {!childId && (
         <label className="pauta-form__label">
-          Hijo
+          Para quién
           <select
             className="pauta-form__input"
-            value={selectedChild}
-            onChange={(e) => { setSelectedChild(e.target.value); setVisitId('') }}
+            value={selectedSubject}
+            onChange={(e) => { setSelectedSubject(e.target.value); setVisitId('') }}
             required
           >
-            {!singleChild && <option value="">Seleccionar…</option>}
-            {children.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
+            {!singleSubject && <option value="">Seleccionar…</option>}
+            <optgroup label="Hijos">
+              {children.map((c) => (
+                <option key={c.id} value={`child:${c.id}`}>{c.name}</option>
+              ))}
+            </optgroup>
+            <optgroup label="Miembros">
+              {members.map((m) => (
+                <option key={m.id} value={`member:${m.id}`}>{m.display_name ?? m.id}</option>
+              ))}
+            </optgroup>
           </select>
         </label>
       )}
@@ -155,7 +182,7 @@ export function PautaForm({
         </label>
       </div>
 
-      {effectiveChildId && childVisits.length > 0 && (
+      {isChild && effectiveChildId && childVisits.length > 0 && (
         <label className="pauta-form__label">
           Visita asociada
           <select

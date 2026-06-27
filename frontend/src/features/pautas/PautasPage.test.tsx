@@ -16,6 +16,7 @@ vi.mock('@clerk/react', () => ({
 
 const URL_PAUTAS = 'http://localhost:8000/pautas'
 const URL_CHILDREN = 'http://localhost:8000/children'
+const URL_MEMBERS = 'http://localhost:8000/members'
 const URL_VISITS = 'http://localhost:8000/children/hijo-1/health-visits'
 
 function renderPage(pautas: Pauta[] = [], visits: unknown[] = []) {
@@ -24,6 +25,11 @@ function renderPage(pautas: Pauta[] = [], visits: unknown[] = []) {
     http.get(URL_CHILDREN, () =>
       HttpResponse.json([
         { id: 'hijo-1', family_id: 'fam', name: 'Mateo', birth_date: '2020-03-15' },
+      ]),
+    ),
+    http.get(URL_MEMBERS, () =>
+      HttpResponse.json([
+        { id: 'mem-ana', family_id: 'fam', display_name: 'Ana' },
       ]),
     ),
     http.get(URL_VISITS, () => HttpResponse.json(visits)),
@@ -54,6 +60,8 @@ const samplePauta: Pauta = {
   id: 'pauta-1',
   family_id: 'fam',
   child_id: 'hijo-1',
+  member_id: null,
+  subject_name: 'Mateo',
   medication: 'Amoxicilina',
   dose: '5 ml',
   interval_hours: 8,
@@ -82,7 +90,7 @@ describe('PautasPage (costura de ruta/página)', () => {
     await waitFor(() => {
       expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
     })
-    // Child name resolves
+    // Subject name from API
     await waitFor(() => {
       expect(screen.queryByText(/Mateo/)).not.toBeNull()
     })
@@ -483,7 +491,7 @@ describe('PautasPage (costura de ruta/página)', () => {
     expect(screen.getByLabelText('Dosis')).not.toBeNull()
     expect(screen.getByLabelText('Cada')).not.toBeNull()
     expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
-    expect(screen.getByLabelText('Hijo')).not.toBeNull()
+    expect(screen.getByLabelText('Para quién')).not.toBeNull()
   })
 
   it('crea una Pauta desde el formulario del FAB y muestra toast de éxito', async () => {
@@ -507,7 +515,7 @@ describe('PautasPage (costura de ruta/página)', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Crear pauta' }))
 
-    await user.selectOptions(screen.getByLabelText('Hijo'), 'hijo-1')
+    await user.selectOptions(screen.getByLabelText('Para quién'), 'child:hijo-1')
     await user.type(screen.getByLabelText('Medicamento'), 'Dalsy')
     await user.type(screen.getByLabelText('Dosis'), '5 ml')
     await user.selectOptions(screen.getByLabelText('Cada'), '8')
