@@ -76,7 +76,7 @@ export function usePushNotifications() {
           })
         }
         setEnabled(false)
-      } catch (err) {
+      } catch (_err) {
         setError('No se pudo desactivar. Inténtalo de nuevo.')
       } finally {
         setBusy(false)
@@ -125,7 +125,7 @@ export function usePushNotifications() {
         })
 
         setEnabled(true)
-      } catch (err) {
+      } catch (_err) {
         setError('No se pudo activar. Inténtalo de nuevo.')
       } finally {
         setBusy(false)
