@@ -580,6 +580,93 @@ describe('HijoDetailPage — tab Pautas (historial por Hijo)', () => {
     expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull()
   })
 
+  it('muestra botón "+ Pauta" en el header de la sección Pautas', async () => {
+    server.use(...stubData({ pautas: [] }))
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    const addBtn = await screen.findByRole('button', { name: 'Registrar pauta' })
+    expect(addBtn).not.toBeNull()
+  })
+
+  it('el botón "+ Pauta" abre el formulario de creación (sin selector de Hijo)', async () => {
+    server.use(
+      ...stubData({ pautas: [] }),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar pauta' }))
+
+    // El formulario debe estar visible
+    expect(screen.getByLabelText('Medicamento')).not.toBeNull()
+    expect(screen.getByLabelText('Dosis')).not.toBeNull()
+    expect(screen.getByLabelText('Cada')).not.toBeNull()
+    expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
+    // No debe mostrar selector de Hijo (estamos en contexto de un Hijo)
+    expect(screen.queryByLabelText('Hijo')).toBeNull()
+  })
+
+  it('crea una Pauta desde HijoDetail y muestra toast de éxito', async () => {
+    const created: Record<string, unknown>[] = []
+    server.use(
+      ...stubData({ pautas: [] }),
+      http.post('http://localhost:8000/pautas', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        created.push(body)
+        return HttpResponse.json(
+          { ...PAUTA_ACTIVE, ...body, id: 'pauta-new' },
+          { status: 201 },
+        )
+      }),
+    )
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Registrar pauta' }))
+
+    fireEvent.change(screen.getByLabelText('Medicamento'), { target: { value: 'Dalsy' } })
+    fireEvent.change(screen.getByLabelText('Dosis'), { target: { value: '5 ml' } })
+    fireEvent.change(screen.getByLabelText('Cada'), { target: { value: '8' } })
+    fireEvent.change(screen.getByLabelText('Duración (días)'), { target: { value: '7' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+
+    await waitFor(() => expect(created.length).toBe(1))
+    expect(created[0]).toMatchObject({
+      child_id: 'c1',
+      medication: 'Dalsy',
+      dose: '5 ml',
+      interval_hours: 8,
+      duration_days: 7,
+    })
+
+    // Toast informativo
+    await waitFor(() => {
+      expect(screen.queryByText(/Pauta de Dalsy creada/)).not.toBeNull()
+    })
+  })
+
+  it('empty state actualizado no menciona "visita médica"', async () => {
+    server.use(...stubData({ pautas: [] }))
+
+    render(<HijoDetailPage />, { wrapper: makeWrapper() })
+    await screen.findByRole('tab', { name: 'Pautas' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Pautas' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Leo no tiene pautas registradas/)).not.toBeNull()
+    })
+    // Ya no debe decir "Las pautas se crean desde una visita médica"
+    expect(screen.queryByText(/se crean desde una visita médica/)).toBeNull()
+  })
+
   it('expande y colapsa la sección "Finalizadas"', async () => {
     server.use(...stubData())
 
