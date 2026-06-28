@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '../toasts/useToast'
 import { PautaForm } from './PautaForm'
-import { useCreateAdministration, useDeleteAdministration, useFinishPauta, useUpdatePauta } from './api'
+import { useCreateAdministration, useDeleteAdministration, useDeletePauta, useFinishPauta, useUpdatePauta } from './api'
 import type { Administration, Pauta, PautaUpdateInput } from './types'
 
 function initialOf(name: string): string {
@@ -93,11 +93,13 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
   // ¿La acción "Finalizar Pauta" está pidiendo confirmación inline? (destructiva).
   const [confirmingFinish, setConfirmingFinish] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const toast = useToast()
   const finishMutation = useFinishPauta(toast)
   const createAdmin = useCreateAdministration()
   const deleteAdmin = useDeleteAdministration()
   const updateMut = useUpdatePauta()
+  const deleteMut = useDeletePauta()
   const now = new Date()
 
   const todaysAdmins = pauta.todays_administrations ?? []
@@ -150,6 +152,9 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
   const finishError = finishMutation.isError
     ? mutationErrorMessage(finishMutation.error, 'No se pudo finalizar la Pauta.')
     : null
+  const deletePautaError = deleteMut.isError
+    ? mutationErrorMessage(deleteMut.error, 'No se pudo eliminar la Pauta.')
+    : null
 
   // Al cerrar la tarjeta, limpiamos el confirm pendiente para que no quede una
   // fila en estado "¿Segura?" al reabrir. Se hace en el toggle (estado derivado
@@ -160,6 +165,7 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
       if (!next) {
         setConfirmingAdminId(null)
         setConfirmingFinish(false)
+        setConfirmingDelete(false)
         setEditing(false)
       }
       return next
@@ -456,6 +462,52 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
               >
                 <EditIcon /> Editar
               </button>
+              {confirmingDelete ? (
+                <div
+                  className="hijo-confirm pauta-delete-confirm"
+                  role="group"
+                  aria-label="Confirmar eliminación de la Pauta"
+                >
+                  <span className="hijo-confirm__label">¿Eliminar la Pauta?</span>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm pauta-confirm__btn"
+                    aria-label="Cancelar eliminación"
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleteMut.isPending}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger-solid btn--sm pauta-confirm__btn"
+                    aria-label="Confirmar eliminación"
+                    onClick={() => {
+                      setConfirmingDelete(false)
+                      deleteMut.mutate(pauta.id, {
+                        onSuccess: () => toast.success(`Pauta de ${pauta.medication} eliminada`),
+                      })
+                    }}
+                    disabled={deleteMut.isPending}
+                  >
+                    {deleteMut.isPending ? '…' : 'Sí'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--sm"
+                  aria-label="Eliminar"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  Eliminar
+                </button>
+              )}
+              {deletePautaError && (
+                <p className="pauta-inline-error" role="alert">
+                  {deletePautaError}
+                </p>
+              )}
               {confirmingFinish ? (
                 <div
                   className="hijo-confirm pauta-finish-confirm pauta-finish"

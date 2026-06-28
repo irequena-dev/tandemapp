@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
-import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas, useUpdatePauta } from './api'
+import { useCreateAdministration, useDeleteAdministration, useDeletePauta, useFinishPauta, usePautas, useUpdatePauta } from './api'
 import type { Administration, Pauta } from './types'
 
 vi.mock('@clerk/react', () => ({
@@ -253,6 +253,59 @@ describe('useDeleteAdministration (deshacer)', () => {
       const pauta = result.current.list.data?.find((p) => p.id === 'pauta-1')
       expect(pauta?.todays_administrations).toHaveLength(0)
     })
+  })
+})
+
+describe('useDeletePauta (optimistic)', () => {
+  it('elimina la Pauta de la caché de inmediato y reconcilia', async () => {
+    const store: Pauta[] = [{ ...activePauta }]
+
+    server.use(
+      http.get(URL, () => HttpResponse.json(store)),
+      http.delete(`${URL}/:id`, ({ params }) => {
+        const idx = store.findIndex((p) => p.id === params['id'])
+        if (idx === -1) return new HttpResponse(null, { status: 404 })
+        store.splice(idx, 1)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), del: useDeletePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+    expect(result.current.list.data).toHaveLength(1)
+
+    act(() => {
+      result.current.del.mutate('pauta-1')
+    })
+
+    // Optimista: la Pauta desaparece inmediatamente
+    await waitFor(() => {
+      expect(result.current.list.data).toHaveLength(0)
+    })
+  })
+
+  it('señala error si la eliminación falla en el servidor', async () => {
+    server.use(
+      http.get(URL, () => HttpResponse.json([activePauta])),
+      http.delete(`${URL}/:id`, () => new HttpResponse(null, { status: 409 })),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), del: useDeletePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.del.mutate('pauta-1')
+    })
+
+    await waitFor(() => expect(result.current.del.isError).toBe(true))
+    // Rollback: la Pauta reaparece
+    await waitFor(() => expect(result.current.list.data).toHaveLength(1))
   })
 })
 

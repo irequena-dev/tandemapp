@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 
 from ..models import (
+    Administration,
     AdministrationOut,
     Member,
     Pauta,
@@ -192,6 +193,28 @@ async def update_pauta(
     await session.flush()
     await session.refresh(pauta)
     return await _enrich_one(scope, pauta)
+
+
+@router.delete("/pautas/{pauta_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pauta(
+    pauta_id: uuid.UUID,
+    scope: FamilyScope = Depends(family_session),
+) -> None:
+    """Elimina una Pauta activa y sus Administraciones asociadas (hard delete)."""
+    session = scope.session
+    pauta = await _get_owned_pauta(session, pauta_id)
+    if pauta.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se pueden eliminar Pautas activas",
+        )
+    # Borrar Administraciones asociadas (CASCADE manual — no hay FK CASCADE en DB)
+    admins_stmt = select(Administration).where(Administration.pauta_id == pauta_id)
+    admins = list((await session.execute(admins_stmt)).scalars().all())
+    for admin in admins:
+        await session.delete(admin)
+    await session.delete(pauta)
+    await session.flush()
 
 
 @router.post("/pautas/{pauta_id}/finish")

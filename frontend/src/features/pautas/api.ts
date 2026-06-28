@@ -249,6 +249,28 @@ export function useUpdatePauta() {
   })
 }
 
+/** Elimina una Pauta activa con optimistic update. */
+export function useDeletePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (pautaId: string) =>
+      apiFetch<void>(`/pautas/${pautaId}`, {
+        method: 'DELETE',
+        token: await getToken(),
+      }),
+    onMutate: async (pautaId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.filter((p) => p.id !== pautaId),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
 type DeleteAdminInput = { pautaId: string; adminId: string }
 
 /** Borra una Administración (deshacer toma) con optimistic update. */
