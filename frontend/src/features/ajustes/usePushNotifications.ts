@@ -125,8 +125,9 @@ export function usePushNotifications() {
         })
 
         setEnabled(true)
-      } catch {
-        setError('No se pudo activar. Inténtalo de nuevo.')
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e)
+        setError(`No se pudo activar: ${errMsg}`)
       } finally {
         setBusy(false)
       }
