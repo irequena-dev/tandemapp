@@ -23,6 +23,7 @@ type PautaFormProps = {
   pending?: boolean
   initialValues?: PautaUpdateInput
   onUpdate?: (patch: PautaUpdateInput) => void
+  defaultSubject?: string
 }
 
 function formatVisitLabel(v: HealthVisit): string {
@@ -43,15 +44,16 @@ export function PautaForm({
   pending = false,
   initialValues,
   onUpdate,
+  defaultSubject: explicitDefaultSubject,
 }: PautaFormProps) {
   const isEditMode = !!initialValues
   const singleSubject = children.length + members.length === 1
-  const defaultSubject = childId
+  const defaultSubjectValue = explicitDefaultSubject ?? (childId
     ? `child:${childId}`
     : singleSubject
       ? children.length === 1 ? `child:${children[0].id}` : `member:${members[0].id}`
-      : ''
-  const [selectedSubject, setSelectedSubject] = useState(defaultSubject)
+      : '')
+  const [selectedSubject, setSelectedSubject] = useState(defaultSubjectValue)
   const [medication, setMedication] = useState(initialValues?.medication ?? '')
   const [dose, setDose] = useState(initialValues?.dose ?? '')
   const defaultPreset = initialValues?.interval_hours
@@ -121,31 +123,35 @@ export function PautaForm({
     }
   }
 
-  return (
-    <form className="pauta-form" onSubmit={handleSubmit}>
-      {!childId && !isEditMode && (
-        <label className="pauta-form__label">
-          Para quién
-          <select
-            className="pauta-form__input"
-            value={selectedSubject}
-            onChange={(e) => { setSelectedSubject(e.target.value); setVisitId('') }}
-            required
-          >
-            {!singleSubject && <option value="">Seleccionar…</option>}
-            <optgroup label="Hijos">
-              {children.map((c) => (
-                <option key={c.id} value={`child:${c.id}`}>{c.name}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Miembros">
-              {members.map((m) => (
-                <option key={m.id} value={`member:${m.id}`}>{m.display_name ?? m.id}</option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
-      )}
+  // Cuando se pasa `defaultSubject`, siempre mostrar el select para
+   // permitir preseleccionar un sujeto específico (caso de detalle de Miembro).
+   const showSubjectSelector = !childId && !isEditMode || !!explicitDefaultSubject
+
+   return (
+     <form className="pauta-form" onSubmit={handleSubmit}>
+       {showSubjectSelector && (
+         <label className="pauta-form__label">
+           Para quién
+           <select
+             className="pauta-form__input"
+             value={selectedSubject}
+             onChange={(e) => { setSelectedSubject(e.target.value); setVisitId('') }}
+             required
+           >
+             {!singleSubject && <option value="">Seleccionar…</option>}
+             <optgroup label="Hijos">
+               {children.map((c) => (
+                 <option key={c.id} value={`child:${c.id}`}>{c.name}</option>
+               ))}
+             </optgroup>
+             <optgroup label="Miembros">
+               {members.map((m) => (
+                 <option key={m.id} value={`member:${m.id}`}>{m.display_name ?? m.id}</option>
+               ))}
+             </optgroup>
+           </select>
+         </label>
+       )}
 
       <label className="pauta-form__label">
         Medicamento

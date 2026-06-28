@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useChildren } from '../children/api'
-import type { Child } from '../children/types'
 import { formatAge } from '../children/age'
 import {
   useCreateMeasurement,
@@ -19,10 +18,8 @@ import {
 } from '../health-visits/api'
 import type { HealthVisit } from '../health-visits/types'
 import { useMembers } from '../members/api'
-import { PautaCard } from '../pautas/PautaCard'
-import { PautaForm } from '../pautas/PautaForm'
-import { useCreatePauta, usePautas } from '../pautas/api'
-import type { Pauta, PautaInput } from '../pautas/types'
+import { PautasSection } from '../pautas/PautasSection'
+import { usePautas } from '../pautas/api'
 import { SizesSection } from '../sizes/SizesSection'
 import '../sizes/sizes.css'
 import './hijos-tab.css'
@@ -616,8 +613,9 @@ export function HijoDetailPage() {
         aria-hidden={activeTab !== 'pautas'}
       >
         <PautasSection
-          childId={childId}
-          childName={child?.name ?? ''}
+          subjectId={childId}
+          subjectType="child"
+          subjectName={child?.name ?? ''}
           pautas={pautas}
           visits={visitas}
           children={children ?? []}
@@ -945,119 +943,7 @@ function VisitaForm({ editing, pending = false, onCreate, onUpdate, onCancel }: 
   )
 }
 
-/* ---------- Pautas section ---------- */
+/* ---------- Pautas section (extraído a feature compartido) ---------- */
 
-type PautasSectionProps = {
-  childId: string
-  childName: string
-  pautas: Pauta[]
-  visits: HealthVisit[]
-  children: Child[]
-  members: import('../members/types').Member[]
-}
-
-function PautasSection({ childId, childName, pautas, visits, children, members }: PautasSectionProps) {
-  const [showForm, setShowForm] = useState(false)
-  const createMut = useCreatePauta()
-  const toast = useToast()
-
-  const handleCreate = (input: PautaInput) => {
-    createMut.mutate(input, {
-      onSuccess: (data) => {
-        toast.success(`Pauta de ${data.medication} creada`)
-        setShowForm(false)
-      },
-      onError: () => toast.error('No se pudo crear la pauta'),
-    })
-  }
-
-  // Filtrar Pautas por Hijo (cliente-side para mantener consistencia con cache global)
-  const childPautas = pautas.filter(p => p.child_id === childId)
-  const active = childPautas.filter(p => p.status === 'active')
-  const finished = childPautas.filter(p => p.status === 'finished')
-
-  // Ordenar activas por próxima toma
-  const sortedActive = [...active].sort((a, b) => {
-    if (a.next_dose_at && b.next_dose_at) {
-      return new Date(a.next_dose_at).getTime() - new Date(b.next_dose_at).getTime()
-    }
-    return 0
-  })
-
-  // Ordenar finalizadas por fecha de finalización (más recientes primero)
-  const sortedFinished = [...finished].sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  )
-
-  return (
-    <section className="hijo-detail__section">
-      <div className="hijo-detail__section-header">
-        <h2 className="hijo-detail__section-title">Pautas</h2>
-        {!showForm && (
-          <button
-            type="button"
-            className="hijo-detail__add-btn"
-            onClick={() => setShowForm(true)}
-            aria-label="Registrar pauta"
-          >
-            <PlusIcon /> Pauta
-          </button>
-        )}
-      </div>
-
-      {showForm && (
-        <PautaForm
-          childId={childId}
-          children={children}
-          members={members}
-          visits={visits}
-          onSubmit={handleCreate}
-          onCancel={() => setShowForm(false)}
-          pending={createMut.isPending}
-        />
-      )}
-
-      {childPautas.length === 0 && !showForm ? (
-        <div className="hijo-detail__empty">
-          <p>{childName} no tiene pautas registradas</p>
-        </div>
-      ) : (
-        <>
-          {/* Activas */}
-          <div className="pautas-section">
-            <h3 className="pautas-section__title">Activas</h3>
-            {sortedActive.length > 0 ? (
-              <ul className="pautas__list">
-                {sortedActive.map((p) => (
-                  <li key={p.id}>
-                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="hijo-detail__empty hijo-detail__empty--compact">
-                <p>Sin pautas activas para {childName}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Finalizadas - colapsable por defecto */}
-          {sortedFinished.length > 0 && (
-            <details className="pautas-section__group" open={false}>
-              <summary className="pautas-section__summary">
-                Finalizadas ({sortedFinished.length})
-              </summary>
-              <ul className="pautas__list">
-                {sortedFinished.map((p) => (
-                  <li key={p.id}>
-                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </>
-      )}
-    </section>
-  )
-}
+// El componente PautasSection vive en features/pautas/PautasSection.tsx
+// y es compartido por HijoDetailPage (subjectType: 'child') y MemberDetailPage (subjectType: 'member').

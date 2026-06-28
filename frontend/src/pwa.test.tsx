@@ -75,7 +75,7 @@ describe('Navegación principal', () => {
     expect(within(nav).getByText(/hoy/i)).toBeTruthy()
     expect(within(nav).getByText(/compra/i)).toBeTruthy()
     expect(within(nav).getByText(/eventos/i)).toBeTruthy()
-    expect(within(nav).getByText(/hijos/i)).toBeTruthy()
+    expect(within(nav).getByText(/familia/i)).toBeTruthy()
     expect(within(nav).getByText(/pautas/i)).toBeTruthy()
   })
 

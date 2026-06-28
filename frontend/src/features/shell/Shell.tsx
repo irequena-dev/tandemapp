@@ -62,7 +62,7 @@ const TABS = [
   { to: '/', label: 'Hoy', Icon: IconHoy, end: true },
   { to: '/compra', label: 'Compra', Icon: IconCompra, end: false },
   { to: '/eventos', label: 'Eventos', Icon: IconEventos, end: false },
-  { to: '/hijos', label: 'Hijos', Icon: IconHijos, end: false },
+  { to: '/familia', label: 'Familia', Icon: IconHijos, end: false },
   { to: '/pautas', label: 'Pautas', Icon: IconPautas, end: false },
 ] as const
 

@@ -598,7 +598,7 @@ describe('HijoDetailPage — tab Pautas (historial por Hijo)', () => {
     expect(addBtn).not.toBeNull()
   })
 
-  it('el botón "+ Pauta" abre el formulario de creación (sin selector de Hijo)', async () => {
+  it('el botón "+ Pauta" abre el formulario de creación (con selector de sujeto preseleccionado)', async () => {
     server.use(
       ...stubData({ pautas: [] }),
     )
@@ -614,8 +614,8 @@ describe('HijoDetailPage — tab Pautas (historial por Hijo)', () => {
     expect(screen.getByLabelText('Dosis')).not.toBeNull()
     expect(screen.getByLabelText('Cada')).not.toBeNull()
     expect(screen.getByLabelText('Duración (días)')).not.toBeNull()
-    // No debe mostrar selector de sujeto (estamos en contexto de un Hijo)
-    expect(screen.queryByLabelText('Para quién')).toBeNull()
+    // El selector de sujeto debe estar preseleccionado con el Hijo actual
+    expect(screen.getByLabelText('Para quién')).not.toBeNull()
   })
 
   it('crea una Pauta desde HijoDetail y muestra toast de éxito', async () => {

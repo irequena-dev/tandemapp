@@ -6,8 +6,9 @@ import { Shell } from './features/shell/Shell'
 import { HoyPage } from './features/hoy/HoyPage'
 import { CompraPage } from './features/compra/CompraPage'
 import { EventosPage } from './features/eventos/EventosPage'
-import { HijosTabPage } from './features/hijos-tab/HijosTabPage'
+import { FamiliaTabPage } from './features/familia/FamiliaTabPage'
 import { HijoDetailPage } from './features/hijos-tab/HijoDetailPage'
+import { MemberDetailPage } from './features/members/MemberDetailPage'
 import { PautasPage } from './features/pautas/PautasPage'
 import { AjustesOverlay } from './features/ajustes/AjustesOverlay'
 import { DisplayNameOverlay } from './features/members/DisplayNameOverlay'
@@ -32,8 +33,9 @@ function App() {
             <Route index element={<HoyPage />} />
             <Route path="/compra" element={<CompraPage />} />
             <Route path="/eventos" element={<EventosPage />} />
-            <Route path="/hijos" element={<HijosTabPage />} />
+            <Route path="/familia" element={<FamiliaTabPage />} />
             <Route path="/hijos/:childId" element={<HijoDetailPage />} />
+            <Route path="/miembros/:memberId" element={<MemberDetailPage />} />
             <Route path="/pautas" element={<PautasPage />} />
           </Route>
         </Routes>

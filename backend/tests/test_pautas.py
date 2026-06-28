@@ -6,6 +6,7 @@ finalización automática (lazy), campos calculados (`ends_at`, `day_number`),
 """
 
 import os
+import uuid
 from datetime import datetime, timedelta
 
 from httpx import AsyncClient
@@ -25,6 +26,26 @@ async def _create_child(client: AsyncClient, name: str = "Mateo") -> str:
     )
     assert resp.status_code == 201
     return resp.json()["id"]
+
+
+async def _create_member(
+    admin_session: AsyncSession, org_id: str, display_name: str = "Miembro A"
+) -> str:
+    """Helper: crea un Miembro en la Familia dada y devuelve su id."""
+    from app.models import Family, Member
+
+    family = await admin_session.get(Family, org_id)
+    if family is None:
+        raise ValueError(f"Family {org_id} no encontrada")
+
+    member = Member(
+        family_id=org_id,
+        display_name=display_name,
+    )
+    admin_session.add(member)
+    await admin_session.commit()
+    await admin_session.refresh(member)
+    return member.id
 
 
 async def _backdate_pauta(pauta_id: str, days_ago: int = 2) -> None:
@@ -135,6 +156,82 @@ async def test_pauta_list_filters(auth_client: AsyncClient, identity: dict) -> N
     assert all(p["status"] == "finished" for p in finished)
     assert len(active) == 1
     assert len(finished) == 1
+
+
+async def test_pauta_list_filter_member_id(
+    auth_client: AsyncClient, identity: dict, admin_session: AsyncSession
+) -> None:
+    """Filtrar por member_id (simétrico con child_id)."""
+    _as(identity, "org_pauta_member", "user_pauta_mem1")
+
+    # Crear un Hijo primero: esto materializa la Familia en la DB
+    await _create_child(auth_client, "Hijo M")
+
+    # Crear un Miembro de la Familia vía SQL (no hay endpoint de creación)
+    from app.models import Member
+
+    result = await admin_session.execute(
+        Member.__table__.insert().values(
+            id=str(uuid.uuid4()),
+            family_id="org_pauta_member",
+            display_name="Miembro A",
+        )
+    )
+    member_id = str(result.inserted_primary_key[0])
+    await admin_session.commit()
+
+    # Crear dos Pautas: una para el Miembro y otra para un Hijo
+    await auth_client.post(
+        "/pautas",
+        json={
+            "member_id": member_id,
+            "medication": "Vitamina C",
+            "dose": "1 gota",
+            "interval_hours": 24,
+            "duration_days": 30,
+        },
+    )
+    resp_child = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": await _create_child(auth_client, "Hijo C"),
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    pauta_child_id = resp_child.json()["id"]
+
+    # Filtrar por member_id: solo devuelve la Pauta del Miembro
+    by_member = (await auth_client.get(f"/pautas?member_id={member_id}")).json()
+    assert len(by_member) == 1
+    assert by_member[0]["member_id"] == member_id
+
+    # Sin member_id: devuelve todas (sin regresión)
+    all_pautas = (await auth_client.get("/pautas")).json()
+    assert len(all_pautas) == 2
+
+    # AND con child_id: no resultados (una pauta no puede tener ambos)
+    by_both = (
+        await auth_client.get(
+            f"/pautas?member_id={member_id}&child_id={pauta_child_id}"
+        )
+    ).json()
+    assert len(by_both) == 0
+
+    # Sin child_id, solo member_id: filtra correctamente
+    by_member_only = (await auth_client.get(f"/pautas?member_id={member_id}")).json()
+    assert len(by_member_only) == 1
+    assert by_member_only[0]["member_id"] == member_id
+    assert by_member_only[0]["medication"] == "Vitamina C"
+
+    # Finalizar la Pauta del Miembro y verificar que sigue filtrable por member_id
+    await auth_client.post(f"/pautas/{by_member[0]['id']}/finish")
+    finished_member = (await auth_client.get(f"/pautas?member_id={member_id}")).json()
+    assert len(finished_member) == 1
+    assert finished_member[0]["status"] == "finished"
+    assert finished_member[0]["member_id"] == member_id
 
 
 async def test_pauta_finish_manual(auth_client: AsyncClient, identity: dict) -> None:

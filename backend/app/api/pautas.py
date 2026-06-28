@@ -136,14 +136,17 @@ async def list_pautas(
     scope: FamilyScope = Depends(family_session),
     status_filter: str | None = Query(None, alias="status"),
     child_id: uuid.UUID | None = Query(None),
+    member_id: str | None = Query(None),
 ) -> list[PautaOut]:
-    """Lista las Pautas de la Familia, con filtros opcionales por status/child_id."""
+    """Lista las Pautas de la Familia, con filtros por status/child_id/member_id."""
     session = scope.session
     await expire_due_pautas(session)
 
     stmt = select(Pauta)
     if child_id:
         stmt = stmt.where(Pauta.child_id == child_id)
+    if member_id:
+        stmt = stmt.where(Pauta.member_id == member_id)
     stmt = stmt.order_by(Pauta.started_at.desc())
     pautas = list((await session.execute(stmt)).scalars().all())
 

@@ -33,11 +33,12 @@ function settlePautas(qc: QueryClient): void {
 }
 
 /** Lista las Pautas de la Familia (filtros opcionales). */
-export function usePautas(params?: { status?: string; child_id?: string }) {
+export function usePautas(params?: { status?: string; child_id?: string; member_id?: string }) {
   const { getToken } = useAuth()
   const search = new URLSearchParams()
   if (params?.status) search.set('status', params.status)
   if (params?.child_id) search.set('child_id', params.child_id)
+  if (params?.member_id) search.set('member_id', params.member_id)
   const qs = search.toString()
   const path = `/pautas${qs ? `?${qs}` : ''}`
 
