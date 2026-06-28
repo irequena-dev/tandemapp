@@ -9,7 +9,7 @@ import {
 import { apiFetch } from '../../lib/api'
 import { randomId } from '../../lib/randomId'
 import type { ToastApi } from '../toasts/useToast'
-import type { Administration, Pauta, PautaInput } from './types'
+import type { Administration, Pauta, PautaInput, PautaUpdateInput } from './types'
 
 /** Claves de caché de Pautas. */
 export const pautasKeys = {
@@ -218,6 +218,33 @@ export function useCreateAdministration() {
       return ctx
     },
     onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+type UpdatePautaInput = { pautaId: string; patch: PautaUpdateInput }
+
+/** Edita los campos de tratamiento de una Pauta activa con optimistic update. */
+export function useUpdatePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ pautaId, patch }: UpdatePautaInput) =>
+      apiFetch<Pauta>(`/pautas/${pautaId}`, {
+        method: 'PATCH',
+        token: await getToken(),
+        body: patch,
+      }),
+    onMutate: async ({ pautaId, patch }) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) =>
+          p.id === pautaId ? { ...p, ...patch } : p,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
     onSettled: () => settlePautas(qc),
   })
 }

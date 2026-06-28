@@ -669,6 +669,15 @@ class PautaCreate(SQLModel):
         return self
 
 
+class PautaUpdate(SQLModel):
+    """Edición parcial de una Pauta activa: solo campos de tratamiento."""
+
+    medication: str | None = None
+    dose: str | None = None
+    interval_hours: int | None = None
+    duration_days: int | None = None
+
+
 class PautaOut(SQLModel):
     """Representación de Pauta para la API REST con campos calculados."""
 

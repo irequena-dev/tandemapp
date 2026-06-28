@@ -548,4 +548,103 @@ describe('PautasPage (costura de ruta/página)', () => {
     // El texto debe guiar al botón +
     expect(screen.queryByText(/Pulsa \+ para registrar/)).not.toBeNull()
   })
+
+  // --- Editar Pauta activa ---
+
+  it('PautaCard activa expandida muestra botón "Editar" que abre formulario inline', async () => {
+    server.use(
+      http.patch('http://localhost:8000/pautas/:id', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        return HttpResponse.json({ ...samplePauta, ...body })
+      }),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    // Expandir la tarjeta
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Botón "Editar" visible en la tarjeta expandida
+    const editBtn = await screen.findByRole('button', { name: /Editar/i })
+    expect(editBtn).not.toBeNull()
+
+    // Al pulsar "Editar" aparece el formulario con los valores actuales
+    await user.click(editBtn)
+    const medInput = screen.getByLabelText('Medicamento') as HTMLInputElement
+    expect(medInput.value).toBe('Amoxicilina')
+    const doseInput = screen.getByLabelText('Dosis') as HTMLInputElement
+    expect(doseInput.value).toBe('5 ml')
+
+    // No debe mostrar el selector de sujeto ni de visita en modo edición
+    expect(screen.queryByLabelText('Para quién')).toBeNull()
+    expect(screen.queryByLabelText('Visita asociada')).toBeNull()
+
+    // El botón dice "Guardar" en vez de "Registrar"
+    expect(screen.getByRole('button', { name: /Guardar/i })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /Registrar/i })).toBeNull()
+  })
+
+  it('"Cancelar" en edición cierra el formulario sin cambios', async () => {
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+    await user.click(await screen.findByRole('button', { name: /Editar/i }))
+
+    // Formulario visible
+    expect(screen.getByLabelText('Medicamento')).not.toBeNull()
+
+    // Cancelar cierra el formulario
+    await user.click(screen.getByRole('button', { name: /Cancelar/i }))
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Medicamento')).toBeNull()
+    })
+  })
+
+  it('"Guardar" en edición persiste los cambios y cierra el formulario', async () => {
+    const patches: Record<string, unknown>[] = []
+    server.use(
+      http.patch('http://localhost:8000/pautas/:id', async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        patches.push(body)
+        return HttpResponse.json({ ...samplePauta, ...body })
+      }),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+    await user.click(await screen.findByRole('button', { name: /Editar/i }))
+
+    // Cambiar medicamento
+    const medInput = screen.getByLabelText('Medicamento') as HTMLInputElement
+    await user.clear(medInput)
+    await user.type(medInput, 'Ibuprofeno')
+
+    await user.click(screen.getByRole('button', { name: /Guardar/i }))
+
+    await waitFor(() => expect(patches.length).toBe(1))
+    expect(patches[0]).toMatchObject({ medication: 'Ibuprofeno' })
+
+    // El formulario se cierra tras guardar
+    await waitFor(() => {
+      expect(screen.queryByLabelText('Medicamento')).toBeNull()
+    })
+  })
+
+  it('NO muestra botón "Editar" en Pautas finalizadas', async () => {
+    // PautasPage solo muestra activas; verificamos que la activa sí tiene el botón
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { expanded: false }))
+    // Activa sí tiene el botón
+    expect(await screen.findByRole('button', { name: /Editar/i })).not.toBeNull()
+  })
 })

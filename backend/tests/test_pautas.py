@@ -527,3 +527,146 @@ async def test_pauta_status_filter_with_auto_finish(
     finished_list = (await auth_client.get("/pautas?status=finished")).json()
     assert any(p["id"] == expired_id for p in finished_list)
     assert all(p["status"] == "finished" for p in finished_list)
+
+
+# ---------- Editar Pauta activa (PATCH) ----------
+
+
+async def test_patch_pauta_partial_update(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH /pautas/{id} actualiza campos enviados; devuelve Pauta enriquecida."""
+    _as(identity, "org_patch_ok", "user_patch_ok")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    assert resp.status_code == 201
+    original = resp.json()
+    pauta_id = original["id"]
+
+    # Editar solo medication y dose
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Ibuprofeno", "dose": "3 ml"},
+    )
+    assert patch_resp.status_code == 200
+    updated = patch_resp.json()
+
+    # Campos editados
+    assert updated["medication"] == "Ibuprofeno"
+    assert updated["dose"] == "3 ml"
+    # Campos no enviados: conservan valor original
+    assert updated["interval_hours"] == 8
+    assert updated["duration_days"] == 7
+    # started_at no se toca
+    assert updated["started_at"] == original["started_at"]
+    # ends_at se recalcula
+    started = datetime.fromisoformat(updated["started_at"])
+    ends = datetime.fromisoformat(updated["ends_at"])
+    assert ends - started == timedelta(days=7)
+    # Campos enriquecidos presentes
+    assert "day_number" in updated
+    assert "next_dose_at" in updated
+
+
+async def test_patch_pauta_duration_recalculates_ends_at(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Editar duration_days recalcula ends_at desde started_at original."""
+    _as(identity, "org_patch_dur", "user_patch_dur")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Dalsy",
+            "dose": "4 ml",
+            "interval_hours": 6,
+            "duration_days": 5,
+        },
+    )
+    original = resp.json()
+    pauta_id = original["id"]
+
+    # Cambiar duración de 5 a 10 días
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"duration_days": 10},
+    )
+    assert patch_resp.status_code == 200
+    updated = patch_resp.json()
+
+    assert updated["duration_days"] == 10
+    started = datetime.fromisoformat(updated["started_at"])
+    ends = datetime.fromisoformat(updated["ends_at"])
+    assert ends - started == timedelta(days=10)
+    # started_at no cambia
+    assert updated["started_at"] == original["started_at"]
+
+
+async def test_patch_pauta_finished_returns_409(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Intentar editar una Pauta finalizada devuelve 409."""
+    _as(identity, "org_patch_409", "user_patch_409")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Vitamina D",
+            "dose": "1 gota",
+            "interval_hours": 24,
+            "duration_days": 30,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+
+    # Intentar editar → 409
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Otra cosa"},
+    )
+    assert patch_resp.status_code == 409
+
+
+async def test_patch_pauta_other_family_returns_404(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS: una Familia no puede editar la Pauta de otra (404)."""
+    _as(identity, "org_patch_rls_a", "user_patch_rls_a")
+    child_id = await _create_child(auth_client, "Hijo RLS A")
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Secreto",
+            "dose": "1 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Familia B intenta editar
+    _as(identity, "org_patch_rls_b", "user_patch_rls_b")
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Hackeado"},
+    )
+    assert patch_resp.status_code == 404

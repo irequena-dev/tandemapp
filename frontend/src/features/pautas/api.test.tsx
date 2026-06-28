@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
-import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas } from './api'
+import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas, useUpdatePauta } from './api'
 import type { Administration, Pauta } from './types'
 
 vi.mock('@clerk/react', () => ({
@@ -253,5 +253,64 @@ describe('useDeleteAdministration (deshacer)', () => {
       const pauta = result.current.list.data?.find((p) => p.id === 'pauta-1')
       expect(pauta?.todays_administrations).toHaveLength(0)
     })
+  })
+})
+
+describe('useUpdatePauta (optimistic)', () => {
+  it('actualiza campos de la Pauta con optimistic update y reconcilia', async () => {
+    const store: Pauta[] = [{ ...activePauta }]
+
+    server.use(
+      http.get(URL, () => HttpResponse.json(store)),
+      http.patch(`${URL}/:id`, async ({ params, request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        const pauta = store.find((p) => p.id === params['id'])
+        if (!pauta) return new HttpResponse(null, { status: 404 })
+        Object.assign(pauta, body)
+        return HttpResponse.json(pauta)
+      }),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), update: useUpdatePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.update.mutate({
+        pautaId: 'pauta-1',
+        patch: { medication: 'Ibuprofeno', dose: '3 ml' },
+      })
+    })
+
+    // Optimista: los campos se actualizan inmediatamente
+    await waitFor(() => {
+      const pauta = result.current.list.data?.find((p) => p.id === 'pauta-1')
+      expect(pauta?.medication).toBe('Ibuprofeno')
+      expect(pauta?.dose).toBe('3 ml')
+    })
+  })
+
+  it('señala error si la edición falla en el servidor', async () => {
+    server.use(
+      http.get(URL, () => HttpResponse.json([activePauta])),
+      http.patch(`${URL}/:id`, () => new HttpResponse(null, { status: 409 })),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), update: useUpdatePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.update.mutate({
+        pautaId: 'pauta-1',
+        patch: { medication: 'Nope' },
+      })
+    })
+
+    await waitFor(() => expect(result.current.update.isError).toBe(true))
   })
 })

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useToast } from '../toasts/useToast'
-import { useCreateAdministration, useDeleteAdministration, useFinishPauta } from './api'
-import type { Administration, Pauta } from './types'
+import { PautaForm } from './PautaForm'
+import { useCreateAdministration, useDeleteAdministration, useFinishPauta, useUpdatePauta } from './api'
+import type { Administration, Pauta, PautaUpdateInput } from './types'
 
 function initialOf(name: string): string {
   return [...name.trim()][0]?.toUpperCase() ?? '?'
@@ -70,6 +71,14 @@ function isRecentAdmin(iso: string, now: Date): boolean {
   return now.getTime() - new Date(iso).getTime() < DUPLICATE_GUARD_MINUTES * 60_000
 }
 
+function EditIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  )
+}
+
 type PautaCardProps = {
   pauta: Pauta
   subjectName: string
@@ -83,10 +92,12 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
   const [confirmingAdminId, setConfirmingAdminId] = useState<string | null>(null)
   // ¿La acción "Finalizar Pauta" está pidiendo confirmación inline? (destructiva).
   const [confirmingFinish, setConfirmingFinish] = useState(false)
+  const [editing, setEditing] = useState(false)
   const toast = useToast()
   const finishMutation = useFinishPauta(toast)
   const createAdmin = useCreateAdministration()
   const deleteAdmin = useDeleteAdministration()
+  const updateMut = useUpdatePauta()
   const now = new Date()
 
   const todaysAdmins = pauta.todays_administrations ?? []
@@ -149,9 +160,22 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
       if (!next) {
         setConfirmingAdminId(null)
         setConfirmingFinish(false)
+        setEditing(false)
       }
       return next
     })
+  }
+
+  function handleUpdate(patch: PautaUpdateInput) {
+    updateMut.mutate(
+      { pautaId: pauta.id, patch },
+      {
+        onSuccess: () => {
+          setEditing(false)
+          toast.success(`Pauta de ${patch.medication ?? pauta.medication} actualizada`)
+        },
+      },
+    )
   }
 
   // Finaliza la Pauta tras la confirmación inline. El toast de éxito con
@@ -393,7 +417,25 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
               tarjeta colapsada; aquí queda la acción infrecuente "Finalizar
               Pauta" y, cuando aplica, el aviso de la guarda de duplicado como
               momento de reassurance ("Dada a las … por …"). */}
-          {pauta.status === 'active' && (
+          {pauta.status === 'active' && editing && (
+            <PautaForm
+              children={[]}
+              members={[]}
+              visits={[]}
+              onSubmit={() => {}}
+              onCancel={() => setEditing(false)}
+              pending={updateMut.isPending}
+              initialValues={{
+                medication: pauta.medication,
+                dose: pauta.dose,
+                interval_hours: pauta.interval_hours,
+                duration_days: pauta.duration_days,
+              }}
+              onUpdate={handleUpdate}
+            />
+          )}
+
+          {pauta.status === 'active' && !editing && (
             <div className="pauta-body__actions">
               {recentToma && lastAdmin && todaysAdmins.length === 0 && (
                 <span className="pauta-toma__hint">
@@ -406,9 +448,14 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
                   {finishError}
                 </p>
               )}
-              {/* Finalizar es destructivo (cierra el tratamiento): pedimos
-                  confirmación inline (patrón .hijo-confirm, Sí/No de ancho
-                  igual) antes de ejecutar. El undo de 10s vive en el toast. */}
+              <button
+                type="button"
+                className="btn btn--secondary btn--sm"
+                aria-label="Editar Pauta"
+                onClick={() => setEditing(true)}
+              >
+                <EditIcon /> Editar
+              </button>
               {confirmingFinish ? (
                 <div
                   className="hijo-confirm pauta-finish-confirm pauta-finish"

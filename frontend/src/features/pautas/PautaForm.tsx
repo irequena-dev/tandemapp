@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { Child } from '../children/types'
 import type { HealthVisit } from '../health-visits/types'
 import type { Member } from '../members/types'
-import type { PautaInput } from './types'
+import type { PautaInput, PautaUpdateInput } from './types'
 
 const INTERVAL_PRESETS = [
   { value: '8', label: 'Cada 8 h' },
@@ -21,6 +21,8 @@ type PautaFormProps = {
   onSubmit: (input: PautaInput) => void
   onCancel: () => void
   pending?: boolean
+  initialValues?: PautaUpdateInput
+  onUpdate?: (patch: PautaUpdateInput) => void
 }
 
 function formatVisitLabel(v: HealthVisit): string {
@@ -39,7 +41,10 @@ export function PautaForm({
   onSubmit,
   onCancel,
   pending = false,
+  initialValues,
+  onUpdate,
 }: PautaFormProps) {
+  const isEditMode = !!initialValues
   const singleSubject = children.length + members.length === 1
   const defaultSubject = childId
     ? `child:${childId}`
@@ -47,11 +52,22 @@ export function PautaForm({
       ? children.length === 1 ? `child:${children[0].id}` : `member:${members[0].id}`
       : ''
   const [selectedSubject, setSelectedSubject] = useState(defaultSubject)
-  const [medication, setMedication] = useState('')
-  const [dose, setDose] = useState('')
-  const [intervalPreset, setIntervalPreset] = useState('8')
-  const [customInterval, setCustomInterval] = useState('')
-  const [durationDays, setDurationDays] = useState('')
+  const [medication, setMedication] = useState(initialValues?.medication ?? '')
+  const [dose, setDose] = useState(initialValues?.dose ?? '')
+  const defaultPreset = initialValues?.interval_hours
+    ? (INTERVAL_PRESETS.some((p) => p.value === String(initialValues.interval_hours))
+        ? String(initialValues.interval_hours)
+        : 'other')
+    : '8'
+  const [intervalPreset, setIntervalPreset] = useState(defaultPreset)
+  const [customInterval, setCustomInterval] = useState(
+    defaultPreset === 'other' && initialValues?.interval_hours
+      ? String(initialValues.interval_hours)
+      : '',
+  )
+  const [durationDays, setDurationDays] = useState(
+    initialValues?.duration_days ? String(initialValues.duration_days) : '',
+  )
   const [visitId, setVisitId] = useState('')
 
   const effectiveSubject = childId ? `child:${childId}` : selectedSubject
@@ -67,7 +83,24 @@ export function PautaForm({
     e.preventDefault()
     const interval =
       intervalPreset === 'other' ? Number(customInterval) : Number(intervalPreset)
-    if ((!effectiveChildId && !effectiveMemberId) || !medication.trim() || !dose.trim() || !interval || !Number(durationDays)) return
+    if (!medication.trim() || !dose.trim() || !interval || !Number(durationDays)) return
+
+    if (isEditMode && onUpdate) {
+      const patch: PautaUpdateInput = {}
+      if (medication.trim() !== initialValues.medication) patch.medication = medication.trim()
+      if (dose.trim() !== initialValues.dose) patch.dose = dose.trim()
+      if (interval !== initialValues.interval_hours) patch.interval_hours = interval
+      if (Number(durationDays) !== initialValues.duration_days) patch.duration_days = Number(durationDays)
+      onUpdate(Object.keys(patch).length > 0 ? patch : {
+        medication: medication.trim(),
+        dose: dose.trim(),
+        interval_hours: interval,
+        duration_days: Number(durationDays),
+      })
+      return
+    }
+
+    if (!effectiveChildId && !effectiveMemberId) return
     if (effectiveChildId) {
       onSubmit({
         child_id: effectiveChildId,
@@ -90,7 +123,7 @@ export function PautaForm({
 
   return (
     <form className="pauta-form" onSubmit={handleSubmit}>
-      {!childId && (
+      {!childId && !isEditMode && (
         <label className="pauta-form__label">
           Para quién
           <select
@@ -182,7 +215,7 @@ export function PautaForm({
         </label>
       </div>
 
-      {isChild && effectiveChildId && childVisits.length > 0 && (
+      {!isEditMode && isChild && effectiveChildId && childVisits.length > 0 && (
         <label className="pauta-form__label">
           Visita asociada
           <select
@@ -204,7 +237,7 @@ export function PautaForm({
           className="btn btn--primary btn--sm"
           disabled={pending}
         >
-          {pending ? 'Guardando…' : 'Registrar'}
+          {pending ? 'Guardando…' : isEditMode ? 'Guardar' : 'Registrar'}
         </button>
         <button
           type="button"
