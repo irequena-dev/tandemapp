@@ -23,6 +23,7 @@ from ..models import (
     Pauta,
     PautaCreate,
     PautaOut,
+    PautaUpdate,
 )
 from ..pautas_service import PautaView, expire_due_pautas, load_pauta_views
 from ..tenancy import FamilyScope, family_session
@@ -167,6 +168,29 @@ async def get_pauta(
     session = scope.session
     await expire_due_pautas(session)
     pauta = await _get_owned_pauta(session, pauta_id)
+    return await _enrich_one(scope, pauta)
+
+
+@router.patch("/pautas/{pauta_id}")
+async def update_pauta(
+    pauta_id: uuid.UUID,
+    data: PautaUpdate,
+    scope: FamilyScope = Depends(family_session),
+) -> PautaOut:
+    """Edita los campos de tratamiento de una Pauta activa."""
+    session = scope.session
+    pauta = await _get_owned_pauta(session, pauta_id)
+    if pauta.status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se pueden editar Pautas activas",
+        )
+    patch = data.model_dump(exclude_unset=True)
+    for field, value in patch.items():
+        setattr(pauta, field, value)
+    session.add(pauta)
+    await session.flush()
+    await session.refresh(pauta)
     return await _enrich_one(scope, pauta)
 
 

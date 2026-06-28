@@ -41,3 +41,10 @@ export type PautaInput = {
   duration_days: number
   health_visit_id?: string | null
 }
+
+export type PautaUpdateInput = {
+  medication?: string
+  dose?: string
+  interval_hours?: number
+  duration_days?: number
+}
