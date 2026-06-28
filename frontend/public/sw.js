@@ -18,6 +18,28 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+self.addEventListener('push', (event) => {
+  const payload = event.data.json()
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      data: { url: payload.url },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = event.notification.data?.url || '/'
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      const match = windowClients.find((c) => c.url.includes(url))
+      if (match) return match.focus()
+      return self.clients.openWindow(url)
+    }),
+  )
+})
+
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
 

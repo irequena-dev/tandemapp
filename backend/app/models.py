@@ -599,8 +599,9 @@ PautaStatus = Literal["active", "finished"]
 
 
 class Pauta(SQLModel, table=True):
-    """Pauta: instrucción de tratamiento activa para un Hijo.
+    """Pauta: instrucción de tratamiento activa para un Hijo o un Miembro.
 
+    Exactamente uno de `child_id` / `member_id` está relleno (CHECK en DB).
     `ends_at` y `day_number` son calculados (no persistidos). La finalización
     automática se aplica lazily al consultar (si `now >= started_at + duration_days`).
     """
@@ -609,7 +610,10 @@ class Pauta(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     family_id: str = Field(foreign_key="families.id", index=True)
-    child_id: uuid.UUID = Field(foreign_key="children.id", index=True)
+    child_id: uuid.UUID | None = Field(
+        default=None, foreign_key="children.id", index=True
+    )
+    member_id: str | None = Field(default=None, foreign_key="members.id", index=True)
     medication: str
     dose: str
     interval_hours: int
@@ -640,14 +644,38 @@ class Pauta(SQLModel, table=True):
 
 
 class PautaCreate(SQLModel):
-    """Cuerpo para iniciar una Pauta (sin family_id/created_by: servidor)."""
+    """Cuerpo para iniciar una Pauta (sin family_id/created_by: servidor).
 
-    child_id: uuid.UUID
+    Exactamente uno de `child_id` / `member_id` debe estar presente.
+    Si el sujeto es Miembro, `health_visit_id` debe ser None.
+    """
+
+    child_id: uuid.UUID | None = None
+    member_id: str | None = None
     medication: str
     dose: str
     interval_hours: int
     duration_days: int
     health_visit_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one_subject(self) -> "PautaCreate":
+        has_child = self.child_id is not None
+        has_member = self.member_id is not None
+        if has_child == has_member:
+            raise ValueError(
+                "Exactamente uno de child_id o member_id debe estar presente"
+            )
+        return self
+
+
+class PautaUpdate(SQLModel):
+    """Edición parcial de una Pauta activa: solo campos de tratamiento."""
+
+    medication: str | None = None
+    dose: str | None = None
+    interval_hours: int | None = None
+    duration_days: int | None = None
 
 
 class PautaOut(SQLModel):
@@ -655,7 +683,9 @@ class PautaOut(SQLModel):
 
     id: uuid.UUID
     family_id: str
-    child_id: uuid.UUID
+    child_id: uuid.UUID | None
+    member_id: str | None
+    subject_name: str
     medication: str
     dose: str
     interval_hours: int
@@ -723,4 +753,85 @@ class AdministrationOut(SQLModel):
     administered_at: datetime
     administered_by: str
     member_name: str | None = None
+    created_at: datetime
+
+
+# ---------- Suscripciones push ----------
+
+
+class PushSubscription(SQLModel, table=True):
+    """Suscripción push por dispositivo/navegador de un Miembro.
+
+    `endpoint` es la URL del servicio de push del navegador (UNIQUE).
+    `p256dh` y `auth` son las claves públicas del cliente para el cifrado.
+    `family_id` + RLS aíslan por Familia; `member_id` atribuye al Miembro.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    member_id: str = Field(foreign_key="members.id", index=True)
+    endpoint: str = Field(sa_type=sa.Text)
+    p256dh: str = Field(sa_type=sa.Text)
+    auth: str = Field(sa_type=sa.Text)
+    created_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class PushSentLog(SQLModel, table=True):
+    """Registro append-only de Avisos push enviados (anti-duplicado).
+
+    Clave de Administración: `(pauta_id, dose_due_at)`.
+    Clave de Evento: `(event_id, event_instant, alert_type)`.
+    Ambas son UNIQUE; los campos de cada discriminador son nullable porque
+    las filas del otro tipo no los usan.
+    """
+
+    __tablename__ = "push_sent_log"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    family_id: str = Field(foreign_key="families.id", index=True)
+    pauta_id: uuid.UUID | None = Field(default=None, foreign_key="pautas.id")
+    dose_due_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    # Discriminador de Evento
+    event_id: uuid.UUID | None = Field(default=None, foreign_key="events.id")
+    event_instant: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    alert_type: str | None = Field(default=None)
+    sent_at: datetime = Field(
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        )
+    )
+
+
+class PushSubscriptionCreate(SQLModel):
+    """Cuerpo del alta de una suscripción push (sin family_id ni member_id)."""
+
+    endpoint: str
+    p256dh: str
+    auth: str
+
+
+class PushSubscriptionOut(SQLModel):
+    """Suscripción push tal como la devuelve la API."""
+
+    id: uuid.UUID
+    member_id: str
+    endpoint: str
+    p256dh: str
+    auth: str
     created_at: datetime

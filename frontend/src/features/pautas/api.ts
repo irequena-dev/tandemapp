@@ -1,3 +1,4 @@
+import { createElement, Fragment } from 'react'
 import { useAuth } from '@clerk/react'
 import {
   useMutation,
@@ -7,7 +8,8 @@ import {
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
 import { randomId } from '../../lib/randomId'
-import type { Administration, Pauta, PautaInput } from './types'
+import type { ToastApi } from '../toasts/useToast'
+import type { Administration, Pauta, PautaInput, PautaUpdateInput } from './types'
 
 /** Claves de caché de Pautas. */
 export const pautasKeys = {
@@ -62,7 +64,9 @@ export function useCreatePauta() {
       const optimistic: Pauta = {
         id: `optimistic-${randomId()}`,
         family_id: 'optimistic',
-        child_id: input.child_id,
+        child_id: input.child_id ?? null,
+        member_id: input.member_id ?? null,
+        subject_name: '…',
         medication: input.medication,
         dose: input.dose,
         interval_hours: input.interval_hours,
@@ -89,10 +93,19 @@ export function useCreatePauta() {
   })
 }
 
-/** Finaliza una Pauta (optimista: marca finished inmediatamente). */
-export function useFinishPauta() {
+/** Finaliza una Pauta (optimista: marca finished inmediatamente).
+ *
+ * El toast de éxito con "Deshacer" (10s, reactiva la Pauta) se dispara desde el
+ * `onSuccess` del propio hook —no desde un callback pasado a `.mutate()`— porque
+ * al marcar `finished` la tarjeta salta de la lista de activas a la sección
+ * "Finalizadas" y se DESMONTA: los callbacks de `.mutate()` de un componente
+ * desmontado no se ejecutan, así que el toast se perdía. Los de `useMutation`
+ * sí se ejecutan siempre. Usamos `createElement` porque este archivo es `.ts`.
+ */
+export function useFinishPauta(toast?: ToastApi) {
   const { getToken } = useAuth()
   const qc = useQueryClient()
+  const reactivate = useReactivatePauta()
   return useMutation({
     mutationFn: async (pautaId: string) =>
       apiFetch<Pauta>(`/pautas/${pautaId}/finish`, {
@@ -106,6 +119,56 @@ export function useFinishPauta() {
           p.id === pautaId
             ? { ...p, status: 'finished' as const, next_dose_at: null }
             : p,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSuccess: (data) => {
+      if (!toast) return
+      const toastId = toast.success(
+        createElement(
+          Fragment,
+          null,
+          createElement('strong', null, `Pauta de ${data.medication} finalizada.`),
+          ' ',
+          createElement(
+            'button',
+            {
+              type: 'button',
+              className: 'toast__action',
+              onClick: () => {
+                reactivate.mutate(data.id, {
+                  onError: () => toast.error('No se pudo reactivar la Pauta.'),
+                })
+                toast.dismiss(toastId)
+              },
+            },
+            'Deshacer',
+          ),
+        ),
+        { duration: 10000 },
+      )
+    },
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+/** Reactiva una Pauta finalizada (deshacer "Finalizar Pauta"). */
+export function useReactivatePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (pautaId: string) =>
+      apiFetch<Pauta>(`/pautas/${pautaId}/reactivate`, {
+        method: 'POST',
+        token: await getToken(),
+      }),
+    onMutate: async (pautaId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) =>
+          p.id === pautaId ? { ...p, status: 'active' as const } : p,
         ),
       )
       return ctx
@@ -151,6 +214,55 @@ export function useCreateAdministration() {
             ],
           }
         }),
+      )
+      return ctx
+    },
+    onError: (_e, _id, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+type UpdatePautaInput = { pautaId: string; patch: PautaUpdateInput }
+
+/** Edita los campos de tratamiento de una Pauta activa con optimistic update. */
+export function useUpdatePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ pautaId, patch }: UpdatePautaInput) =>
+      apiFetch<Pauta>(`/pautas/${pautaId}`, {
+        method: 'PATCH',
+        token: await getToken(),
+        body: patch,
+      }),
+    onMutate: async ({ pautaId, patch }) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.map((p) =>
+          p.id === pautaId ? { ...p, ...patch } : p,
+        ),
+      )
+      return ctx
+    },
+    onError: (_e, _input, ctx) => rollback(qc, ctx),
+    onSettled: () => settlePautas(qc),
+  })
+}
+
+/** Elimina una Pauta activa con optimistic update. */
+export function useDeletePauta() {
+  const { getToken } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (pautaId: string) =>
+      apiFetch<void>(`/pautas/${pautaId}`, {
+        method: 'DELETE',
+        token: await getToken(),
+      }),
+    onMutate: async (pautaId) => {
+      const ctx = await beginOptimistic(qc)
+      qc.setQueryData<Pauta[]>(pautasKeys.all, (old = []) =>
+        old.filter((p) => p.id !== pautaId),
       )
       return ctx
     },

@@ -15,7 +15,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import Event, Series, SeriesCreate, SeriesCreatedOut
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(prefix="/api", tags=["series"])
 
@@ -79,11 +79,10 @@ def first_at(cadence: str, starts_at: date, first: date, index: int) -> date:
 )
 async def create_series(
     data: SeriesCreate,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> SeriesCreatedOut:
     """Crea una Serie acotada y materializa todas sus ocurrencias como Eventos."""
+    session = scope.session
     occurrences = compute_occurrences(
         data.cadence,
         data.day_of_week,
@@ -93,7 +92,7 @@ async def create_series(
     )
 
     series = Series(
-        family_id=family_id,
+        family_id=scope.family_id,
         cadence=data.cadence,
         day_of_week=data.day_of_week,
         starts_at=data.starts_at,
@@ -106,14 +105,14 @@ async def create_series(
     for occ_date in occurrences:
         session.add(
             Event(
-                family_id=family_id,
+                family_id=scope.family_id,
                 title=data.title,
                 date=occ_date,
                 time=data.time,
                 event_type_id=data.event_type_id,
                 child_id=data.child_id,
                 series_id=series.id,
-                created_by=member_id,
+                created_by=scope.member_id,
             )
         )
     await session.flush()
@@ -134,9 +133,10 @@ async def _get_owned_series(session: AsyncSession, series_id: uuid.UUID) -> Seri
 @router.delete("/series/{series_id}/future", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_future_occurrences(
     series_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
     """Borra las ocurrencias futuras de una Serie, sin tocar pasadas/marcadas."""
+    session = scope.session
     await _get_owned_series(session, series_id)
     today = datetime.now(UTC).date()
     await session.execute(

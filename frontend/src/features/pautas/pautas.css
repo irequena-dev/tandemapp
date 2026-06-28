@@ -36,48 +36,110 @@
   overflow: hidden;
 }
 
+/* Una Pauta finalizada se agrupa en la sección "Finalizadas" y se marca con la
+   pill "Finalizada" (con check). El recedido NO se hace con surface-2 porque en
+   el tema cálido surface-2 (#efe7d8) ≈ el fondo de la app (#ece6da) y la card se
+   fundía con el campo; mantenemos la superficie de card y recedemos con un borde
+   discreto (dashed) que sigue leyendo como tarjeta cerrada. */
 .pauta-card--finalizada {
-  opacity: 0.6;
+  background: var(--ds-surface);
+  border-style: dashed;
 }
 
-.pauta-card__header {
+/* ---------- Pauta card summary (collapsed) ----------
+   Card tipo Hijos: anagrama grande + título de la Pauta + chips de
+   frecuencia/duración y un footer con estado + acción. Toda la card es el
+   trigger de disclosure (role=button); el chevron es solo indicador visual y
+   "Marcar toma" frena la propagación. */
+.pauta-card__summary {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--ds-s-md);
-  padding: var(--ds-s-md) var(--ds-s-lg);
+  padding: var(--ds-s-lg);
   cursor: pointer;
-  min-height: 64px;
   transition: background-color var(--ds-dur-fast) var(--ds-ease);
 }
-.pauta-card__header:hover {
-  background: var(--ds-surface-2);
+@media (hover: hover) and (pointer: fine) {
+  .pauta-card__summary:hover {
+    background: color-mix(in srgb, var(--ds-surface-2) 50%, transparent);
+  }
+}
+.pauta-card__summary:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: -2px;
 }
 
-.pauta-card__child {
-  flex: none;
+/* Cabecera tipo card de Hijos: anagrama grande, info, chevron arriba a la derecha. */
+.pauta-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-s-lg);
+  min-width: 0;
 }
 
-.pauta-card__info {
+.pauta-card__headinfo {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.pauta-card__med {
+.pauta-card__title {
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.3;
   color: var(--ds-ink);
+  overflow-wrap: anywhere;
 }
 
-.pauta-card__sub {
-  font-size: 0.8125rem;
+.pauta-card__child {
+  font-size: 0.875rem;
   color: var(--ds-muted);
 }
 
-.pauta-card__status {
+.pauta-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  margin-top: 2px;
+}
+
+.pauta-card__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--ds-ink);
+  background: var(--ds-surface-2);
+  border-radius: var(--ds-r-sm);
+  padding: 3px var(--ds-s-sm);
+  white-space: nowrap;
+}
+
+/* Footer: pill de estado a la izquierda, acción primaria a la derecha. */
+.pauta-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-s-sm);
+  min-height: 44px;
+}
+
+.pauta-card__actions {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ds-s-sm);
+  margin-left: auto;
+}
+
+.pauta-card__due {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -87,25 +149,81 @@
   font-size: 0.8125rem;
   font-weight: 500;
   line-height: 1;
+  white-space: nowrap;
 }
 
-.pauta-card__status--activa {
-  background: color-mix(in srgb, var(--ds-primary) 12%, transparent);
-  color: var(--ds-primary);
+/* Próxima → attn ("needs you now"). Dada → success (handled). Finalizada → neutral. */
+.pauta-card__due--proxima {
+  background: var(--ds-attn-bg);
+  color: var(--ds-attn-ink);
 }
-
-.pauta-card__status--finalizada {
+.pauta-card__due--dada {
+  background: var(--ds-success-bg);
+  color: var(--ds-success-ink);
+}
+.pauta-card__due--finalizada {
   background: var(--ds-surface-2);
+  color: var(--ds-muted);
+}
+
+/* Indicador de expansión: chevron arriba a la derecha. Decorativo (la card
+   entera es el trigger), así que no es focusable ni necesita hover propio. */
+.pauta-card__toggle {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
   color: var(--ds-muted);
 }
 
 .pauta-card__chevron {
   flex: none;
-  color: var(--ds-muted);
+  color: currentColor;
   transition: transform var(--ds-dur-fast) var(--ds-ease);
 }
 .pauta-card__chevron--open {
   transform: rotate(180deg);
+}
+
+/* Mensaje de error inline (create/delete/finish). Hermano del bloque
+   `.hijos__error` de Hijos: danger al 6% de fondo, texto en danger, y el rol
+   `alert` para lectores. Aquí va en versión compacta porque vive dentro de un
+   strip de acción, no como bloque de página. Cumple State-Is-Never-Color-Alone
+   vía el icono del toast/glyph + el texto. */
+.pauta-inline-error {
+  flex-basis: 100%;
+  text-align: right;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ds-danger);
+}
+
+/* Confirmación inline del "Deshacer toma": reutiliza `.hijo-confirm` (de
+   children.css) como bloque base y solo ajusta el contexto — aquí vive dentro
+   de `.pauta-tomas`, no al pie de un item de lista, así que añadimos un poco
+   de aire arriba y redondeamos el fondo para que lea como un sub-bloque. */
+.pauta-confirm {
+  margin-top: var(--ds-s-xs);
+  padding: var(--ds-s-sm) var(--ds-s-md);
+  border-radius: 0 0 var(--ds-r-md) var(--ds-r-md);
+}
+
+/* Confirmación inline (deshacer toma / finalizar Pauta): fijamos un ancho mínimo
+   común a los botones Sí/No para que "No" no sea más ancho que "Sí" según sus
+   caracteres y queden alineados y del mismo tamaño. */
+.pauta-confirm .btn--sm,
+.pauta-finish-confirm .btn--sm {
+  min-width: 3rem;
+  justify-content: center;
+}
+
+/* El confirm inline de "Finalizar Pauta" reusa .hijo-confirm pero vive al pie
+   del cuerpo: lo empujamos a la derecha (.pauta-finish) y le damos su propio
+   redondeo completo (no solo inferior como .pauta-confirm). */
+.pauta-finish-confirm {
+  flex: none;
+  border-radius: var(--ds-r-md);
 }
 
 /* ---------- Expanded body ---------- */
@@ -123,7 +241,10 @@
   to { opacity: 1; transform: none; }
 }
 
-/* Progress bar */
+/* Indicador de progreso discreto: "Día 3 de 7" como segmentos. Calmo, honesto,
+   no animado. Reemplaza la barra continua (que se calculaba una vez al render
+   con new Date(), quedaba obsoleta al dejar la tarjeta abierta, avanzaba en
+   horas sin eventos, y su transición de ancho era un layout-animation hit). */
 .pauta-progress {
   display: flex;
   flex-direction: column;
@@ -137,18 +258,24 @@
   color: var(--ds-muted);
 }
 
-.pauta-progress__bar {
+/* Cada día es un segmento surface-2; los días ya pasados + el actual llevan
+   sage. Sin transición: el cambio ocurre entre renders (día a día), no
+   continuamente, así que animar sería fingir una precisión que no hay. */
+.pauta-progress__segments {
+  display: flex;
+  gap: 3px;
+}
+.pauta-progress__seg {
+  flex: 1;
   height: 6px;
   border-radius: 3px;
   background: var(--ds-surface-2);
-  overflow: hidden;
 }
-
-.pauta-progress__fill {
-  height: 100%;
-  border-radius: 3px;
+.pauta-progress__seg--done {
   background: var(--ds-primary);
-  transition: width var(--ds-dur-base) var(--ds-ease);
+}
+.pauta-progress__seg--current {
+  background: color-mix(in srgb, var(--ds-primary) 45%, var(--ds-surface-2));
 }
 
 /* Tomas del día */
@@ -217,14 +344,48 @@
   color: var(--ds-muted);
 }
 
+/* Fin del tratamiento — una sola fila compacta (etiqueta · fecha · estado),
+   no una sección con filas separadas que ocupa de más. */
+.pauta-endline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ds-s-xs) var(--ds-s-sm);
+  font-size: 0.875rem;
+}
+.pauta-endline__label {
+  font-weight: 600;
+  color: var(--ds-ink);
+}
+.pauta-endline__value {
+  color: var(--ds-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pauta-endline__status {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  color: var(--ds-muted);
+}
+
+/* "Finalizar Pauta": acción infrecuente de final de tratamiento. Vive abajo a
+   la derecha del cuerpo y reusa el estilo del botón "Deshacer" (btn--secondary
+   btn--sm); aquí solo la empujamos a la derecha y dejamos el aviso en su fila. */
 .pauta-body__actions {
   display: flex;
   gap: var(--ds-s-sm);
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
+}
+
+.pauta-finish {
+  margin-left: auto;
 }
 
 .pauta-toma__hint {
+  flex-basis: 100%;
   font-size: 0.8125rem;
   color: var(--ds-muted);
 }
@@ -262,4 +423,180 @@
   font-size: 0.9375rem;
   line-height: 1.5;
   max-width: 34ch;
+}
+
+/* El estado vacío siembra una acción (como hace Hijos): la Pauta se crea por
+   voz o desde una Visita médica, no desde un formulario aquí, así que la
+   acción apunta a la ruta de Salud en vez de a un modal vacío. */
+.pautas__empty .btn {
+  margin-top: var(--ds-s-xs);
+}
+
+/* ---------- Section grouping ---------- */
+/* "Finalizadas" es una sección recesada: su cabecera es label-tipo y su lista
+   lleva un poco más de aire arriba para que lea como un grupo aparte, no como
+   más de lo mismo. Refuerza el estado a nivel de IA sin tocar la opacidad. */
+.pautas__group + .pautas__group {
+  margin-top: var(--ds-s-md);
+}
+
+/* Collapsible <details> para la sección Finalizadas. Reusa el patrón de
+   disclosure de las tarjetas (chevron que rota al expandir). */
+.pautas__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-sm);
+}
+
+.pautas__group > summary {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ds-muted);
+  text-transform: none;
+  margin: 0 0 var(--ds-s-sm) var(--ds-s-xs);
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-s-xs);
+  user-select: none;
+  transition: color var(--ds-dur-fast) var(--ds-ease);
+}
+
+.pautas__group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.pautas__group > summary:hover {
+  color: var(--ds-ink);
+}
+
+.pautas__group > summary:focus-visible {
+  outline: 2px solid var(--ds-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Chevron indicator para el summary de Finalizadas. Reusa el estilo de
+   .pauta-card__chevron pero con tamaño ligeramente menor para el encabezado. */
+.pautas__group > summary::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  color: currentColor;
+  transition: transform var(--ds-dur-fast) var(--ds-ease);
+}
+
+.pautas__group[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+/* ---------- FAB (create pauta) ---------- */
+.pautas__fab {
+  position: fixed;
+  right: max(var(--ds-s-lg), env(safe-area-inset-right));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + var(--ds-s-md));
+  z-index: calc(var(--ds-z-sticky) + 1);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ds-primary);
+  color: var(--ds-bg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--ds-shadow-floating);
+  transition:
+    background-color var(--ds-dur-fast) var(--ds-ease),
+    transform var(--ds-dur-fast) var(--ds-ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .pautas__fab:hover {
+    background: var(--ds-primary-hover);
+  }
+}
+.pautas__fab:active {
+  transform: scale(0.96);
+}
+.pautas__fab:focus-visible {
+  outline: 2px solid var(--ds-focus-ring);
+  outline-offset: 3px;
+}
+.pautas__fab--open {
+  background: var(--ds-surface);
+  color: var(--ds-ink);
+  box-shadow: var(--ds-shadow-floating);
+}
+
+/* ---------- Pauta form (inline create) ---------- */
+.pauta-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-lg);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
+  margin-bottom: var(--ds-s-md);
+}
+
+.pauta-form__label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ds-muted);
+}
+
+.pauta-form__input {
+  padding: 10px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-md);
+  background: var(--ds-bg);
+  color: var(--ds-ink);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  min-height: 44px;
+}
+.pauta-form__input:focus {
+  outline: none;
+  border-color: var(--ds-primary);
+  box-shadow: 0 0 0 3px var(--ds-focus-ring);
+}
+
+.pauta-form__row {
+  display: flex;
+  gap: var(--ds-s-sm);
+  flex-wrap: wrap;
+}
+.pauta-form__row > .pauta-form__label {
+  flex: 1;
+}
+
+.pauta-form__actions {
+  display: flex;
+  gap: var(--ds-s-sm);
+  justify-content: flex-end;
+}
+
+/* ---------- Loading skeleton ---------- */
+/* Espejo del `.hijo-skel-row` / `.skel` de Hijos: una tarjeta fantasma con
+   mono + dos líneas, no "Cargando…" en texto pelado. Pulsa con skel-pulse
+   (definido a nivel de app vía .skel). */
+.pauta-skel {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-s-md);
+  padding: var(--ds-s-md) var(--ds-s-lg);
+  min-height: 64px;
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-r-lg);
 }

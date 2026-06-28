@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useChildren } from '../children/api'
+import type { Child } from '../children/types'
 import { formatAge } from '../children/age'
 import {
   useCreateMeasurement,
-  useCurrentMeasurements,
   useDeleteMeasurement,
   useMeasurements,
   useUpdateMeasurement,
 } from '../measurements/api'
 import type { Measurement, MeasurementInput } from '../measurements/types'
+import { useToast } from '../toasts/useToast'
 import {
   useCreateHealthVisit,
   useDeleteHealthVisit,
@@ -17,6 +18,11 @@ import {
   useUpdateHealthVisit,
 } from '../health-visits/api'
 import type { HealthVisit } from '../health-visits/types'
+import { useMembers } from '../members/api'
+import { PautaCard } from '../pautas/PautaCard'
+import { PautaForm } from '../pautas/PautaForm'
+import { useCreatePauta, usePautas } from '../pautas/api'
+import type { Pauta, PautaInput } from '../pautas/types'
 import { SizesSection } from '../sizes/SizesSection'
 import '../sizes/sizes.css'
 import './hijos-tab.css'
@@ -174,6 +180,8 @@ type MeasurementFormProps = {
 function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
   const create = useCreateMeasurement(childId)
   const update = useUpdateMeasurement(childId)
+  const toast = useToast()
+  const pending = create.isPending || update.isPending
 
   const [type, setType] = useState<'height' | 'weight'>(
     (editing?.type as 'height' | 'weight') ?? 'height',
@@ -190,14 +198,15 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
     const numVal = parseFloat(value)
     if (isNaN(numVal) || numVal <= 0) return
 
+    const onError = () => toast.error('No se pudo registrar la medida')
     if (editing) {
       update.mutate(
         { id: editing.id, patch: { value: numVal, unit, measured_at: measuredAt } },
-        { onSuccess: onDone },
+        { onSuccess: onDone, onError },
       )
     } else {
       const input: MeasurementInput = { type, value: numVal, unit, measured_at: measuredAt }
-      create.mutate(input, { onSuccess: onDone })
+      create.mutate(input, { onSuccess: onDone, onError })
     }
   }
 
@@ -236,10 +245,19 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
         />
       </div>
       <div className="measurement-form__actions">
-        <button type="submit" className="measurement-form__btn measurement-form__btn--primary">
-          {editing ? 'Guardar' : 'Registrar'}
+        <button
+          type="submit"
+          className="measurement-form__btn measurement-form__btn--primary"
+          disabled={pending}
+        >
+          {pending ? 'Guardando…' : editing ? 'Guardar' : 'Registrar'}
         </button>
-        <button type="button" className="measurement-form__btn measurement-form__btn--secondary" onClick={onDone}>
+        <button
+          type="button"
+          className="measurement-form__btn measurement-form__btn--secondary"
+          onClick={onDone}
+          disabled={pending}
+        >
           Cancelar
         </button>
       </div>
@@ -247,17 +265,6 @@ function MeasurementForm({ childId, editing, onDone }: MeasurementFormProps) {
   )
 }
 
-/* ---------- Current value highlight ---------- */
-
-function CurrentValue({ label, value, unit }: { label: string; value: number | null | undefined; unit: string }) {
-  if (value == null) return null
-  return (
-    <span className="hijo-card__metric">
-      <span className="hijo-card__metric-value">{value} {unit}</span>
-      <span className="hijo-card__metric-label">{label}</span>
-    </span>
-  )
-}
 
 /* ---------- Main page ---------- */
 
@@ -266,14 +273,17 @@ export function HijoDetailPage() {
   const { data: children } = useChildren()
   const child = children?.find((c) => c.id === childId)
   const { data: measurements = [] } = useMeasurements(childId ?? '')
-  const { data: currentM } = useCurrentMeasurements(childId ?? '')
   const deleteMutation = useDeleteMeasurement(childId ?? '')
+  const createMeasurement = useCreateMeasurement(childId ?? '')
+  const toast = useToast()
 
   // Visitas médicas — real API
   const { data: visitas = [] } = useHealthVisits(childId ?? '')
   const createVisit = useCreateHealthVisit(childId ?? '')
   const updateVisit = useUpdateHealthVisit(childId ?? '')
   const deleteVisit = useDeleteHealthVisit(childId ?? '')
+  const { data: pautas = [] } = usePautas()
+  const { data: members = [] } = useMembers()
 
   const [showVisitForm, setShowVisitForm] = useState(false)
   const [editingVisit, setEditingVisit] = useState<HealthVisit | undefined>()
@@ -283,6 +293,14 @@ export function HijoDetailPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editingMeasurement, setEditingMeasurement] = useState<Measurement | undefined>()
+  const [activeTab, setActiveTab] = useState<'tallas' | 'crecimiento' | 'visitas' | 'pautas'>('tallas')
+
+  // Confirmación inline de borrado (patrón .hijo-confirm): cada fila destructiva
+  // pasa por un "¿Borrar? [Borrar] [Cancelar]" antes de mutar. Al borrar con
+  // éxito ofrecemos un toast con "Deshacer" que re-crea la entidad vía create —
+  // un resbalón de pulgar nunca debe destruir silenciosamente un registro.
+  const [confirmingMeasurement, setConfirmingMeasurement] = useState<string | null>(null)
+  const [confirmingVisit, setConfirmingVisit] = useState<string | null>(null)
 
   if (!childId) {
     return (
@@ -317,6 +335,63 @@ export function HijoDetailPage() {
     setEditingMeasurement(undefined)
   }
 
+  function handleConfirmDeleteMeasurement(m: Measurement) {
+    deleteMutation.mutate(m.id, {
+      onSuccess: () => {
+        setConfirmingMeasurement(null)
+        const toastId = toast.success(
+          <>
+            <strong>Medida borrada.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                createMeasurement.mutate({
+                  type: m.type,
+                  value: m.value,
+                  unit: m.unit,
+                  measured_at: m.measured_at,
+                })
+                toast.dismiss(toastId)
+              }}
+            >
+              Deshacer
+            </button>
+          </>,
+        )
+      },
+      onError: () => toast.error('No se pudo borrar la medida'),
+    })
+  }
+
+  function handleConfirmDeleteVisit(v: HealthVisit) {
+    deleteVisit.mutate(v.id, {
+      onSuccess: () => {
+        setConfirmingVisit(null)
+        const toastId = toast.success(
+          <>
+            <strong>Visita borrada.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                createVisit.mutate({
+                  visited_at: v.visited_at,
+                  diagnosis: v.diagnosis,
+                  notes: v.notes ?? undefined,
+                })
+                toast.dismiss(toastId)
+              }}
+            >
+              Deshacer
+            </button>
+          </>,
+        )
+      },
+      onError: () => toast.error('No se pudo borrar la visita'),
+    })
+  }
+
   return (
     <div className="hijo-detail">
       <Link to="/hijos" className="hijo-detail__back"><ArrowLeft /> Hijos</Link>
@@ -329,18 +404,78 @@ export function HijoDetailPage() {
         <div className="hijo-detail__summary-info">
           <div className="hijo-detail__summary-name">{child.name}</div>
           <div className="hijo-detail__summary-age ds-nums">{formatAge(child.birth_date)}</div>
-          <div className="hijo-detail__summary-metrics">
-            <CurrentValue label="Altura" value={currentM?.height?.value} unit="cm" />
-            <CurrentValue label="Peso" value={currentM?.weight?.value} unit="kg" />
-          </div>
         </div>
       </div>
 
-      {/* Tallas */}
-      {childId && <SizesSection childId={childId} />}
+      {/* Tabbed sub-nav */}
+      <div className="hijo-detail__tabs" role="tablist" aria-label="Secciones del detalle">
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'tallas'}
+          aria-controls="panel-tallas"
+          id="tab-tallas"
+          onClick={() => setActiveTab('tallas')}
+        >
+          Tallas
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'crecimiento'}
+          aria-controls="panel-crecimiento"
+          id="tab-crecimiento"
+          onClick={() => setActiveTab('crecimiento')}
+        >
+          Crecimiento
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'visitas'}
+          aria-controls="panel-visitas"
+          id="tab-visitas"
+          onClick={() => setActiveTab('visitas')}
+        >
+          Visitas
+        </button>
+        <button
+          type="button"
+          className="hijo-detail__tab"
+          role="tab"
+          aria-selected={activeTab === 'pautas'}
+          aria-controls="panel-pautas"
+          id="tab-pautas"
+          onClick={() => setActiveTab('pautas')}
+        >
+          Pautas
+        </button>
+      </div>
 
-      {/* Crecimiento */}
-      <section className="hijo-detail__section">
+      {/* Tallas tab panel */}
+      <div
+        id="panel-tallas"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-tallas"
+        aria-hidden={activeTab !== 'tallas'}
+      >
+        {/* Tallas */}
+        {childId && <SizesSection childId={childId} />}
+      </div>
+
+      {/* Crecimiento tab panel */}
+      <div
+        id="panel-crecimiento"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-crecimiento"
+        aria-hidden={activeTab !== 'crecimiento'}
+      >
+        <section className="hijo-detail__section">
         <div className="hijo-detail__section-header">
           <h2 className="hijo-detail__section-title">Crecimiento</h2>
           {!showForm && (
@@ -379,7 +514,7 @@ export function HijoDetailPage() {
               medidas={weights}
               label="Peso"
               unit="kg"
-              color="var(--ds-attention)"
+              color="var(--ds-primary-hover)"
             />
             <ul className="hijo-detail__growth">
               {sortedMedidas.map((m) => (
@@ -389,49 +524,106 @@ export function HijoDetailPage() {
                   <span className="growth-row__type">
                     {m.type === 'height' ? 'Altura' : 'Peso'}
                   </span>
-                  <span className="growth-row__actions">
-                    <button
-                      type="button"
-                      className="growth-row__action"
-                      onClick={() => handleEdit(m)}
-                      aria-label="Editar medida"
-                    >
-                      <EditIcon />
-                    </button>
-                    <button
-                      type="button"
-                      className="growth-row__action growth-row__action--danger"
-                      onClick={() => deleteMutation.mutate(m.id)}
+                  {confirmingMeasurement === m.id ? (
+                    <div
+                      className="hijo-confirm growth-row__confirm"
+                      role="group"
                       aria-label="Borrar medida"
                     >
-                      <TrashIcon />
-                    </button>
-                  </span>
+                      <span className="hijo-confirm__label">¿Borrar?</span>
+                      <button
+                        type="button"
+                        className="btn btn--secondary btn--sm"
+                        onClick={() => setConfirmingMeasurement(null)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--danger-solid btn--sm"
+                        onClick={() => handleConfirmDeleteMeasurement(m)}
+                        disabled={deleteMutation.isPending}
+                      >
+                        {deleteMutation.isPending ? 'Borrando…' : 'Borrar'}
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="growth-row__actions">
+                      <button
+                        type="button"
+                        className="growth-row__action"
+                        onClick={() => handleEdit(m)}
+                        aria-label="Editar medida"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="growth-row__action growth-row__action--danger"
+                        onClick={() => setConfirmingMeasurement(m.id)}
+                        aria-label="Borrar medida"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
           </>
         )}
       </section>
+      </div>
 
-      {/* Visitas médicas */}
-      <VisitasSection
-        childId={childId}
-        visitas={visitas}
-        createVisit={createVisit}
-        updateVisit={updateVisit}
-        deleteVisit={deleteVisit}
-        showForm={showVisitForm}
-        setShowForm={setShowVisitForm}
-        editing={editingVisit}
-        setEditing={setEditingVisit}
-        detail={visitDetail}
-        setDetail={setVisitDetail}
-        filterFrom={filterFrom}
-        setFilterFrom={setFilterFrom}
-        filterTo={filterTo}
-        setFilterTo={setFilterTo}
-      />
+      {/* Visitas tab panel */}
+      <div
+        id="panel-visitas"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-visitas"
+        aria-hidden={activeTab !== 'visitas'}
+      >
+        <VisitasSection
+          childId={childId}
+          visitas={visitas}
+          createVisit={createVisit}
+          updateVisit={updateVisit}
+          deleteVisit={deleteVisit}
+          showForm={showVisitForm}
+          setShowForm={setShowVisitForm}
+          editing={editingVisit}
+          setEditing={setEditingVisit}
+          detail={visitDetail}
+          setDetail={setVisitDetail}
+          filterFrom={filterFrom}
+          setFilterFrom={setFilterFrom}
+          filterTo={filterTo}
+          setFilterTo={setFilterTo}
+          confirmingVisit={confirmingVisit}
+          setConfirmingVisit={setConfirmingVisit}
+          onConfirmDeleteVisit={handleConfirmDeleteVisit}
+          onActivatePautasTab={() => setActiveTab('pautas')}
+        />
+      </div>
+
+      {/* Pautas tab panel */}
+      <div
+        id="panel-pautas"
+        className="hijo-detail__tab-panel"
+        role="tabpanel"
+        aria-labelledby="tab-pautas"
+        aria-hidden={activeTab !== 'pautas'}
+      >
+        <PautasSection
+          childId={childId}
+          childName={child?.name ?? ''}
+          pautas={pautas}
+          visits={visitas}
+          children={children ?? []}
+          members={members}
+        />
+      </div>
     </div>
   )
 }
@@ -454,6 +646,10 @@ type VisitasSectionProps = {
   setFilterFrom: (v: string) => void
   filterTo: string
   setFilterTo: (v: string) => void
+  confirmingVisit: string | null
+  setConfirmingVisit: (v: string | null) => void
+  onConfirmDeleteVisit: (v: HealthVisit) => void
+  onActivatePautasTab: () => void
 }
 
 function VisitasSection({
@@ -471,7 +667,13 @@ function VisitasSection({
   setFilterFrom,
   filterTo,
   setFilterTo,
+  confirmingVisit,
+  setConfirmingVisit,
+  onConfirmDeleteVisit,
+  onActivatePautasTab,
 }: VisitasSectionProps) {
+  const toast = useToast()
+  const pending = createVisit.isPending || updateVisit.isPending
   const filtered = visitas
     .filter((v) => !filterFrom || v.visited_at >= filterFrom)
     .filter((v) => !filterTo || v.visited_at <= filterTo)
@@ -504,9 +706,13 @@ function VisitasSection({
             </div>
           )}
           {detail.pauta_ids.length > 0 && (
-            <Link to="/pautas" className="visita-detail__pautas-link">
+            <button
+              type="button"
+              className="visita-detail__pautas-link"
+              onClick={onActivatePautasTab}
+            >
               Ver Pautas asociadas →
-            </Link>
+            </button>
           )}
         </div>
       </section>
@@ -563,11 +769,21 @@ function VisitasSection({
       {showForm && (
         <VisitaForm
           editing={editing}
+          pending={pending}
           onCreate={(input) => {
-            createVisit.mutate(input, { onSuccess: () => setShowForm(false) })
+            createVisit.mutate(input, {
+              onSuccess: () => setShowForm(false),
+              onError: () => toast.error('No se pudo registrar la visita'),
+            })
           }}
           onUpdate={(id, patch) => {
-            updateVisit.mutate({ id, patch }, { onSuccess: () => { setShowForm(false); setEditing(undefined) } })
+            updateVisit.mutate(
+              { id, patch },
+              {
+                onSuccess: () => { setShowForm(false); setEditing(undefined) },
+                onError: () => toast.error('No se pudo guardar la visita'),
+              },
+            )
           }}
           onCancel={() => { setShowForm(false); setEditing(undefined) }}
         />
@@ -589,24 +805,50 @@ function VisitasSection({
                 <span className="visita-row__date">{formatDate(v.visited_at)}</span>
                 <span className="visita-row__diagnosis">{v.diagnosis}</span>
               </button>
-              <span className="visita-row__actions">
-                <button
-                  type="button"
-                  className="visita-action-btn"
-                  onClick={() => { setEditing(v); setShowForm(true) }}
-                  aria-label="Editar visita"
-                >
-                  <EditIcon />
-                </button>
-                <button
-                  type="button"
-                  className="visita-action-btn visita-action-btn--danger"
-                  onClick={() => deleteVisit.mutate(v.id)}
+              {confirmingVisit === v.id ? (
+                <div
+                  className="hijo-confirm visita-row__confirm"
+                  role="group"
                   aria-label="Borrar visita"
                 >
-                  <TrashIcon />
-                </button>
-              </span>
+                  <span className="hijo-confirm__label">¿Borrar?</span>
+                  <button
+                    type="button"
+                    className="btn btn--secondary btn--sm"
+                    onClick={() => setConfirmingVisit(null)}
+                    disabled={deleteVisit.isPending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger-solid btn--sm"
+                    onClick={() => onConfirmDeleteVisit(v)}
+                    disabled={deleteVisit.isPending}
+                  >
+                    {deleteVisit.isPending ? 'Borrando…' : 'Borrar'}
+                  </button>
+                </div>
+              ) : (
+                <span className="visita-row__actions">
+                  <button
+                    type="button"
+                    className="visita-action-btn"
+                    onClick={() => { setEditing(v); setShowForm(true) }}
+                    aria-label="Editar visita"
+                  >
+                    <EditIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="visita-action-btn visita-action-btn--danger"
+                    onClick={() => setConfirmingVisit(v.id)}
+                    aria-label="Borrar visita"
+                  >
+                    <TrashIcon />
+                  </button>
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -619,12 +861,13 @@ function VisitasSection({
 
 type VisitaFormProps = {
   editing?: HealthVisit
+  pending?: boolean
   onCreate: (input: { visited_at: string; diagnosis: string; notes?: unknown }) => void
   onUpdate: (id: string, patch: { visited_at?: string; diagnosis?: string; notes?: unknown }) => void
   onCancel: () => void
 }
 
-function VisitaForm({ editing, onCreate, onUpdate, onCancel }: VisitaFormProps) {
+function VisitaForm({ editing, pending = false, onCreate, onUpdate, onCancel }: VisitaFormProps) {
   const [visitedAt, setVisitedAt] = useState(
     editing?.visited_at ?? new Date().toISOString().slice(0, 10),
   )
@@ -682,13 +925,139 @@ function VisitaForm({ editing, onCreate, onUpdate, onCancel }: VisitaFormProps) 
         />
       </label>
       <div className="visita-form__actions">
-        <button type="submit" className="visita-form__btn visita-form__btn--primary">
-          {editing ? 'Guardar' : 'Registrar'}
+        <button
+          type="submit"
+          className="visita-form__btn visita-form__btn--primary"
+          disabled={pending}
+        >
+          {pending ? 'Guardando…' : editing ? 'Guardar' : 'Registrar'}
         </button>
-        <button type="button" className="visita-form__btn visita-form__btn--secondary" onClick={onCancel}>
+        <button
+          type="button"
+          className="visita-form__btn visita-form__btn--secondary"
+          onClick={onCancel}
+          disabled={pending}
+        >
           Cancelar
         </button>
       </div>
     </form>
+  )
+}
+
+/* ---------- Pautas section ---------- */
+
+type PautasSectionProps = {
+  childId: string
+  childName: string
+  pautas: Pauta[]
+  visits: HealthVisit[]
+  children: Child[]
+  members: import('../members/types').Member[]
+}
+
+function PautasSection({ childId, childName, pautas, visits, children, members }: PautasSectionProps) {
+  const [showForm, setShowForm] = useState(false)
+  const createMut = useCreatePauta()
+  const toast = useToast()
+
+  const handleCreate = (input: PautaInput) => {
+    createMut.mutate(input, {
+      onSuccess: (data) => {
+        toast.success(`Pauta de ${data.medication} creada`)
+        setShowForm(false)
+      },
+      onError: () => toast.error('No se pudo crear la pauta'),
+    })
+  }
+
+  // Filtrar Pautas por Hijo (cliente-side para mantener consistencia con cache global)
+  const childPautas = pautas.filter(p => p.child_id === childId)
+  const active = childPautas.filter(p => p.status === 'active')
+  const finished = childPautas.filter(p => p.status === 'finished')
+
+  // Ordenar activas por próxima toma
+  const sortedActive = [...active].sort((a, b) => {
+    if (a.next_dose_at && b.next_dose_at) {
+      return new Date(a.next_dose_at).getTime() - new Date(b.next_dose_at).getTime()
+    }
+    return 0
+  })
+
+  // Ordenar finalizadas por fecha de finalización (más recientes primero)
+  const sortedFinished = [...finished].sort((a, b) => 
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  return (
+    <section className="hijo-detail__section">
+      <div className="hijo-detail__section-header">
+        <h2 className="hijo-detail__section-title">Pautas</h2>
+        {!showForm && (
+          <button
+            type="button"
+            className="hijo-detail__add-btn"
+            onClick={() => setShowForm(true)}
+            aria-label="Registrar pauta"
+          >
+            <PlusIcon /> Pauta
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <PautaForm
+          childId={childId}
+          children={children}
+          members={members}
+          visits={visits}
+          onSubmit={handleCreate}
+          onCancel={() => setShowForm(false)}
+          pending={createMut.isPending}
+        />
+      )}
+
+      {childPautas.length === 0 && !showForm ? (
+        <div className="hijo-detail__empty">
+          <p>{childName} no tiene pautas registradas</p>
+        </div>
+      ) : (
+        <>
+          {/* Activas */}
+          <div className="pautas-section">
+            <h3 className="pautas-section__title">Activas</h3>
+            {sortedActive.length > 0 ? (
+              <ul className="pautas__list">
+                {sortedActive.map((p) => (
+                  <li key={p.id}>
+                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="hijo-detail__empty hijo-detail__empty--compact">
+                <p>Sin pautas activas para {childName}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Finalizadas - colapsable por defecto */}
+          {sortedFinished.length > 0 && (
+            <details className="pautas-section__group" open={false}>
+              <summary className="pautas-section__summary">
+                Finalizadas ({sortedFinished.length})
+              </summary>
+              <ul className="pautas__list">
+                {sortedFinished.map((p) => (
+                  <li key={p.id}>
+                    <PautaCard pauta={p} subjectName={childName} showSubject={false} />
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </>
+      )}
+    </section>
   )
 }

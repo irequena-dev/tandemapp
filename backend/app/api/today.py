@@ -8,7 +8,6 @@ La zona horaria del **dispositivo** (query param `tz`, p. ej. `Europe/Madrid`)
 define qué es "hoy"; los timestamps internos siguen en UTC.
 """
 
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -20,15 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models import (
     Administration,
-    Child,
     Event,
     EventOut,
     EventType,
-    Member,
     Pauta,
     ShoppingItem,
 )
-from ..tenancy import family_session
+from ..pautas_service import expire_due_pautas, load_pauta_views
+from ..tenancy import FamilyScope, family_session
 from .events import _enrich
 
 router = APIRouter(prefix="/api", tags=["today"])
@@ -60,7 +58,7 @@ class TimelineEntry(BaseModel):
     time: str  # HH:MM
     title: str
     subtitle: str | None = None
-    status: str  # "done" | "upcoming" | "pending"
+    status: str  # "done" | "upcoming" | "pending" | "due"
     pauta_id: str | None = None
     administration_id: str | None = None
     event_id: str | None = None
@@ -71,7 +69,7 @@ class TodaySummary(BaseModel):
     pautas_active_count: int
     pautas_finished_count: int
     next_medical_event: EventOut | None = None
-    children_status: str  # v1: siempre "up_to_date"
+    children_status: str  # "al_dia" | "revision_vencida" | "seguimiento"
 
 
 class TodayOut(BaseModel):
@@ -101,7 +99,7 @@ class DoseState:
     """Estado calculado de la próxima toma de una Pauta activa."""
 
     pauta: Pauta
-    child_name: str
+    subject_name: str
     next_dose_at: datetime
     # (administración, nombre del Miembro que la dio) para las dadas hoy.
     todays_admins: list[tuple[Administration, str | None]] = field(default_factory=list)
@@ -113,64 +111,20 @@ async def _compute_doses(
     today: date,
     device_tz: ZoneInfo | type[UTC],
 ) -> list[DoseState]:
-    """Para cada Pauta activa calcula next_dose_at y las Administraciones de hoy.
-
-    Carga Hijos y Administraciones en bloque (sin N+1). `next_dose_at` =
-    última Administración + intervalo (o `started_at` + intervalo si ninguna).
-    "Hoy" se define por la zona horaria del dispositivo.
-    """
-    if not active_pautas:
-        return []
-
-    child_ids = {p.child_id for p in active_pautas}
-    child_names: dict[uuid.UUID, str] = {}
-    if child_ids:
-        children_result = await session.execute(
-            select(Child).where(Child.id.in_(child_ids))
-        )
-        for child in children_result.scalars().all():
-            child_names[child.id] = child.name
-
-    pauta_ids = [p.id for p in active_pautas]
-    admins_result = await session.execute(
-        select(Administration)
-        .where(Administration.pauta_id.in_(pauta_ids))
-        .order_by(Administration.administered_at.asc())
-    )
-    all_admins = list(admins_result.scalars().all())
-
-    member_ids = {a.administered_by for a in all_admins}
-    member_names: dict[str, str | None] = {}
-    if member_ids:
-        members_result = await session.execute(
-            select(Member).where(Member.id.in_(member_ids))
-        )
-        for member in members_result.scalars().all():
-            member_names[member.id] = member.display_name
-
-    by_pauta: dict[uuid.UUID, list[Administration]] = {}
-    for admin in all_admins:
-        by_pauta.setdefault(admin.pauta_id, []).append(admin)
-
+    """Proyecta `PautaView` (del módulo de dominio) a `DoseState`. El cálculo de
+    `next_dose_at` y las admins de hoy vive en `pautas_service.load_pauta_views`."""
+    views = await load_pauta_views(session, active_pautas, today=today, tz=device_tz)
     states: list[DoseState] = []
-    for pauta in active_pautas:
-        admins = by_pauta.get(pauta.id, [])
-        last = admins[-1] if admins else None
-        if last is not None:
-            next_dose_at = last.administered_at + timedelta(hours=pauta.interval_hours)
-        else:
-            next_dose_at = pauta.started_at + timedelta(hours=pauta.interval_hours)
-        todays = [
-            (a, member_names.get(a.administered_by))
-            for a in admins
-            if a.administered_at.astimezone(device_tz).date() == today
-        ]
+    for v in views:
+        # next_dose_at siempre está definido para Pautas activas.
         states.append(
             DoseState(
-                pauta=pauta,
-                child_name=child_names.get(pauta.child_id, "…"),
-                next_dose_at=next_dose_at,
-                todays_admins=todays,
+                pauta=v.pauta,
+                subject_name=v.subject_name or "…",
+                next_dose_at=v.next_dose_at,  # type: ignore[arg-type]
+                todays_admins=[
+                    (av.admin, av.member_name) for av in v.todays_administrations
+                ],
             )
         )
     return states
@@ -178,13 +132,15 @@ async def _compute_doses(
 
 def _dose_hero(states: list[DoseState], now: datetime) -> HeroItem | None:
     """Héroe "Ahora": la toma vencida/inminente más próxima (o None)."""
-    horizon = now + timedelta(hours=HERO_DOSE_IMMINENT_HOURS)
+    imminent_window = timedelta(minutes=HERO_DOSE_IMMINENT_HOURS * 60)
+    horizon = now + imminent_window
     eligible = [s for s in states if s.next_dose_at <= horizon]
     if not eligible:
         return None
     chosen = min(eligible, key=lambda s: s.next_dose_at)
     pauta = chosen.pauta
-    subtitle = f"{chosen.child_name} · Día {pauta.day_number} de {pauta.duration_days}"
+    name = chosen.subject_name
+    subtitle = f"{name} · Día {pauta.day_number} de {pauta.duration_days}"
     return HeroItem(
         type="pauta_dose",
         title=f"{pauta.medication} · {pauta.dose}",
@@ -198,8 +154,16 @@ def _dose_timeline_pairs(
     states: list[DoseState],
     now: datetime,
     device_tz: ZoneInfo | type[UTC],
+    today: date,
 ) -> list[tuple[datetime, TimelineEntry]]:
-    """Pares (instante, entrada) de tomas dadas hoy + próxima, para ordenar."""
+    """Pares (instante, entrada) de tomas dadas hoy + próxima, para ordenar.
+
+    La próxima toma solo entra en la "Agenda de hoy" si cae hoy o antes (vencida):
+    una dosis de mañana o más allá no pertenece a la agenda de hoy y, mostrada
+    como ``HH:MM`` sin día, parece que toca hoy (bug: pautas de 24h marcadas a
+    las X:XX mostraban la siguiente toma como hoy X:XX en vez de mañana). Esa
+    próxima toma se ve, con su día, en la pantalla de Pautas y en el héroe.
+    """
     entries: list[tuple[datetime, TimelineEntry]] = []
     for state in states:
         pauta = state.pauta
@@ -222,20 +186,25 @@ def _dose_timeline_pairs(
                     ),
                 )
             )
-        upcoming_status = "pending" if state.next_dose_at <= now else "upcoming"
-        entries.append(
-            (
-                state.next_dose_at,
-                TimelineEntry(
-                    type="dose_upcoming",
-                    time=state.next_dose_at.astimezone(device_tz).strftime("%H:%M"),
-                    title=title,
-                    subtitle=state.child_name,
-                    status=upcoming_status,
-                    pauta_id=str(pauta.id),
-                ),
+        # Próxima toma: solo si cae hoy o antes. La fecha se compara en la zona
+        # del dispositivo (igual que el resto de "hoy").
+        if state.next_dose_at.astimezone(device_tz).date() <= today:
+            upcoming_status = "due" if state.next_dose_at <= now else "upcoming"
+            entries.append(
+                (
+                    state.next_dose_at,
+                    TimelineEntry(
+                        type="dose_upcoming",
+                        time=state.next_dose_at.astimezone(device_tz).strftime(
+                            "%H:%M"
+                        ),
+                        title=title,
+                        subtitle=state.subject_name,
+                        status=upcoming_status,
+                        pauta_id=str(pauta.id),
+                    ),
+                )
             )
-        )
     return entries
 
 
@@ -320,15 +289,54 @@ async def _next_medical_event(session: AsyncSession, today: date) -> EventOut | 
     return await _enrich(session, ev) if ev else None
 
 
+async def _children_status(session: AsyncSession, today: date) -> str:
+    """Estado de seguimiento de los Hijos de la Familia (RLS vía `session`).
+
+    - `revision_vencida`: hay algún Evento `pending` con `date < today`.
+    - `seguimiento`: si no, hay algún Evento médico `pending` en los próximos
+      7 días (`today <= date <= today + 7d`).
+    - `al_dia`: en caso contrario.
+    """
+    overdue = (
+        await session.execute(
+            select(func.count())
+            .select_from(Event)
+            .where(Event.status == "pending", Event.date < today)
+        )
+    ).scalar_one()
+    if overdue > 0:
+        return "revision_vencida"
+
+    horizon = today + timedelta(days=7)
+    followup = (
+        await session.execute(
+            select(func.count())
+            .select_from(Event)
+            .join(EventType, Event.event_type_id == EventType.id)
+            .where(
+                EventType.name == MEDICAL_TYPE_NAME,
+                Event.status == "pending",
+                Event.date >= today,
+                Event.date <= horizon,
+            )
+        )
+    ).scalar_one()
+    if followup > 0:
+        return "seguimiento"
+
+    return "al_dia"
+
+
 # ---------- Endpoint ---------- #
 
 
 @router.get("/today", response_model=TodayOut)
 async def get_today(
     tz: str | None = Query(default=None),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> TodayOut:
     """Pantalla Hoy: agrega contadores de todas las fases conectadas."""
+    session = scope.session
     device_tz = _device_tz(tz)
     today = datetime.now(device_tz).date()
     now = datetime.now(UTC)
@@ -341,22 +349,11 @@ async def get_today(
         )
     ).scalar_one()
 
-    # Pautas con finalización automática lazy aplicada.
+    # Pautas con finalización automática lazy aplicada (batched en el servicio).
+    await expire_due_pautas(session)
     pautas = list((await session.execute(select(Pauta))).scalars().all())
-    active_pautas: list[Pauta] = []
-    finished_count = 0
-    lazy_changed = False
-    for p in pautas:
-        if p.status == "active" and p.is_expired:
-            p.status = "finished"
-            session.add(p)
-            lazy_changed = True
-        if p.status == "active":
-            active_pautas.append(p)
-        else:
-            finished_count += 1
-    if lazy_changed:
-        await session.flush()
+    active_pautas = [p for p in pautas if p.status == "active"]
+    finished_count = len(pautas) - len(active_pautas)
 
     dose_states = await _compute_doses(session, active_pautas, today, device_tz)
 
@@ -373,7 +370,7 @@ async def get_today(
     events_today = [await _enrich(session, ev) for ev in today_event_rows]
 
     # Timeline: tomas + eventos de hoy, orden cronológico por instante absoluto.
-    timeline_pairs = _dose_timeline_pairs(dose_states, now, device_tz)
+    timeline_pairs = _dose_timeline_pairs(dose_states, now, device_tz, today)
     timeline_pairs += _event_timeline_pairs(events_today, today, device_tz)
     timeline_pairs.sort(key=lambda pair: pair[0])
     timeline = [entry for _, entry in timeline_pairs]
@@ -382,6 +379,7 @@ async def get_today(
     hero = _dose_hero(dose_states, now) or _event_hero(events_today, today, device_tz)
 
     next_medical = await _next_medical_event(session, today)
+    children_status = await _children_status(session, today)
 
     return TodayOut(
         hero=hero,
@@ -391,6 +389,6 @@ async def get_today(
             pautas_active_count=len(active_pautas),
             pautas_finished_count=finished_count,
             next_medical_event=next_medical,
-            children_status="up_to_date",
+            children_status=children_status,
         ),
     )

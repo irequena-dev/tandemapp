@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query'
 import { apiFetch } from '../../lib/api'
 import { randomId } from '../../lib/randomId'
+import { todayKeys } from '../hoy/api'
 import type { ShoppingItem, ShoppingItemInput, ShoppingItemUpdate } from './types'
 
 /** Claves de caché de Ítems de compra (una sola lista por Familia activa). */
@@ -27,6 +28,7 @@ function rollback(qc: QueryClient, ctx: Rollback | undefined): void {
 
 function settle(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: shoppingKeys.all })
+  void qc.invalidateQueries({ queryKey: todayKeys.all })
 }
 
 /** Lista los Ítems de compra de la Familia autenticada. */

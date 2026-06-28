@@ -11,14 +11,12 @@ si hay otra dentro de la ventana corta configurable.
 """
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from ..models import (
-    DUPLICATE_GUARD_MINUTES,
     Administration,
     AdministrationCreate,
     AdministrationOut,
@@ -26,7 +24,8 @@ from ..models import (
     Member,
     Pauta,
 )
-from ..tenancy import current_family_id, current_member_id, family_session
+from ..pautas_service import create_or_duplicate_administration
+from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["administrations"])
 
@@ -67,9 +66,10 @@ async def _to_out(session: AsyncSession, admin: Administration) -> Administratio
 @router.get("/pautas/{pauta_id}/administrations")
 async def list_administrations(
     pauta_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> list[AdministrationOut]:
     """Lista las Administraciones de una Pauta, más recientes primero."""
+    session = scope.session
     await _get_owned_pauta(session, pauta_id)
     stmt = (
         select(Administration)
@@ -86,15 +86,14 @@ async def create_administration(
     pauta_id: uuid.UUID,
     data: AdministrationCreate,
     response: Response,
-    family_id: str = Depends(current_family_id),
-    member_id: str = Depends(current_member_id),
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> AdministrationOut:
     """Registra una Administración con guarda de duplicado.
 
     Si existe otra Administración de la misma Pauta dentro de la ventana corta
     (~15 min), devuelve la existente con 200 (no 201).
     """
+    session = scope.session
     pauta = await _get_owned_pauta(session, pauta_id)
     if pauta.status == "finished":
         raise HTTPException(
@@ -102,39 +101,10 @@ async def create_administration(
             detail="No se puede registrar una Administración en una Pauta finalizada",
         )
 
-    administered_at = data.administered_at or datetime.now(UTC)
-
-    # Guarda de duplicado: buscar Administraciones dentro de la ventana
-    window_start = administered_at - timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-    window_end = administered_at + timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-    stmt = (
-        select(Administration)
-        .where(
-            Administration.pauta_id == pauta_id,
-            Administration.administered_at >= window_start,
-            Administration.administered_at <= window_end,
-        )
-        .order_by(Administration.administered_at.desc())
-        .limit(1)
+    admin, is_dup = await create_or_duplicate_administration(
+        session, pauta, scope.member_id, administered_at=data.administered_at
     )
-    result = await session.execute(stmt)
-    existing = result.scalars().first()
-
-    if existing is not None:
-        response.status_code = status.HTTP_200_OK
-        return await _to_out(session, existing)
-
-    # No hay duplicado → crear
-    admin = Administration(
-        family_id=family_id,
-        pauta_id=pauta_id,
-        administered_at=administered_at,
-        administered_by=member_id,
-    )
-    session.add(admin)
-    await session.flush()
-    await session.refresh(admin)
-    response.status_code = status.HTTP_201_CREATED
+    response.status_code = status.HTTP_200_OK if is_dup else status.HTTP_201_CREATED
     return await _to_out(session, admin)
 
 
@@ -143,9 +113,10 @@ async def update_administration(
     pauta_id: uuid.UUID,
     admin_id: uuid.UUID,
     data: AdministrationUpdate,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> AdministrationOut:
     """Corrige una Administración (p. ej. la hora)."""
+    session = scope.session
     admin = await _get_owned_admin(session, pauta_id, admin_id)
     if data.administered_at is not None:
         admin.administered_at = data.administered_at
@@ -162,9 +133,10 @@ async def update_administration(
 async def delete_administration(
     pauta_id: uuid.UUID,
     admin_id: uuid.UUID,
-    session: AsyncSession = Depends(family_session),
+    scope: FamilyScope = Depends(family_session),
 ) -> None:
     """Borra una Administración (la siguiente toma se recalcula implícitamente)."""
+    session = scope.session
     admin = await _get_owned_admin(session, pauta_id, admin_id)
     await session.delete(admin)
     await session.flush()

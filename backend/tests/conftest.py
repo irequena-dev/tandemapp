@@ -143,16 +143,24 @@ async def run_mcp_server(configure_env, mcp_server_port: int):
 def mcp_client_factory(mcp_server_port: int):
     from contextlib import asynccontextmanager
 
-    import mcp.client.sse
+    import httpx
+    import mcp.client.streamable_http
     from mcp import ClientSession
 
     @asynccontextmanager
     async def _factory(token: str):
-        url = f"http://127.0.0.1:{mcp_server_port}/mcp/sse"
+        # El servidor MCP habla Streamable HTTP (no SSE); el cliente debe usar el
+        # mismo transporte. Los headers de autenticación viajan en el httpx client.
+        url = f"http://127.0.0.1:{mcp_server_port}/mcp/"
         headers = {"Authorization": f"Bearer {token}"}
-        async with mcp.client.sse.sse_client(url=url, headers=headers) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                yield session
+        async with (
+            httpx.AsyncClient(headers=headers) as http_client,
+            mcp.client.streamable_http.streamable_http_client(
+                url=url, http_client=http_client
+            ) as (read, write, _get_session_id),
+            ClientSession(read, write) as session,
+        ):
+            await session.initialize()
+            yield session
 
     return _factory

@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { HttpResponse, http } from 'msw'
 import { describe, expect, it, vi } from 'vitest'
 import { server } from '../../test/server'
-import { useCreateAdministration, useDeleteAdministration, useFinishPauta, usePautas } from './api'
+import { useCreateAdministration, useDeleteAdministration, useDeletePauta, useFinishPauta, usePautas, useUpdatePauta } from './api'
 import type { Administration, Pauta } from './types'
 
 vi.mock('@clerk/react', () => ({
@@ -29,6 +29,8 @@ const activePauta: Pauta = {
   id: 'pauta-1',
   family_id: 'fam',
   child_id: 'hijo-1',
+  member_id: null,
+  subject_name: 'Mateo',
   medication: 'Amoxicilina',
   dose: '5 ml',
   interval_hours: 8,
@@ -81,6 +83,12 @@ describe('usePautas', () => {
 
 describe('useFinishPauta (optimistic)', () => {
   it('marca la Pauta como finished de inmediato y reconcilia', async () => {
+    const mockToast = {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      dismiss: vi.fn(),
+    }
     const store: Pauta[] = [activePauta]
     server.use(
       http.get(URL, () => HttpResponse.json(store)),
@@ -93,7 +101,7 @@ describe('useFinishPauta (optimistic)', () => {
     )
 
     const { result } = renderHook(
-      () => ({ list: usePautas(), finish: useFinishPauta() }),
+      () => ({ list: usePautas(), finish: useFinishPauta(mockToast) }),
       { wrapper: makeWrapper() },
     )
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
@@ -111,13 +119,19 @@ describe('useFinishPauta (optimistic)', () => {
   })
 
   it('señala error si la finalización falla en el servidor', async () => {
+    const mockToast = {
+      success: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      dismiss: vi.fn(),
+    }
     server.use(
       http.get(URL, () => HttpResponse.json([activePauta])),
       http.post(`${URL}/:id/finish`, () => new HttpResponse(null, { status: 500 })),
     )
 
     const { result } = renderHook(
-      () => ({ list: usePautas(), finish: useFinishPauta() }),
+      () => ({ list: usePautas(), finish: useFinishPauta(mockToast) }),
       { wrapper: makeWrapper() },
     )
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
@@ -239,5 +253,117 @@ describe('useDeleteAdministration (deshacer)', () => {
       const pauta = result.current.list.data?.find((p) => p.id === 'pauta-1')
       expect(pauta?.todays_administrations).toHaveLength(0)
     })
+  })
+})
+
+describe('useDeletePauta (optimistic)', () => {
+  it('elimina la Pauta de la caché de inmediato y reconcilia', async () => {
+    const store: Pauta[] = [{ ...activePauta }]
+
+    server.use(
+      http.get(URL, () => HttpResponse.json(store)),
+      http.delete(`${URL}/:id`, ({ params }) => {
+        const idx = store.findIndex((p) => p.id === params['id'])
+        if (idx === -1) return new HttpResponse(null, { status: 404 })
+        store.splice(idx, 1)
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), del: useDeletePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+    expect(result.current.list.data).toHaveLength(1)
+
+    act(() => {
+      result.current.del.mutate('pauta-1')
+    })
+
+    // Optimista: la Pauta desaparece inmediatamente
+    await waitFor(() => {
+      expect(result.current.list.data).toHaveLength(0)
+    })
+  })
+
+  it('señala error si la eliminación falla en el servidor', async () => {
+    server.use(
+      http.get(URL, () => HttpResponse.json([activePauta])),
+      http.delete(`${URL}/:id`, () => new HttpResponse(null, { status: 409 })),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), del: useDeletePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.del.mutate('pauta-1')
+    })
+
+    await waitFor(() => expect(result.current.del.isError).toBe(true))
+    // Rollback: la Pauta reaparece
+    await waitFor(() => expect(result.current.list.data).toHaveLength(1))
+  })
+})
+
+describe('useUpdatePauta (optimistic)', () => {
+  it('actualiza campos de la Pauta con optimistic update y reconcilia', async () => {
+    const store: Pauta[] = [{ ...activePauta }]
+
+    server.use(
+      http.get(URL, () => HttpResponse.json(store)),
+      http.patch(`${URL}/:id`, async ({ params, request }) => {
+        const body = (await request.json()) as Record<string, unknown>
+        const pauta = store.find((p) => p.id === params['id'])
+        if (!pauta) return new HttpResponse(null, { status: 404 })
+        Object.assign(pauta, body)
+        return HttpResponse.json(pauta)
+      }),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), update: useUpdatePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.update.mutate({
+        pautaId: 'pauta-1',
+        patch: { medication: 'Ibuprofeno', dose: '3 ml' },
+      })
+    })
+
+    // Optimista: los campos se actualizan inmediatamente
+    await waitFor(() => {
+      const pauta = result.current.list.data?.find((p) => p.id === 'pauta-1')
+      expect(pauta?.medication).toBe('Ibuprofeno')
+      expect(pauta?.dose).toBe('3 ml')
+    })
+  })
+
+  it('señala error si la edición falla en el servidor', async () => {
+    server.use(
+      http.get(URL, () => HttpResponse.json([activePauta])),
+      http.patch(`${URL}/:id`, () => new HttpResponse(null, { status: 409 })),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: usePautas(), update: useUpdatePauta() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.update.mutate({
+        pautaId: 'pauta-1',
+        patch: { medication: 'Nope' },
+      })
+    })
+
+    await waitFor(() => expect(result.current.update.isError).toBe(true))
   })
 })

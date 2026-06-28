@@ -537,7 +537,7 @@ type TodayOut = {
     pautas_active_count: number
     pautas_finished_count: number
     next_medical_event: EventOut | null  // próximo Evento de tipo Médico
-    children_status: "up_to_date"        // v1: siempre "Al día"
+    children_status: "al_dia" | "revision_vencida" | "seguimiento"
   }
 }
 
@@ -556,7 +556,7 @@ type TimelineEntry = {
   time: string            // HH:MM
   title: string
   subtitle: string | null
-  status: "done" | "upcoming" | "pending"
+  status: "done" | "upcoming" | "pending" | "due"
   // IDs para interacción
   pauta_id?: string
   administration_id?: string

@@ -10,6 +10,7 @@ import './index.css'
 import App from './App.tsx'
 import { createQueryClient } from './lib/queryClient'
 import { registerPWA } from './lib/registerPWA'
+import { ToastProvider } from './features/toasts/toasts'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -37,9 +38,11 @@ createRoot(document.getElementById('root')!).render(
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </ToastProvider>
       </QueryClientProvider>
     </ClerkProvider>
   </StrictMode>,

@@ -15,6 +15,11 @@ vi.mock('@clerk/react', () => ({
       UserButton
     </div>
   ),
+  useOrganization: () => ({ organization: { id: 'test-org', name: 'Familia Prueba' } }),
+  useOrganizationList: () => ({
+    organizationList: [{ id: 'test-org', name: 'Familia Prueba' }],
+    setActive: async () => {},
+  }),
   useUser: () => ({
     user: { fullName: 'Ana Martínez', primaryEmailAddress: { emailAddress: 'ana@test.com' } },
   }),
@@ -258,6 +263,158 @@ describe('Hijos — gestión real (alta/editar/borrar)', () => {
     await user.click(screen.getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(deleted).toHaveBeenCalledOnce())
+  })
+})
+
+/* ---------- Notificaciones push — toggle ---------- */
+
+describe('Notificaciones push — toggle', () => {
+  beforeEach(() => {
+    server.use(
+      http.get(`${API}/api/push/vapid-public-key`, () =>
+        HttpResponse.json({ vapid_public_key: 'TEST_VAPID_KEY' }),
+      ),
+    )
+  })
+
+  it('muestra la sección Notificaciones con toggle desactivado si el permiso es "default"', async () => {
+    vi.stubGlobal('Notification', { permission: 'default' })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue(null),
+          },
+        }),
+      },
+    })
+
+    renderOverlay()
+
+    expect(await screen.findByText('Notificaciones')).toBeTruthy()
+    const toggle = await screen.findByRole('checkbox', { name: /activar notificaciones/i })
+    expect(toggle).toBeTruthy()
+    expect((toggle as HTMLInputElement).checked).toBe(false)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('muestra toggle activado si ya existe una suscripción push', async () => {
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue({
+              endpoint: 'https://push.example.com/sub/existing',
+              unsubscribe: vi.fn(),
+            }),
+          },
+        }),
+      },
+    })
+
+    renderOverlay()
+
+    const toggle = await screen.findByRole('checkbox', { name: /activar notificaciones/i })
+    expect((toggle as HTMLInputElement).checked).toBe(true)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('al activar pide permiso, suscribe y envía POST /api/push/subscribe', async () => {
+    const subscribeCalled = vi.fn()
+
+    vi.stubGlobal('Notification', {
+      permission: 'default',
+      requestPermission: vi.fn().mockResolvedValue('granted'),
+    })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue(null),
+            subscribe: vi.fn().mockResolvedValue({
+              endpoint: 'https://push.example.com/sub/new',
+              toJSON: () => ({
+                endpoint: 'https://push.example.com/sub/new',
+                keys: { p256dh: 'KEY', auth: 'AUTH' },
+              }),
+            }),
+          },
+        }),
+      },
+    })
+
+    server.use(
+      http.post(`${API}/api/push/subscribe`, async ({ request }) => {
+        subscribeCalled(await request.json())
+        return HttpResponse.json(
+          { id: 'sub-1', member_id: 'usr', endpoint: 'https://push.example.com/sub/new', p256dh: 'KEY', auth: 'AUTH', created_at: '2026-01-01T00:00:00Z' },
+          { status: 201 },
+        )
+      }),
+    )
+
+    const user = userEvent.setup()
+    renderOverlay()
+
+    const toggle = await screen.findByRole('checkbox', { name: /activar notificaciones/i })
+    await user.click(toggle)
+
+    await waitFor(() =>
+      expect(subscribeCalled).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint: 'https://push.example.com/sub/new' }),
+      ),
+    )
+
+    vi.unstubAllGlobals()
+  })
+
+  it('al desactivar desuscribe y envía POST /api/push/unsubscribe', async () => {
+    const unsubscribeCalled = vi.fn()
+    const pushUnsubscribe = vi.fn().mockResolvedValue(true)
+
+    vi.stubGlobal('Notification', { permission: 'granted' })
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      serviceWorker: {
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue({
+              endpoint: 'https://push.example.com/sub/existing',
+              unsubscribe: pushUnsubscribe,
+            }),
+          },
+        }),
+      },
+    })
+
+    server.use(
+      http.post(`${API}/api/push/unsubscribe`, async ({ request }) => {
+        unsubscribeCalled(await request.json())
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    const user = userEvent.setup()
+    renderOverlay()
+
+    const toggle = await screen.findByRole('checkbox', { name: /activar notificaciones/i })
+    expect((toggle as HTMLInputElement).checked).toBe(true)
+    await user.click(toggle)
+
+    await waitFor(() => {
+      expect(pushUnsubscribe).toHaveBeenCalledOnce()
+      expect(unsubscribeCalled).toHaveBeenCalledWith(
+        expect.objectContaining({ endpoint: 'https://push.example.com/sub/existing' }),
+      )
+    })
+
+    vi.unstubAllGlobals()
   })
 })
 

@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { useCreateSize, useCurrentSizes, useDeleteSize, useSizes, useUpdateSize } from './api'
 import type { SizeCreate, SizeOut } from './types'
+import { useToast } from '../toasts/useToast'
 
 /** Mapeo de type interno → etiqueta UI (CONTEXT.md). */
 const TYPE_LABELS: Record<string, string> = {
   clothing: 'Talla',
   footwear: 'Calzado',
+}
+
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  )
 }
 
 function formatDate(iso: string): string {
@@ -85,10 +94,15 @@ function SizeTypeBlock({ childId, sizeType, current, history }: SizeTypeBlockPro
   const [showAdd, setShowAdd] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  // Confirmación inline de borrado (patrón .hijo-confirm): antes de destruir
+  // una Talla pedimos confirmación y, al borrar con éxito, ofrecemos un toast
+  // con "Deshacer" que la re-crea vía create.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
 
   const createMutation = useCreateSize(childId)
   const updateMutation = useUpdateSize(childId)
   const deleteMutation = useDeleteSize(childId)
+  const toast = useToast()
 
   const label = TYPE_LABELS[sizeType]
 
@@ -103,8 +117,34 @@ function SizeTypeBlock({ childId, sizeType, current, history }: SizeTypeBlockPro
     setEditingId(null)
   }
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id)
+  const handleConfirmDelete = (s: SizeOut) => {
+    deleteMutation.mutate(s.id, {
+      onSuccess: () => {
+        setConfirmingId(null)
+        const toastId = toast.success(
+          <>
+            <strong>{label} borrada.</strong>{' '}
+            <button
+              type="button"
+              className="toast__action"
+              onClick={() => {
+                createMutation.mutate({
+                  type: s.type,
+                  label: s.label,
+                  recorded_at: s.recorded_at,
+                })
+                toast.dismiss(toastId)
+              }}
+            >
+              Deshacer
+            </button>
+          </>,
+        )
+      },
+      onError: () => {
+        toast.error(`No se pudo borrar la ${label}`)
+      },
+    })
   }
 
   return (
@@ -123,7 +163,7 @@ function SizeTypeBlock({ childId, sizeType, current, history }: SizeTypeBlockPro
             onClick={() => setShowAdd(true)}
             aria-label={`Añadir ${label}`}
           >
-            +
+            <PlusIcon />
           </button>
         )}
       </div>
@@ -164,24 +204,50 @@ function SizeTypeBlock({ childId, sizeType, current, history }: SizeTypeBlockPro
               <li key={s.id} className="size-history-row">
                 <span className="size-history-row__date">{formatDate(s.recorded_at)}</span>
                 <span className="size-history-row__label ds-nums">{s.label}</span>
-                <div className="size-history-row__actions">
-                  <button
-                    type="button"
-                    className="size-history-row__btn"
-                    onClick={() => setEditingId(s.id)}
-                    aria-label={`Editar ${label}`}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    className="size-history-row__btn size-history-row__btn--danger"
-                    onClick={() => handleDelete(s.id)}
+                {confirmingId === s.id ? (
+                  <div
+                    className="hijo-confirm size-history-row__confirm"
+                    role="group"
                     aria-label={`Borrar ${label}`}
                   >
-                    Borrar
-                  </button>
-                </div>
+                    <span className="hijo-confirm__label">¿Borrar?</span>
+                    <button
+                      type="button"
+                      className="btn btn--secondary btn--sm"
+                      onClick={() => setConfirmingId(null)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--danger-solid btn--sm"
+                      onClick={() => handleConfirmDelete(s)}
+                      disabled={deleteMutation.isPending}
+                    >
+                      {deleteMutation.isPending ? 'Borrando…' : 'Borrar'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="size-history-row__actions">
+                    <button
+                      type="button"
+                      className="size-history-row__btn"
+                      onClick={() => setEditingId(s.id)}
+                      aria-label={`Editar ${label}`}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="size-history-row__btn size-history-row__btn--danger"
+                      onClick={() => setConfirmingId(s.id)}
+                      aria-label={`Borrar ${label}`}
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                )}
               </li>
             ),
           )}

@@ -17,23 +17,25 @@ del código de la tool); ver ADR-0006 y PRD Fase 0.
 """
 
 import json
+import uuid
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, date, datetime, time, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
 from typing import Any
-from urllib.parse import parse_qs
 
 from mcp.server import Server
+from mcp.server.fastmcp.server import StreamableHTTPASGIApp
 from mcp.server.lowlevel.server import request_ctx
-from mcp.server.sse import SseServerTransport
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import TextContent, Tool
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.applications import Starlette
 from starlette.routing import Route
 
 from ..database import get_sessionmaker
 from ..models import (
-    DUPLICATE_GUARD_MINUTES,
-    Administration,
     Child,
     Event,
     EventType,
@@ -43,9 +45,15 @@ from ..models import (
     ShoppingItem,
     Size,
 )
-from ..tenancy import FAMILY_VAR
+from ..pautas_service import (
+    create_or_duplicate_administration,
+    expire_due_pautas,
+    load_pauta_views,
+)
+from ..tenancy import open_family_scope
 from .auth import extract_bearer, resolve_token
 from .child_matching import ChildMatchError, resolve_child_by_name
+from .dates import DateParseError, parse_flexible_date, parse_flexible_time
 
 # Clave bajo la que el wrapper deposita (member_id, family_id) en el scope ASGI.
 MCP_IDENTITY_KEY = "tandem_mcp_identity"
@@ -54,41 +62,8 @@ VALID_MEASUREMENT_TYPES = frozenset({"height", "weight"})
 VALID_SIZE_TYPES = frozenset({"clothing", "footwear"})
 
 
-# 1. Transport personalizado para registrar e identificar sesiones SSE
-class TandemSseServerTransport(SseServerTransport):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.session_identities = {}
-
-    @asynccontextmanager
-    async def connect_sse(self, scope, receive, send):
-        async with super().connect_sse(scope, receive, send) as (
-            read_stream,
-            write_stream,
-        ):
-            # Interceptar la sesión recién creada
-            new_session_ids = [
-                sid
-                for sid in self._read_stream_writers
-                if sid not in self.session_identities
-            ]
-            if new_session_ids:
-                identity = scope.get("state", {}).get(MCP_IDENTITY_KEY)
-                if identity:
-                    for sid in new_session_ids:
-                        self.session_identities[sid] = identity
-            try:
-                yield (read_stream, write_stream)
-            finally:
-                # Limpiar al desconectar
-                for sid in list(self.session_identities.keys()):
-                    if sid not in self._read_stream_writers:
-                        self.session_identities.pop(sid, None)
-
-
-# 2. Inicializar el servidor MCP y el transport
+# 1. Servidor MCP (low-level Server estándar del SDK)
 mcp_server = Server("Tándem")
-sse_transport = TandemSseServerTransport("/messages/")
 
 
 def get_http_request():
@@ -99,500 +74,500 @@ def get_http_request():
         raise RuntimeError("No active HTTP request found.") from err
 
 
-# 3. Helpers con la lógica de negocio de las herramientas
-async def do_list_children() -> list[dict[str, str]]:
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            rows = (
-                (
-                    await session.execute(
-                        select(Child).order_by(Child.birth_date, Child.name)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            return [
-                {
-                    "id": str(c.id),
-                    "name": c.name,
-                    "birth_date": str(c.birth_date),
-                }
-                for c in rows
-            ]
+# --- Seam unificado: identidad + sesión + transacción + RLS ------------------
+# Único lugar que abre sesión, abre transacción y fija la variable RLS de la
+# Familia. Los handlers `do_*` reciben un `ToolContext` y solo contienen lógica
+# de dominio. (issue 01)
 
 
-async def do_add_shopping_items(items: list[str]) -> list[dict[str, str]]:
+@dataclass
+class ToolContext:
+    """Contexto de ejecución de una herramienta: sesión + identidad."""
+
+    session: AsyncSession
+    member_id: str
+    family_id: str
+
+
+class ToolError(Exception):
+    """Error unificado de herramienta MCP.
+
+    Su forma canónica es `json.dumps(payload)` con claves `error` (razón
+    estable) y `message` (texto humano). El dispatcher NO lo captura: el SDK
+    del MCP lo propaga y produce un resultado `isError=True` cuyo
+    `content[0].text` es exactamente `str(self)`. NO es subclase de ValueError:
+    queremos que el SDK use `str(exc)` crudo como mensaje.
+    """
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        if "error" not in payload or "message" not in payload:
+            raise ValueError("ToolError payload requiere 'error' y 'message'")
+        self.payload = payload
+        super().__init__(json.dumps(payload, ensure_ascii=False))
+
+    def __str__(self) -> str:  # noqa: D401
+        return json.dumps(self.payload, ensure_ascii=False)
+
+    @classmethod
+    def child_match_error(cls, err: ChildMatchError) -> "ToolError":
+        """Construye un ToolError a partir de un ChildMatchError estricto."""
+        valid = [
+            {"id": str(c.id), "name": c.name, "birth_date": str(c.birth_date)}
+            for c in err.valid_children
+        ]
+        return cls(
+            {
+                "error": err.reason,
+                "message": (
+                    "Hijo no encontrado"
+                    if err.reason == "not_found"
+                    else "Nombre ambiguo"
+                ),
+                "valid_children": valid,
+            }
+        )
+
+
+@asynccontextmanager
+async def tool_session() -> AsyncIterator[ToolContext]:
+    """Abre sesión + transacción + fija RLS; entrega un ToolContext listo.
+
+    Delega en `open_family_scope` (el seam unificado de tenancy): es la ÚNICA
+    implementación del setup RLS. MCP no pasa claims porque los Miembros ya
+    fueron materializados por un login REST previo (ADR-0005 / issue 02).
+    """
     request = get_http_request()
     member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
+    async with open_family_scope(family_id, member_id) as scope:
+        yield ToolContext(
+            session=scope.session,
+            member_id=scope.member_id,
+            family_id=scope.family_id,
+        )
+
+
+# 3. Handlers de dominio. Firma unificada: (ctx, arguments) -> Any.
+#    Contienen SOLO lógica de dominio. Sin get_http_request, sin get_sessionmaker,
+#    sin fijar la variable RLS (eso vive en open_family_scope), sin leer
+#    MCP_IDENTITY_KEY.
+async def do_list_children(ctx: ToolContext, arguments: dict) -> list[dict[str, str]]:
+    rows = (
+        (
+            await ctx.session.execute(
+                select(Child).order_by(Child.birth_date, Child.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(c.id),
+            "name": c.name,
+            "birth_date": str(c.birth_date),
+        }
+        for c in rows
+    ]
+
+
+async def do_add_shopping_items(
+    ctx: ToolContext, arguments: dict
+) -> list[dict[str, str]]:
+    items: list[str] = arguments["items"]
     now = datetime.now(UTC)
     created: list[dict[str, str]] = []
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            for item_text in items:
-                item = ShoppingItem(
-                    family_id=family_id,
-                    text=item_text,
-                    status="pending",
-                    created_by=member_id,
-                    created_at=now,
-                    updated_at=now,
-                )
-                session.add(item)
-                await session.flush()
-                await session.refresh(item)
-                created.append(
-                    {
-                        "id": str(item.id),
-                        "text": item.text,
-                        "status": item.status,
-                    }
-                )
+    for item_text in items:
+        item = ShoppingItem(
+            family_id=ctx.family_id,
+            text=item_text,
+            status="pending",
+            created_by=ctx.member_id,
+            created_at=now,
+            updated_at=now,
+        )
+        ctx.session.add(item)
+        await ctx.session.flush()
+        await ctx.session.refresh(item)
+        created.append(
+            {
+                "id": str(item.id),
+                "text": item.text,
+                "status": item.status,
+            }
+        )
     return created
 
 
-def _child_match_error_response(err: ChildMatchError) -> dict[str, Any]:
-    """Error estructurado MCP cuando el matching estricto de Hijo falla."""
-    valid = [
-        {"id": str(c.id), "name": c.name, "birth_date": str(c.birth_date)}
-        for c in err.valid_children
-    ]
+async def do_record_health_visit(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
+    child_name: str = arguments["child_name"]
+    diagnosis: str = arguments["diagnosis"]
+    notes: str | None = arguments.get("notes")
+    try:
+        visited_at_date = parse_flexible_date(arguments["visited_at"])
+    except DateParseError as e:
+        raise ToolError({"error": "invalid_date", "message": str(e)}) from e
+    result = await resolve_child_by_name(ctx.session, child_name)
+    if isinstance(result, ChildMatchError):
+        raise ToolError.child_match_error(result)
+    child = result
+    visit = HealthVisit(
+        family_id=ctx.family_id,
+        child_id=child.id,
+        visited_at=visited_at_date,
+        diagnosis=diagnosis,
+        notes=notes,
+        created_by=ctx.member_id,
+    )
+    ctx.session.add(visit)
+    await ctx.session.flush()
+    await ctx.session.refresh(visit)
     return {
-        "error": err.reason,
-        "message": (
-            "Hijo no encontrado" if err.reason == "not_found" else "Nombre ambiguo"
-        ),
-        "valid_children": valid,
+        "id": str(visit.id),
+        "child_id": str(visit.child_id),
+        "visited_at": str(visit.visited_at),
+        "diagnosis": visit.diagnosis,
+        "notes": visit.notes,
+        "created_by": visit.created_by,
     }
 
 
-async def do_record_health_visit(
-    child_name: str,
-    visited_at: str,
-    diagnosis: str,
-    notes: str | None = None,
-) -> dict[str, Any]:
-    from datetime import date as date_type
+async def do_start_pauta(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
+    child_name: str = arguments["child_name"]
+    medication: str = arguments["medication"]
+    dose: str = arguments["dose"]
+    interval: int = arguments["interval"]
+    duration: int = arguments["duration"]
+    result = await resolve_child_by_name(ctx.session, child_name)
+    if isinstance(result, ChildMatchError):
+        raise ToolError.child_match_error(result)
+    child = result
+    now = datetime.now(UTC)
+    pauta = Pauta(
+        family_id=ctx.family_id,
+        child_id=child.id,
+        medication=medication,
+        dose=dose,
+        interval_hours=interval,
+        duration_days=duration,
+        started_at=now,
+        status="active",
+        created_by=ctx.member_id,
+        created_at=now,
+    )
+    ctx.session.add(pauta)
+    await ctx.session.flush()
+    await ctx.session.refresh(pauta)
+    return {
+        "id": str(pauta.id),
+        "child_id": str(pauta.child_id),
+        "medication": pauta.medication,
+        "dose": pauta.dose,
+        "interval_hours": pauta.interval_hours,
+        "duration_days": pauta.duration_days,
+        "started_at": pauta.started_at.isoformat(),
+        "status": pauta.status,
+    }
 
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            result = await resolve_child_by_name(session, child_name)
-            if isinstance(result, ChildMatchError):
-                return _child_match_error_response(result)
-            child = result
-            visit = HealthVisit(
-                family_id=family_id,
-                child_id=child.id,
-                visited_at=date_type.fromisoformat(visited_at),
-                diagnosis=diagnosis,
-                notes=notes,
-                created_by=member_id,
-            )
-            session.add(visit)
-            await session.flush()
-            await session.refresh(visit)
-            return {
-                "id": str(visit.id),
-                "child_id": str(visit.child_id),
-                "visited_at": str(visit.visited_at),
-                "diagnosis": visit.diagnosis,
-                "notes": visit.notes,
-                "created_by": visit.created_by,
+
+async def do_record_administration(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
+    pauta_id: str = arguments["pauta_id"]
+    try:
+        pid = uuid.UUID(pauta_id)
+    except ValueError as e:
+        raise ToolError(
+            {
+                "error": "invalid_pauta_id",
+                "message": f"pauta_id no es un UUID válido: {pauta_id}",
             }
+        ) from e
+    pauta = await ctx.session.get(Pauta, pid)
+    if pauta is None:
+        raise ToolError({"error": "not_found", "message": "Pauta no encontrada"})
+    if pauta.status == "finished":
+        raise ToolError({"error": "finished", "message": "La Pauta ya está finalizada"})
+
+    admin, is_dup = await create_or_duplicate_administration(
+        ctx.session, pauta, ctx.member_id
+    )
+    return {
+        "id": str(admin.id),
+        "pauta_id": str(admin.pauta_id),
+        "administered_at": admin.administered_at.isoformat(),
+        "administered_by": admin.administered_by,
+        "duplicate": is_dup,
+    }
 
 
-async def do_start_pauta(
-    child_name: str,
-    medication: str,
-    dose: str,
-    interval: int,
-    duration: int,
-) -> dict[str, Any]:
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            result = await resolve_child_by_name(session, child_name)
-            if isinstance(result, ChildMatchError):
-                return _child_match_error_response(result)
-            child = result
-            now = datetime.now(UTC)
-            pauta = Pauta(
-                family_id=family_id,
-                child_id=child.id,
-                medication=medication,
-                dose=dose,
-                interval_hours=interval,
-                duration_days=duration,
-                started_at=now,
-                status="active",
-                created_by=member_id,
-                created_at=now,
-            )
-            session.add(pauta)
-            await session.flush()
-            await session.refresh(pauta)
-            return {
-                "id": str(pauta.id),
-                "child_id": str(pauta.child_id),
-                "medication": pauta.medication,
-                "dose": pauta.dose,
-                "interval_hours": pauta.interval_hours,
-                "duration_days": pauta.duration_days,
-                "started_at": pauta.started_at.isoformat(),
-                "status": pauta.status,
+async def do_finish_pauta(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
+    pauta_id: str = arguments["pauta_id"]
+    try:
+        pid = uuid.UUID(pauta_id)
+    except ValueError as e:
+        raise ToolError(
+            {
+                "error": "invalid_pauta_id",
+                "message": f"pauta_id no es un UUID válido: {pauta_id}",
             }
+        ) from e
+    pauta = await ctx.session.get(Pauta, pid)
+    if pauta is None:
+        raise ToolError({"error": "not_found", "message": "Pauta no encontrada"})
+    if pauta.status == "finished":
+        raise ToolError(
+            {"error": "already_finished", "message": "La Pauta ya está finalizada"}
+        )
+    pauta.status = "finished"
+    ctx.session.add(pauta)
+    await ctx.session.flush()
+    await ctx.session.refresh(pauta)
+    return {
+        "id": str(pauta.id),
+        "status": pauta.status,
+        "medication": pauta.medication,
+    }
 
 
-async def do_record_administration(pauta_id: str) -> dict[str, Any]:
-    import uuid
+async def do_list_active_pautas(
+    ctx: ToolContext, arguments: dict
+) -> list[dict[str, Any]]:
+    await expire_due_pautas(ctx.session)
+    child_name: str | None = arguments.get("child_name")
+    stmt = select(Pauta).where(Pauta.status == "active")
+    if child_name is not None:
+        result = await resolve_child_by_name(ctx.session, child_name)
+        if isinstance(result, ChildMatchError):
+            raise ToolError.child_match_error(result)
+        stmt = stmt.where(Pauta.child_id == result.id)
+    stmt = stmt.order_by(Pauta.started_at.desc())
+    rows = list((await ctx.session.execute(stmt)).scalars().all())
+    views = await load_pauta_views(
+        ctx.session, rows, today=datetime.now(UTC).date(), tz=UTC
+    )
+    return [
+        {
+            "id": str(v.pauta.id),
+            "child_id": str(v.pauta.child_id) if v.pauta.child_id else None,
+            "member_id": v.pauta.member_id,
+            "subject_name": v.subject_name,
+            "medication": v.pauta.medication,
+            "dose": v.pauta.dose,
+            "interval_hours": v.pauta.interval_hours,
+            "duration_days": v.pauta.duration_days,
+            "started_at": v.pauta.started_at.isoformat(),
+            "status": v.pauta.status,
+            "next_dose_at": v.next_dose_at.isoformat() if v.next_dose_at else None,
+        }
+        for v in views
+    ]
 
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    pid = uuid.UUID(pauta_id)
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            pauta = await session.get(Pauta, pid)
-            if pauta is None:
-                return {"error": "not_found", "message": "Pauta no encontrada"}
-            if pauta.status == "finished":
-                return {"error": "finished", "message": "La Pauta ya está finalizada"}
 
-            now = datetime.now(UTC)
-            window_start = now - timedelta(minutes=DUPLICATE_GUARD_MINUTES)
-            existing = (
-                await session.execute(
-                    select(Administration)
-                    .where(Administration.pauta_id == pid)
-                    .where(Administration.administered_at >= window_start)
-                    .order_by(Administration.administered_at.desc())
-                    .limit(1)
+async def do_record_measurement(ctx: ToolContext, arguments: dict) -> dict:
+    type_: str = arguments["type"]
+    if type_ not in VALID_MEASUREMENT_TYPES:
+        raise ToolError(
+            {
+                "error": "invalid_type",
+                "message": f"type debe ser uno de {sorted(VALID_MEASUREMENT_TYPES)}",
+                "valid_types": sorted(VALID_MEASUREMENT_TYPES),
+            }
+        )
+    child_name: str = arguments["child_name"]
+    value = float(arguments["value"])
+    unit: str = arguments["unit"]
+    child_or_err = await resolve_child_by_name(ctx.session, child_name)
+    if isinstance(child_or_err, ChildMatchError):
+        raise ToolError.child_match_error(child_or_err)
+
+    measurement = Measurement(
+        family_id=ctx.family_id,
+        child_id=child_or_err.id,
+        type=type_,
+        value=value,
+        unit=unit,
+        measured_at=date.today(),
+        recorded_by=ctx.member_id,
+        created_at=datetime.now(UTC),
+    )
+    ctx.session.add(measurement)
+    await ctx.session.flush()
+    return {
+        "id": str(measurement.id),
+        "child_id": str(measurement.child_id),
+        "type": measurement.type,
+        "value": measurement.value,
+        "unit": measurement.unit,
+        "measured_at": str(measurement.measured_at),
+    }
+
+
+async def do_record_size(ctx: ToolContext, arguments: dict) -> dict:
+    type_: str = arguments["type"]
+    if type_ not in VALID_SIZE_TYPES:
+        raise ToolError(
+            {
+                "error": "invalid_type",
+                "message": f"type debe ser uno de {sorted(VALID_SIZE_TYPES)}",
+                "valid_types": sorted(VALID_SIZE_TYPES),
+            }
+        )
+    child_name: str = arguments["child_name"]
+    label: str = arguments["label"]
+    child_or_err = await resolve_child_by_name(ctx.session, child_name)
+    if isinstance(child_or_err, ChildMatchError):
+        raise ToolError.child_match_error(child_or_err)
+
+    size = Size(
+        family_id=ctx.family_id,
+        child_id=child_or_err.id,
+        type=type_,
+        label=label,
+        recorded_at=date.today(),
+        recorded_by=ctx.member_id,
+        created_at=datetime.now(UTC),
+    )
+    ctx.session.add(size)
+    await ctx.session.flush()
+    return {
+        "id": str(size.id),
+        "child_id": str(size.child_id),
+        "type": size.type,
+        "label": size.label,
+        "recorded_at": str(size.recorded_at),
+    }
+
+
+async def do_list_event_types(
+    ctx: ToolContext, arguments: dict
+) -> list[dict[str, str]]:
+    rows = (
+        (await ctx.session.execute(select(EventType).order_by(EventType.name)))
+        .scalars()
+        .all()
+    )
+    return [{"id": str(et.id), "name": et.name, "icon": et.icon} for et in rows]
+
+
+async def do_create_event(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
+    title: str = arguments["title"]
+    type_name: str = arguments["type"]
+    try:
+        date_val = parse_flexible_date(arguments["date"])
+    except DateParseError as e:
+        raise ToolError({"error": "invalid_date", "message": str(e)}) from e
+    time_val: time | None = None
+    if arguments.get("time"):
+        try:
+            time_val = parse_flexible_time(arguments["time"])
+        except DateParseError as e:
+            raise ToolError({"error": "invalid_date", "message": str(e)}) from e
+    child_name: str | None = arguments.get("child_name")
+
+    # Resolver tipo: buscar por nombre case-insensitive; fallback a "Otros".
+    matched_type = (
+        (
+            await ctx.session.execute(
+                select(EventType).where(
+                    func.lower(EventType.name) == func.lower(type_name)
                 )
-            ).scalar_one_or_none()
-            if existing is not None:
-                return {
-                    "id": str(existing.id),
-                    "pauta_id": str(existing.pauta_id),
-                    "administered_at": existing.administered_at.isoformat(),
-                    "administered_by": existing.administered_by,
-                    "duplicate": True,
-                }
-
-            admin = Administration(
-                family_id=family_id,
-                pauta_id=pid,
-                administered_at=now,
-                administered_by=member_id,
-            )
-            session.add(admin)
-            await session.flush()
-            await session.refresh(admin)
-            return {
-                "id": str(admin.id),
-                "pauta_id": str(admin.pauta_id),
-                "administered_at": admin.administered_at.isoformat(),
-                "administered_by": admin.administered_by,
-                "duplicate": False,
-            }
-
-
-async def do_finish_pauta(pauta_id: str) -> dict[str, Any]:
-    import uuid
-
-    request = get_http_request()
-    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    pid = uuid.UUID(pauta_id)
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            pauta = await session.get(Pauta, pid)
-            if pauta is None:
-                return {"error": "not_found", "message": "Pauta no encontrada"}
-            if pauta.status == "finished":
-                return {
-                    "error": "already_finished",
-                    "message": "La Pauta ya está finalizada",
-                }
-            pauta.status = "finished"
-            session.add(pauta)
-            await session.flush()
-            await session.refresh(pauta)
-            return {
-                "id": str(pauta.id),
-                "status": pauta.status,
-                "medication": pauta.medication,
-            }
-
-
-async def do_list_active_pautas(child_name: str | None = None) -> list[dict[str, Any]]:
-    request = get_http_request()
-    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            stmt = select(Pauta).where(Pauta.status == "active")
-            if child_name is not None:
-                result = await resolve_child_by_name(session, child_name)
-                if isinstance(result, ChildMatchError):
-                    return [_child_match_error_response(result)]
-                stmt = stmt.where(Pauta.child_id == result.id)
-            stmt = stmt.order_by(Pauta.started_at.desc())
-            rows = (await session.execute(stmt)).scalars().all()
-            return [
-                {
-                    "id": str(p.id),
-                    "child_id": str(p.child_id),
-                    "medication": p.medication,
-                    "dose": p.dose,
-                    "interval_hours": p.interval_hours,
-                    "duration_days": p.duration_days,
-                    "started_at": p.started_at.isoformat(),
-                    "status": p.status,
-                }
-                for p in rows
-            ]
-
-
-async def do_record_measurement(
-    child_name: str, type: str, value: float, unit: str
-) -> dict:
-    if type not in VALID_MEASUREMENT_TYPES:
-        raise ValueError(
-            json.dumps(
-                {
-                    "error": "invalid_type",
-                    "detail": f"type debe ser uno de {sorted(VALID_MEASUREMENT_TYPES)}",
-                    "valid_types": sorted(VALID_MEASUREMENT_TYPES),
-                }
             )
         )
-
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
+        .scalars()
+        .first()
+    )
+    if matched_type is None:
+        matched_type = (
+            (
+                await ctx.session.execute(
+                    select(EventType).where(func.lower(EventType.name) == "otros")
+                )
             )
-            child_or_err = await resolve_child_by_name(session, child_name)
-            if isinstance(child_or_err, ChildMatchError):
-                return _child_match_error_response(child_or_err)
-
-            measurement = Measurement(
-                family_id=family_id,
-                child_id=child_or_err.id,
-                type=type,
-                value=value,
-                unit=unit,
-                measured_at=date.today(),
-                recorded_by=member_id,
-                created_at=datetime.now(UTC),
-            )
-            session.add(measurement)
-            await session.flush()
-            return {
-                "id": str(measurement.id),
-                "child_id": str(measurement.child_id),
-                "type": measurement.type,
-                "value": measurement.value,
-                "unit": measurement.unit,
-                "measured_at": str(measurement.measured_at),
-            }
-
-
-async def do_record_size(child_name: str, type: str, label: str) -> dict:
-    if type not in VALID_SIZE_TYPES:
-        raise ValueError(
-            json.dumps(
-                {
-                    "error": "invalid_type",
-                    "detail": f"type debe ser uno de {sorted(VALID_SIZE_TYPES)}",
-                    "valid_types": sorted(VALID_SIZE_TYPES),
-                }
-            )
+            .scalars()
+            .first()
         )
+    if matched_type is None:
+        return {"error": "No se encontró el tipo 'Otros' en el sistema."}
 
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            child_or_err = await resolve_child_by_name(session, child_name)
-            if isinstance(child_or_err, ChildMatchError):
-                return _child_match_error_response(child_or_err)
-
-            size = Size(
-                family_id=family_id,
-                child_id=child_or_err.id,
-                type=type,
-                label=label,
-                recorded_at=date.today(),
-                recorded_by=member_id,
-                created_at=datetime.now(UTC),
-            )
-            session.add(size)
-            await session.flush()
+    # Resolver child_name si se proporcionó. Se mantiene el contrato histórico de
+    # create_event: un dict con `error` (texto humano con los nombres válidos)
+    # para que el cliente pueda corregir. No se unifica a ToolError aquí porque
+    # el test `test_create_event_child_not_found` codifica exactamente esa forma.
+    child_id = None
+    if child_name is not None:
+        result = await resolve_child_by_name(ctx.session, child_name)
+        if isinstance(result, ChildMatchError):
+            valid_names = [c.name for c in result.valid_children]
             return {
-                "id": str(size.id),
-                "child_id": str(size.child_id),
-                "type": size.type,
-                "label": size.label,
-                "recorded_at": str(size.recorded_at),
+                "error": f"Hijo no encontrado: '{child_name}'. "
+                f"Hijos válidos: {', '.join(valid_names)}"
+                if result.reason == "not_found"
+                else f"Nombre ambiguo: '{child_name}'. "
+                f"Hijos válidos: {', '.join(valid_names)}"
             }
+        child_id = result.id
+
+    event = Event(
+        family_id=ctx.family_id,
+        child_id=child_id,
+        title=title,
+        event_type_id=matched_type.id,
+        date=date_val,
+        time=time_val,
+        status="pending",
+        created_by=ctx.member_id,
+    )
+    ctx.session.add(event)
+    await ctx.session.flush()
+    await ctx.session.refresh(event)
+
+    return {
+        "id": str(event.id),
+        "title": event.title,
+        "date": str(event.date),
+        "time": str(event.time) if event.time else None,
+        "type": matched_type.name,
+        "child_id": str(event.child_id) if event.child_id else None,
+        "status": event.status,
+    }
 
 
-async def do_list_event_types() -> list[dict[str, str]]:
-    request = get_http_request()
-    _member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-            rows = (
-                (await session.execute(select(EventType).order_by(EventType.name)))
-                .scalars()
-                .all()
-            )
-            return [{"id": str(et.id), "name": et.name, "icon": et.icon} for et in rows]
-
-
-async def do_create_event(
-    title: str,
-    date_val: date,
-    type_name: str,
-    time_val: time | None = None,
-    child_name: str | None = None,
-) -> dict[str, Any]:
-    request = get_http_request()
-    member_id, family_id = request.scope["state"][MCP_IDENTITY_KEY]
-    async with get_sessionmaker()() as session:
-        async with session.begin():
-            await session.execute(
-                text("SELECT set_config(:k, :v, true)"),
-                {"k": FAMILY_VAR, "v": family_id},
-            )
-
-            # Resolver tipo: buscar por nombre case-insensitive; fallback a "Otros".
-            matched_type = (
-                (
-                    await session.execute(
-                        select(EventType).where(
-                            func.lower(EventType.name) == func.lower(type_name)
-                        )
-                    )
-                )
-                .scalars()
-                .first()
-            )
-            if matched_type is None:
-                matched_type = (
-                    (
-                        await session.execute(
-                            select(EventType).where(
-                                func.lower(EventType.name) == "otros"
-                            )
-                        )
-                    )
-                    .scalars()
-                    .first()
-                )
-            if matched_type is None:
-                return {"error": "No se encontró el tipo 'Otros' en el sistema."}
-
-            # Resolver child_name si se proporcionó.
-            child_id = None
-            if child_name is not None:
-                result = await resolve_child_by_name(session, child_name)
-                if isinstance(result, ChildMatchError):
-                    valid_names = [c.name for c in result.valid_children]
-                    return {
-                        "error": f"Hijo no encontrado: '{child_name}'. "
-                        f"Hijos válidos: {', '.join(valid_names)}"
-                        if result.reason == "not_found"
-                        else f"Nombre ambiguo: '{child_name}'. "
-                        f"Hijos válidos: {', '.join(valid_names)}"
-                    }
-                child_id = result.id
-
-            event = Event(
-                family_id=family_id,
-                child_id=child_id,
-                title=title,
-                event_type_id=matched_type.id,
-                date=date_val,
-                time=time_val,
-                status="pending",
-                created_by=member_id,
-            )
-            session.add(event)
-            await session.flush()
-            await session.refresh(event)
-
-            return {
-                "id": str(event.id),
-                "title": event.title,
-                "date": str(event.date),
-                "time": str(event.time) if event.time else None,
-                "type": matched_type.name,
-                "child_id": str(event.child_id) if event.child_id else None,
-                "status": event.status,
-            }
+# --- Registro de herramientas ------------------------------------------------
+# Añadir una herramienta = añadir una entrada aquí. El dispatcher es agnóstico
+# al nombre. (issue 01)
+TOOL_HANDLERS: dict[str, Callable[[ToolContext, dict], Awaitable[Any]]] = {
+    "list_children": do_list_children,
+    "add_shopping_items": do_add_shopping_items,
+    "record_health_visit": do_record_health_visit,
+    "start_pauta": do_start_pauta,
+    "record_administration": do_record_administration,
+    "finish_pauta": do_finish_pauta,
+    "list_active_pautas": do_list_active_pautas,
+    "record_measurement": do_record_measurement,
+    "record_size": do_record_size,
+    "list_event_types": do_list_event_types,
+    "create_event": do_create_event,
+}
 
 
 # 4. Registrar herramientas nativas en mcp_server
 @mcp_server.list_tools()
 async def handle_list_tools() -> list[Tool]:
     """Lista las herramientas disponibles para Tándem."""
+    # Nota: las descripciones (incluidos los enum) son lo que el modelo lee para
+    # saber qué valores son válidos y a qué tool enrutar. Sin enum, el modelo
+    # inventa valores (ej: "calzado" en vez de "footwear"). (issue 05)
     return [
         Tool(
             name="list_children",
             description=(
-                "Lista los Hijos de la Familia del token MCP "
-                "(orden: nacimiento, nombre)."
+                "Lista los hijos (niños y niñas) de la familia con su nombre y "
+                "fecha de nacimiento. Úsala cuando necesites saber quiénes son o "
+                "el nombre exacto de un hijo antes de registrar algo."
             ),
-            inputSchema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="add_shopping_items",
-            description=(
-                "Añade varios Ítems de compra a la lista de la Familia del token MCP."
-            ),
+            description="Añade productos a la lista de la compra de la familia.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -600,7 +575,7 @@ async def handle_list_tools() -> list[Tool]:
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Lista de textos de los ítems de compra a añadir"
+                            'Lista de productos a añadir, ej: ["leche", "pan"].'
                         ),
                     }
                 },
@@ -609,25 +584,32 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="record_health_visit",
-            description="Registra una Visita médica para un Hijo (historial de salud).",
+            description=(
+                "Registra una visita médica (pediatra, urgencias, etc.) de un hijo."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "child_name": {
                         "type": "string",
-                        "description": "Nombre del hijo/paciente",
+                        "description": 'Nombre del hijo, ej: "Lucas".',
                     },
                     "visited_at": {
                         "type": "string",
-                        "description": "Fecha de la visita (YYYY-MM-DD)",
+                        "description": (
+                            "Fecha de la visita. NO la formatees: pasa lo que "
+                            "dijo el usuario (ej: '15 de julio de 2026', "
+                            "'ayer', '2026-06-20'). Si no dijo año, no lo "
+                            "inventes (el servidor usará el año actual)."
+                        ),
                     },
                     "diagnosis": {
                         "type": "string",
-                        "description": "Diagnóstico principal",
+                        "description": "Diagnóstico o motivo de la visita.",
                     },
                     "notes": {
                         "type": "string",
-                        "description": "Notas opcionales (tratamiento, observaciones)",
+                        "description": "Notas u observaciones adicionales (opcional).",
                     },
                 },
                 "required": ["child_name", "visited_at", "diagnosis"],
@@ -635,29 +617,29 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="start_pauta",
-            description="Inicia una Pauta (tratamiento) para un Hijo.",
+            description=(
+                "Inicia un tratamiento médico (pauta de medicación) para un hijo. "
+                "Devuelve el id de la pauta."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {
-                        "type": "string",
-                        "description": "Nombre del hijo",
-                    },
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
                     "medication": {
                         "type": "string",
-                        "description": "Nombre del medicamento",
+                        "description": 'Nombre del medicamento, ej: "ibuprofeno".',
                     },
                     "dose": {
                         "type": "string",
-                        "description": "Dosis (ej. '5 ml', '1 comprimido')",
+                        "description": 'Dosis por toma, ej: "5 ml".',
                     },
                     "interval": {
                         "type": "integer",
-                        "description": "Intervalo en horas entre tomas",
+                        "description": "Horas entre cada toma, ej: 8.",
                     },
                     "duration": {
                         "type": "integer",
-                        "description": "Duración total en días",
+                        "description": "Días que dura el tratamiento, ej: 5.",
                     },
                 },
                 "required": [
@@ -672,71 +654,76 @@ async def handle_list_tools() -> list[Tool]:
         Tool(
             name="record_administration",
             description=(
-                "Registra que se ha dado una dosis de una Pauta (Administración)."
+                "Registra que se ha dado una dosis de un tratamiento activo. "
+                "Requiere el id de la pauta "
+                "(obtenido de start_pauta o list_active_pautas)."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "pauta_id": {
                         "type": "string",
-                        "description": "UUID de la pauta",
-                    }
+                        "description": 'ID (UUID) de la pauta, ej: "b77fcb88-...".',
+                    },
                 },
                 "required": ["pauta_id"],
             },
         ),
         Tool(
             name="finish_pauta",
-            description=(
-                "Finaliza manualmente una Pauta activa (cortar el tratamiento)."
-            ),
+            description=("Finaliza un tratamiento activo. Requiere el id de la pauta."),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "pauta_id": {
                         "type": "string",
-                        "description": "UUID de la pauta",
-                    }
+                        "description": "ID (UUID) de la pauta a finalizar.",
+                    },
                 },
                 "required": ["pauta_id"],
             },
         ),
         Tool(
             name="list_active_pautas",
-            description="Lista las Pautas activas de la Familia (lectura mínima).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "child_name": {
-                        "type": "string",
-                        "description": "Filtro opcional por nombre de hijo",
-                    }
-                },
-            },
-        ),
-        Tool(
-            name="record_measurement",
             description=(
-                "Registra una Medida (height/weight) para un Hijo de la Familia."
+                "Lista los tratamientos (pautas) activos, con su id, medicación y "
+                "pauta de dosis. Úsala antes de record_administration para obtener el "
+                "pauta_id."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "child_name": {
                         "type": "string",
-                        "description": "Nombre del hijo",
+                        "description": "Filtrar por hijo (opcional).",
                     },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="record_measurement",
+            description="Registra el peso o la altura de un hijo.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
                     "type": {
                         "type": "string",
-                        "description": "Tipo de medida ('height' o 'weight')",
+                        "enum": sorted(VALID_MEASUREMENT_TYPES),
+                        "description": (
+                            "'height' para altura (unidad: cm) o 'weight' para peso "
+                            "(unidad: kg)."
+                        ),
                     },
                     "value": {
                         "type": "number",
-                        "description": "Valor numérico de la medida",
+                        "description": "Valor numérico de la medida, ej: 82.5.",
                     },
                     "unit": {
                         "type": "string",
-                        "description": "Unidad de medida (ej. 'cm', 'kg')",
+                        "enum": ["cm", "kg"],
+                        "description": "'cm' si type=height, 'kg' si type=weight.",
                     },
                 },
                 "required": ["child_name", "type", "value", "unit"],
@@ -744,23 +731,24 @@ async def handle_list_tools() -> list[Tool]:
         ),
         Tool(
             name="record_size",
-            description=(
-                "Registra una Talla (clothing/footwear) para un Hijo de la Familia."
-            ),
+            description="Registra la talla de ropa o de calzado de un hijo.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "child_name": {
-                        "type": "string",
-                        "description": "Nombre del hijo",
-                    },
+                    "child_name": {"type": "string", "description": "Nombre del hijo."},
                     "type": {
                         "type": "string",
-                        "description": "Tipo de talla ('clothing' o 'footwear')",
+                        "enum": sorted(VALID_SIZE_TYPES),
+                        "description": (
+                            "'clothing' para ropa o 'footwear' para calzado (zapatos)."
+                        ),
                     },
                     "label": {
                         "type": "string",
-                        "description": "Etiqueta de la talla (ej. '5-6 años', '26')",
+                        "description": (
+                            'Talla tal cual se escribe, ej: "80", "86" (ropa) '
+                            'o "24", "25" (calzado).'
+                        ),
                     },
                 },
                 "required": ["child_name", "type", "label"],
@@ -769,36 +757,49 @@ async def handle_list_tools() -> list[Tool]:
         Tool(
             name="list_event_types",
             description=(
-                "Lista los Tipos de Evento visibles: "
-                "base del sistema + propios de la Familia."
+                "Lista los tipos de evento disponibles (ej: Cumpleaños, Vacuna, "
+                "Otros). Úsala antes de create_event para conocer el nombre exacto "
+                "del tipo."
             ),
-            inputSchema={"type": "object", "properties": {}},
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="create_event",
-            description="Crea un Evento suelto en la agenda de la Familia.",
+            description="Crea un evento en la agenda de la familia.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "title": {
                         "type": "string",
-                        "description": "Título del evento",
+                        "description": 'Título del evento, ej: "Cumple de Lucas".',
                     },
                     "date": {
                         "type": "string",
-                        "description": "Fecha del evento (YYYY-MM-DD)",
+                        "description": (
+                            "Fecha del evento. NO la formatees: pasa lo que "
+                            "dijo el usuario (ej: '15 de julio de 2026', "
+                            "'mañana', '15/07/2026'). Si no dijo año, no lo "
+                            "inventes (el servidor usará el año actual)."
+                        ),
                     },
                     "type": {
                         "type": "string",
-                        "description": "Nombre de la categoría/tipo de evento",
+                        "description": (
+                            "Nombre del tipo de evento (ver list_event_types), ej: "
+                            '"Cumpleaños". Si no existe, se usa "Otros".'
+                        ),
                     },
                     "time": {
                         "type": "string",
-                        "description": "Hora opcional del evento (HH:MM:SS)",
+                        "description": (
+                            "Hora del evento. NO la formatees: pasa lo que "
+                            "dijo el usuario (ej: 'a las 5 de la tarde', "
+                            "'16:00', 'por la mañana'). Opcional."
+                        ),
                     },
                     "child_name": {
                         "type": "string",
-                        "description": "Nombre opcional del hijo asociado",
+                        "description": "Asociar el evento a un hijo (opcional).",
                     },
                 },
                 "required": ["title", "date", "type"],
@@ -809,77 +810,24 @@ async def handle_list_tools() -> list[Tool]:
 
 @mcp_server.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
-    """Llama a la herramienta correspondiente con sus parámetros."""
-    try:
-        if name == "list_children":
-            res = await do_list_children()
-        elif name == "add_shopping_items":
-            res = await do_add_shopping_items(arguments["items"])
-        elif name == "record_health_visit":
-            res = await do_record_health_visit(
-                child_name=arguments["child_name"],
-                visited_at=arguments["visited_at"],
-                diagnosis=arguments["diagnosis"],
-                notes=arguments.get("notes"),
-            )
-        elif name == "start_pauta":
-            res = await do_start_pauta(
-                child_name=arguments["child_name"],
-                medication=arguments["medication"],
-                dose=arguments["dose"],
-                interval=arguments["interval"],
-                duration=arguments["duration"],
-            )
-        elif name == "record_administration":
-            res = await do_record_administration(pauta_id=arguments["pauta_id"])
-        elif name == "finish_pauta":
-            res = await do_finish_pauta(pauta_id=arguments["pauta_id"])
-        elif name == "list_active_pautas":
-            res = await do_list_active_pautas(child_name=arguments.get("child_name"))
-        elif name == "record_measurement":
-            res = await do_record_measurement(
-                child_name=arguments["child_name"],
-                type=arguments["type"],
-                value=float(arguments["value"]),
-                unit=arguments["unit"],
-            )
-        elif name == "record_size":
-            res = await do_record_size(
-                child_name=arguments["child_name"],
-                type=arguments["type"],
-                label=arguments["label"],
-            )
-        elif name == "list_event_types":
-            res = await do_list_event_types()
-        elif name == "create_event":
-            from datetime import date as date_type
-            from datetime import time as time_type
+    """Resuelve la herramienta por registro y la ejecuta dentro del seam.
 
-            d_val = date_type.fromisoformat(arguments["date"])
-            t_val = (
-                time_type.fromisoformat(arguments["time"])
-                if arguments.get("time")
-                else None
-            )
-            res = await do_create_event(
-                title=arguments["title"],
-                date_val=d_val,
-                type_name=arguments["type"],
-                time_val=t_val,
-                child_name=arguments.get("child_name"),
-            )
-        else:
-            raise ValueError(f"Herramienta no encontrada: {name}")
-
-        return [TextContent(type="text", text=json.dumps(res, ensure_ascii=False))]
-    except ValueError as e:
-        raise ValueError(str(e)) from e
+    No captura ToolError: el SDK del MCP lo propaga y produce un resultado
+    isError=True cuyo content[0].text es el JSON canónico de ToolError.
+    """
+    handler = TOOL_HANDLERS.get(name)
+    if handler is None:
+        raise ToolError(
+            {"error": "unknown_tool", "message": f"Herramienta no encontrada: {name}"}
+        )
+    async with tool_session() as ctx:
+        res = await handler(ctx, arguments)
+    return [TextContent(type="text", text=json.dumps(res, ensure_ascii=False))]
 
 
-# 5. Respuestas y enrutamiento ASGI Starlette
+# 5. Respuesta 401 y middleware Bearer
 async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") -> None:
     """Respuesta HTTP 401 real."""
-    print(f"BARRER AUTH: Unauthorized {detail}", flush=True)
     body = json.dumps({"detail": detail}).encode()
     await send(
         {
@@ -894,87 +842,24 @@ async def _unauthorized(send, detail: str = "Token MCP inválido o revocado") ->
     await send({"type": "http.response.body", "body": body})
 
 
-class SseHandler:
-    def __init__(self, transport: TandemSseServerTransport, server: Server):
-        self.transport = transport
-        self.server = server
-
-    async def __call__(self, scope, receive, send):
-        print("SSE HANDLER: SseHandler __call__ started", flush=True)
-        async with self.transport.connect_sse(scope, receive, send) as (
-            read_stream,
-            write_stream,
-        ):
-            print("SSE HANDLER: connect_sse entered, running server...", flush=True)
-            await self.server.run(
-                read_stream,
-                write_stream,
-                self.server.create_initialization_options(),
-            )
-            print("SSE HANDLER: server.run completed", flush=True)
-
-
-class MessagesHandler:
-    def __init__(self, transport: TandemSseServerTransport):
-        self.transport = transport
-
-    async def __call__(self, scope, receive, send):
-        print("MESSAGES HANDLER: MessagesHandler __call__ started", flush=True)
-        await self.transport.handle_post_message(scope, receive, send)
-        print("MESSAGES HANDLER: handle_post_message completed", flush=True)
-
-
-def with_bearer_auth(mcp_app: Any, transport: TandemSseServerTransport) -> Any:
-    """Gated middleware para exigir token Bearer en el primer GET /sse,
-
-    y validar el session_id en subsecuentes llamadas POST /messages/.
-    """
+def with_bearer_auth(mcp_app: Any) -> Any:
+    """Puerta Bearer: resuelve token → (member_id, family_id) en cada petición.
+    Sin token o inválido → 401 antes de que el MCP app procese nada."""
 
     async def asgi(scope, receive, send):
         if scope["type"] != "http":
             await mcp_app(scope, receive, send)
             return
 
-        print(
-            f"MIDDLEWARE: Request path={scope['path']} "
-            f"query={scope.get('query_string', b'').decode()}",
-            flush=True,
-        )
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         bearer = extract_bearer(headers)
-        identity = None
-        if bearer:
-            async with get_sessionmaker()() as session:
-                identity = await resolve_token(session, bearer)
-            print(
-                f"MIDDLEWARE: Resolved via Bearer token, identity={identity}",
-                flush=True,
-            )
+        if not bearer:
+            return await _unauthorized(send)
 
-        # Si no hay token bearer, validar por session_id
-        if identity is None:
-            query_string = scope.get("query_string", b"").decode("utf-8")
-            query_params = parse_qs(query_string)
-            session_ids = query_params.get("session_id", [])
-            if session_ids:
-                from uuid import UUID
-
-                try:
-                    session_id = UUID(hex=session_ids[0])
-                    identity = transport.session_identities.get(session_id)
-                    print(
-                        f"MIDDLEWARE: Resolved via session_id={session_id}, "
-                        f"identity={identity}",
-                        flush=True,
-                    )
-                except ValueError:
-                    print(
-                        f"MIDDLEWARE: Invalid session_id hex={session_ids[0]}",
-                        flush=True,
-                    )
+        async with get_sessionmaker()() as session:
+            identity = await resolve_token(session, bearer)
 
         if identity is None:
-            print("MIDDLEWARE: Authentication failed", flush=True)
             return await _unauthorized(send)
 
         scope.setdefault("state", {})[MCP_IDENTITY_KEY] = identity
@@ -983,24 +868,31 @@ def with_bearer_auth(mcp_app: Any, transport: TandemSseServerTransport) -> Any:
     return asgi
 
 
-# 6. Registrar rutas y construir aplicación Starlette
+# 6. Session manager + ASGI handler OFICIALES del SDK mcp
+# json_response=False => respuestas SSE (text/event-stream), el camino por
+# defecto del SDK y el que Edge Gallery ha probado contra servidores oficiales.
+# stateless=False => sesiones persistentes (Edge Gallery gestiona Mcp-Session-Id).
+http_manager = StreamableHTTPSessionManager(
+    app=mcp_server,
+    json_response=False,
+    stateless=False,
+)
 
-routes = [
-    Route("/sse", endpoint=SseHandler(sse_transport, mcp_server), methods=["GET"]),
-    Route("/sse/", endpoint=SseHandler(sse_transport, mcp_server), methods=["GET"]),
-    Route("/messages", endpoint=MessagesHandler(sse_transport), methods=["POST"]),
-    Route("/messages/", endpoint=MessagesHandler(sse_transport), methods=["POST"]),
-]
-
-mcp_asgi_app = Starlette(debug=True, routes=routes)
+mcp_asgi_app = Starlette(
+    debug=True,
+    routes=[
+        Route("/", endpoint=StreamableHTTPASGIApp(http_manager)),
+    ],
+)
 
 
 def build_mcp_app() -> tuple[Any, Any]:
     """Construye la app MCP con puerta Bearer; devuelve (asgi_gated, lifespan)."""
 
     @asynccontextmanager
-    async def empty_lifespan(app):
-        yield
+    async def mcp_lifespan(app):
+        async with http_manager.run():
+            yield
 
-    gated = with_bearer_auth(mcp_asgi_app, sse_transport)
-    return gated, empty_lifespan
+    gated = with_bearer_auth(mcp_asgi_app)
+    return gated, mcp_lifespan

@@ -164,6 +164,106 @@ async def test_pauta_finish_manual(auth_client: AsyncClient, identity: dict) -> 
     assert again.status_code == 409
 
 
+async def test_pauta_reactivate_undoes_manual_finish(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Reactivar una Pauta finalizada manualmente la devuelve a active (deshacer)."""
+    _as(identity, "org_pauta_react", "user_pauta_react1")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar y luego reactivar (deshacer)
+    assert (await auth_client.post(f"/pautas/{pauta_id}/finish")).status_code == 200
+    react = await auth_client.post(f"/pautas/{pauta_id}/reactivate")
+    assert react.status_code == 200
+    body = react.json()
+    assert body["status"] == "active"
+    # Vuelve a tener próxima toma al estar activa de nuevo
+    assert body["next_dose_at"] is not None
+
+
+async def test_pauta_reactivate_active_is_conflict(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Reactivar una Pauta que ya está activa → 409."""
+    _as(identity, "org_pauta_react_active", "user_pauta_react2")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Ibuprofeno",
+            "dose": "3 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    assert (await auth_client.post(f"/pautas/{pauta_id}/reactivate")).status_code == 409
+
+
+async def test_pauta_reactivate_expired_is_conflict(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """No se puede reactivar una Pauta ya caducada (lazy-finish la re-cerraría)."""
+    _as(identity, "org_pauta_react_exp", "user_pauta_react3")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Jarabe",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 1,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar y caducar (started_at muy atrás → ends_at pasado)
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+    await _backdate_pauta(pauta_id, days_ago=3)
+
+    assert (await auth_client.post(f"/pautas/{pauta_id}/reactivate")).status_code == 409
+
+
+async def test_pauta_reactivate_isolated_between_families(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS: una Familia no puede reactivar la Pauta de otra (404)."""
+    _as(identity, "org_react_iso_a", "user_react_iso_a1")
+    child_id = await _create_child(auth_client, "Hijo de A")
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Secreto A",
+            "dose": "1 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+
+    _as(identity, "org_react_iso_b", "user_react_iso_b1")
+    assert (await auth_client.post(f"/pautas/{pauta_id}/reactivate")).status_code == 404
+
+
 async def test_pauta_health_visit_id_optional(
     auth_client: AsyncClient, identity: dict
 ) -> None:
@@ -427,3 +527,269 @@ async def test_pauta_status_filter_with_auto_finish(
     finished_list = (await auth_client.get("/pautas?status=finished")).json()
     assert any(p["id"] == expired_id for p in finished_list)
     assert all(p["status"] == "finished" for p in finished_list)
+
+
+# ---------- Editar Pauta activa (PATCH) ----------
+
+
+async def test_patch_pauta_partial_update(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH /pautas/{id} actualiza campos enviados; devuelve Pauta enriquecida."""
+    _as(identity, "org_patch_ok", "user_patch_ok")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    assert resp.status_code == 201
+    original = resp.json()
+    pauta_id = original["id"]
+
+    # Editar solo medication y dose
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Ibuprofeno", "dose": "3 ml"},
+    )
+    assert patch_resp.status_code == 200
+    updated = patch_resp.json()
+
+    # Campos editados
+    assert updated["medication"] == "Ibuprofeno"
+    assert updated["dose"] == "3 ml"
+    # Campos no enviados: conservan valor original
+    assert updated["interval_hours"] == 8
+    assert updated["duration_days"] == 7
+    # started_at no se toca
+    assert updated["started_at"] == original["started_at"]
+    # ends_at se recalcula
+    started = datetime.fromisoformat(updated["started_at"])
+    ends = datetime.fromisoformat(updated["ends_at"])
+    assert ends - started == timedelta(days=7)
+    # Campos enriquecidos presentes
+    assert "day_number" in updated
+    assert "next_dose_at" in updated
+
+
+async def test_patch_pauta_duration_recalculates_ends_at(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Editar duration_days recalcula ends_at desde started_at original."""
+    _as(identity, "org_patch_dur", "user_patch_dur")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Dalsy",
+            "dose": "4 ml",
+            "interval_hours": 6,
+            "duration_days": 5,
+        },
+    )
+    original = resp.json()
+    pauta_id = original["id"]
+
+    # Cambiar duración de 5 a 10 días
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"duration_days": 10},
+    )
+    assert patch_resp.status_code == 200
+    updated = patch_resp.json()
+
+    assert updated["duration_days"] == 10
+    started = datetime.fromisoformat(updated["started_at"])
+    ends = datetime.fromisoformat(updated["ends_at"])
+    assert ends - started == timedelta(days=10)
+    # started_at no cambia
+    assert updated["started_at"] == original["started_at"]
+
+
+async def test_patch_pauta_finished_returns_409(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Intentar editar una Pauta finalizada devuelve 409."""
+    _as(identity, "org_patch_409", "user_patch_409")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Vitamina D",
+            "dose": "1 gota",
+            "interval_hours": 24,
+            "duration_days": 30,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+
+    # Intentar editar → 409
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Otra cosa"},
+    )
+    assert patch_resp.status_code == 409
+
+
+async def test_patch_pauta_other_family_returns_404(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS: una Familia no puede editar la Pauta de otra (404)."""
+    _as(identity, "org_patch_rls_a", "user_patch_rls_a")
+    child_id = await _create_child(auth_client, "Hijo RLS A")
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Secreto",
+            "dose": "1 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Familia B intenta editar
+    _as(identity, "org_patch_rls_b", "user_patch_rls_b")
+    patch_resp = await auth_client.patch(
+        f"/pautas/{pauta_id}",
+        json={"medication": "Hackeado"},
+    )
+    assert patch_resp.status_code == 404
+
+
+# ---------- Eliminar Pauta activa (DELETE) ----------
+
+
+async def test_delete_pauta_active_returns_204_and_cascades_admins(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """DELETE /pautas/{id} borra la Pauta activa y sus Administraciones; 204."""
+    _as(identity, "org_del_ok", "user_del_ok")
+    child_id = await _create_child(auth_client)
+
+    # Crear Pauta
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    assert resp.status_code == 201
+    pauta_id = resp.json()["id"]
+
+    # Registrar una Administración
+    admin_resp = await auth_client.post(f"/pautas/{pauta_id}/administrations", json={})
+    assert admin_resp.status_code == 201
+
+    # Eliminar la Pauta
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 204
+
+    # La Pauta ya no existe
+    assert (await auth_client.get(f"/pautas/{pauta_id}")).status_code == 404
+
+    # Las Administraciones también se borraron (CASCADE)
+    admins = await auth_client.get(f"/pautas/{pauta_id}/administrations")
+    assert admins.status_code == 404
+
+
+async def test_delete_pauta_finished_returns_409(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Intentar eliminar una Pauta finalizada devuelve 409."""
+    _as(identity, "org_del_409", "user_del_409")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Vitamina D",
+            "dose": "1 gota",
+            "interval_hours": 24,
+            "duration_days": 30,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+
+    # Intentar eliminar → 409
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 409
+
+
+async def test_delete_pauta_other_family_returns_404(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS: una Familia no puede eliminar la Pauta de otra (404)."""
+    _as(identity, "org_del_rls_a", "user_del_rls_a")
+    child_id = await _create_child(auth_client, "Hijo RLS A")
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Secreto",
+            "dose": "1 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Familia B intenta eliminar
+    _as(identity, "org_del_rls_b", "user_del_rls_b")
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 404
+
+
+async def test_delete_pauta_disappears_from_listing(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """La Pauta desaparece del listado GET /pautas tras el borrado."""
+    _as(identity, "org_del_list", "user_del_list")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Ibuprofeno",
+            "dose": "3 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Verificar que está en el listado
+    listed = (await auth_client.get("/pautas")).json()
+    assert any(p["id"] == pauta_id for p in listed)
+
+    # Eliminar
+    assert (await auth_client.delete(f"/pautas/{pauta_id}")).status_code == 204
+
+    # Ya no aparece
+    listed = (await auth_client.get("/pautas")).json()
+    assert all(p["id"] != pauta_id for p in listed)

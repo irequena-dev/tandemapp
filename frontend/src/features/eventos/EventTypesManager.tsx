@@ -95,7 +95,18 @@ export function EventTypesManager() {
     deleteMut.mutate(id)
   }
 
-  if (isLoading) return null
+  if (isLoading) {
+    return (
+      <section className="et-manager" aria-busy="true" aria-labelledby="et-manager-title">
+        <h2 className="et-manager__title" id="et-manager-title">Tipos de Evento</h2>
+        <ul className="et-manager__skeleton" aria-hidden="true">
+          <li className="et-manager__skeleton-row" />
+          <li className="et-manager__skeleton-row" />
+          <li className="et-manager__skeleton-row" />
+        </ul>
+      </section>
+    )
+  }
 
   const systemTypes = (types ?? []).filter((t) => t.is_system)
   const customTypes = (types ?? []).filter((t) => !t.is_system)

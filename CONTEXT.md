@@ -35,7 +35,7 @@ _Evitar_: Producto, Artículo, Tarea
 ## Agenda
 
 **Evento**:
-Algo que ocurre o vence en una fecha (con hora opcional), perteneciente a la Familia y opcionalmente a un Hijo. Se ve en la agenda y se marca como hecho. Es independiente de la Visita médica: una cita futura es un Evento; la Visita es el registro histórico posterior.
+Algo que ocurre o vence en una fecha (con hora opcional), perteneciente a la Familia y opcionalmente a un Hijo o un Miembro. Se ve en la agenda y se marca como hecho. Es independiente de la Visita médica: una cita futura es un Evento; la Visita es el registro histórico posterior.
 _Evitar_: Cita, Tarea, Recordatorio
 
 **Serie**:
@@ -49,13 +49,19 @@ _Evitar_: Categoría, Etiqueta
 ## Salud
 
 **Visita médica**:
-Evento histórico de atención sanitaria a un Hijo, con su diagnóstico. Es un registro que se consulta (corregible si hubo un error de captura). Puede originar una o varias Pautas.
+Evento histórico de atención sanitaria a un Hijo o un Miembro de la Familia, con su diagnóstico. Es un registro que se consulta (corregible si hubo un error de captura). Puede originar una o varias Pautas.
 _Evitar_: Consulta, Cita, Registro de salud
 
 **Pauta**:
-Instrucción de tratamiento activa que se sigue en el tiempo para un Hijo (medicamento, dosis, frecuencia como intervalo, duración). Tiene un ciclo de vida (activa/finalizada) y es lo que se consulta y marca en el día a día.
+Instrucción de tratamiento activa que se sigue en el tiempo para un Hijo o un Miembro de la Familia (medicamento, dosis, frecuencia como intervalo, duración). Tiene un ciclo de vida (activa/finalizada) y es lo que se consulta y marca en el día a día. Exactamente uno de `child_id` o `member_id` identifica al sujeto.
 _Evitar_: Tratamiento, Prescripción, Medicación
 
 **Administración**:
 El acto registrado de dar una dosis concreta de una Pauta (cuándo y quién). La siguiente toma se calcula como la última Administración más el intervalo de la Pauta.
 _Evitar_: Toma, Dosis (la Dosis es la cantidad; la Administración es el evento)
+
+## Avisos
+
+**Aviso**:
+Notificación push programada que reciben los Miembros de una Familia para recordar una Administración que toca o un Evento próximo. No es una entidad editable ni se almacena como dato de dominio: se deriva del estado de la Pauta/Evento.
+_Evitar_: Recordatorio (reservado para descartar en Evento), Notificación, Alerta

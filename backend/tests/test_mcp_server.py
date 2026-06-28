@@ -316,11 +316,13 @@ async def test_record_measurement_invalid_type_is_error(
                 },
             )
 
+    # El enum del inputSchema valida type/unit ANTES de llegar al handler: el SDK
+    # rechaza con isError=True ("Input validation error: ..."). El contrato
+    # (rechazo de valores fuera del enum) se conserva; la validación vive ahora en
+    # la capa de schema, no en el handler.
     assert result.isError is True
-    payload = json.loads(result.content[0].text)
-    assert payload["error"] == "invalid_type"
-    assert "height" in payload["valid_types"]
-    assert "weight" in payload["valid_types"]
+    text = result.content[0].text
+    assert "Input validation error" in text
 
 
 # ---------------------------------------------------------------------------
@@ -481,11 +483,13 @@ async def test_record_size_invalid_type_is_error(
                 },
             )
 
+    # El enum del inputSchema valida type ANTES de llegar al handler: el SDK
+    # rechaza con isError=True ("Input validation error: ..."). El contrato
+    # (rechazo de valores fuera del enum) se conserva; la validación vive ahora en
+    # la capa de schema, no en el handler.
     assert result.isError is True
-    payload = json.loads(result.content[0].text)
-    assert payload["error"] == "invalid_type"
-    assert "clothing" in payload["valid_types"]
-    assert "footwear" in payload["valid_types"]
+    text = result.content[0].text
+    assert "Input validation error" in text
 
 
 # ---------------------------------------------------------------------------

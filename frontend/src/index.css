@@ -139,6 +139,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -220,9 +221,11 @@ a {
     color var(--ds-dur-fast) var(--ds-ease);
 }
 
-.app-nav__link:hover {
-  background: var(--ds-surface-2);
-  color: var(--ds-ink);
+@media (hover: hover) and (pointer: fine) {
+  .app-nav__link:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-ink);
+  }
 }
 
 .app-nav__link:focus-visible {
