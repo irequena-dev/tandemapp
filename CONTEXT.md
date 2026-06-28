@@ -35,7 +35,7 @@ _Evitar_: Producto, Artículo, Tarea
 ## Agenda
 
 **Evento**:
-Algo que ocurre o vence en una fecha (con hora opcional), perteneciente a la Familia y opcionalmente a un Hijo. Se ve en la agenda y se marca como hecho. Es independiente de la Visita médica: una cita futura es un Evento; la Visita es el registro histórico posterior.
+Algo que ocurre o vence en una fecha (con hora opcional), perteneciente a la Familia y opcionalmente a un Hijo o un Miembro. Se ve en la agenda y se marca como hecho. Es independiente de la Visita médica: una cita futura es un Evento; la Visita es el registro histórico posterior.
 _Evitar_: Cita, Tarea, Recordatorio
 
 **Serie**:
@@ -49,7 +49,7 @@ _Evitar_: Categoría, Etiqueta
 ## Salud
 
 **Visita médica**:
-Evento histórico de atención sanitaria a un Hijo, con su diagnóstico. Es un registro que se consulta (corregible si hubo un error de captura). Puede originar una o varias Pautas.
+Evento histórico de atención sanitaria a un Hijo o un Miembro de la Familia, con su diagnóstico. Es un registro que se consulta (corregible si hubo un error de captura). Puede originar una o varias Pautas.
 _Evitar_: Consulta, Cita, Registro de salud
 
 **Pauta**:
