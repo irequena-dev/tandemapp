@@ -154,8 +154,16 @@ def _dose_timeline_pairs(
     states: list[DoseState],
     now: datetime,
     device_tz: ZoneInfo | type[UTC],
+    today: date,
 ) -> list[tuple[datetime, TimelineEntry]]:
-    """Pares (instante, entrada) de tomas dadas hoy + próxima, para ordenar."""
+    """Pares (instante, entrada) de tomas dadas hoy + próxima, para ordenar.
+
+    La próxima toma solo entra en la "Agenda de hoy" si cae hoy o antes (vencida):
+    una dosis de mañana o más allá no pertenece a la agenda de hoy y, mostrada
+    como ``HH:MM`` sin día, parece que toca hoy (bug: pautas de 24h marcadas a
+    las X:XX mostraban la siguiente toma como hoy X:XX en vez de mañana). Esa
+    próxima toma se ve, con su día, en la pantalla de Pautas y en el héroe.
+    """
     entries: list[tuple[datetime, TimelineEntry]] = []
     for state in states:
         pauta = state.pauta
@@ -178,20 +186,25 @@ def _dose_timeline_pairs(
                     ),
                 )
             )
-        upcoming_status = "due" if state.next_dose_at <= now else "upcoming"
-        entries.append(
-            (
-                state.next_dose_at,
-                TimelineEntry(
-                    type="dose_upcoming",
-                    time=state.next_dose_at.astimezone(device_tz).strftime("%H:%M"),
-                    title=title,
-                    subtitle=state.subject_name,
-                    status=upcoming_status,
-                    pauta_id=str(pauta.id),
-                ),
+        # Próxima toma: solo si cae hoy o antes. La fecha se compara en la zona
+        # del dispositivo (igual que el resto de "hoy").
+        if state.next_dose_at.astimezone(device_tz).date() <= today:
+            upcoming_status = "due" if state.next_dose_at <= now else "upcoming"
+            entries.append(
+                (
+                    state.next_dose_at,
+                    TimelineEntry(
+                        type="dose_upcoming",
+                        time=state.next_dose_at.astimezone(device_tz).strftime(
+                            "%H:%M"
+                        ),
+                        title=title,
+                        subtitle=state.subject_name,
+                        status=upcoming_status,
+                        pauta_id=str(pauta.id),
+                    ),
+                )
             )
-        )
     return entries
 
 
@@ -357,7 +370,7 @@ async def get_today(
     events_today = [await _enrich(session, ev) for ev in today_event_rows]
 
     # Timeline: tomas + eventos de hoy, orden cronológico por instante absoluto.
-    timeline_pairs = _dose_timeline_pairs(dose_states, now, device_tz)
+    timeline_pairs = _dose_timeline_pairs(dose_states, now, device_tz, today)
     timeline_pairs += _event_timeline_pairs(events_today, today, device_tz)
     timeline_pairs.sort(key=lambda pair: pair[0])
     timeline = [entry for _, entry in timeline_pairs]

@@ -315,10 +315,11 @@ async def test_today_timeline_shows_given_and_upcoming_doses(
     pauta = await _create_pauta(auth_client, child_id)  # intervalo 8h
     pauta_id = pauta["id"]
 
-    # Una Administración ahora (hoy) → queda como dose_given; next_dose_at = +8h.
-    now_iso = datetime.now(UTC).isoformat()
+    # Una Administración a primera hora de hoy (00:05 UTC) → queda como dose_given;
+    # next_dose_at = +8h el mismo día (determinista: no depende de la hora de CI).
+    base = datetime.now(UTC).replace(hour=0, minute=5, second=0, microsecond=0)
     r = await auth_client.post(
-        f"/pautas/{pauta_id}/administrations", json={"administered_at": now_iso}
+        f"/pautas/{pauta_id}/administrations", json={"administered_at": base.isoformat()}
     )
     admin_id = r.json()["id"]
 
@@ -341,6 +342,34 @@ async def test_today_timeline_shows_given_and_upcoming_doses(
     assert upcoming["status"] == "upcoming"
     # Orden cronológico: la dada (ahora) antes que la próxima (+8h).
     assert timeline.index(given) < timeline.index(upcoming)
+
+
+async def test_today_timeline_excludes_tomorrow_dose(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Pauta de 24h marcada hoy: la siguiente toma es MAÑANA, así que NO aparece
+    en la 'Agenda de hoy' como si tocara hoy (sí aparece la toma dada hoy).
+
+    Regresión del bug: al marcar a las X:XX una pauta de 24h, la siguiente toma
+    se mostraba en Hoy como 'X:XX Próxima' (sin día), pareciendo que toca hoy.
+    """
+    _as(identity, "org_today_p24h", "user_today_p24h")
+    child_id = await _create_child(auth_client, "Mateo")
+    pauta = await _create_pauta(
+        auth_client, child_id, interval_hours=24, duration_days=7
+    )
+    pauta_id = pauta["id"]
+
+    # Administración a primera hora de hoy → next_dose_at = mañana a la misma hora.
+    base = datetime.now(UTC).replace(hour=0, minute=5, second=0, microsecond=0)
+    await auth_client.post(
+        f"/pautas/{pauta_id}/administrations", json={"administered_at": base.isoformat()}
+    )
+
+    timeline = (await auth_client.get("/api/today")).json()["timeline"]
+    types = [e["type"] for e in timeline]
+    assert "dose_given" in types  # la de hoy sí está
+    assert "dose_upcoming" not in types  # la de mañana no es agenda de hoy
 
 
 async def test_today_hero_picks_most_overdue_dose(

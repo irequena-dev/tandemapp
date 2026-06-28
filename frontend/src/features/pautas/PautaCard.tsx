@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useToast } from '../toasts/useToast'
 import { PautaForm } from './PautaForm'
 import { useCreateAdministration, useDeleteAdministration, useDeletePauta, useFinishPauta, useUpdatePauta } from './api'
+import { formatDoseTime } from './formatDoseTime'
 import type { Administration, Pauta, PautaUpdateInput } from './types'
 
 function initialOf(name: string): string {
@@ -204,7 +205,7 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
       return { kind: 'dada' as const, time: formatTime(lastAdmin.administered_at) }
     }
     if (pauta.next_dose_at) {
-      return { kind: 'proxima' as const, time: formatTime(pauta.next_dose_at) }
+      return { kind: 'proxima' as const, time: formatDoseTime(pauta.next_dose_at, now) }
     }
     return null
   })()
@@ -388,7 +389,7 @@ export function PautaCard({ pauta, subjectName, showSubject = true }: PautaCardP
               {pauta.next_dose_at && (
                 <div className="pauta-toma">
                   <span className="pauta-toma__time ds-nums">
-                    {formatTime(pauta.next_dose_at)}
+                    {formatDoseTime(pauta.next_dose_at, now)}
                   </span>
                   <span className="pauta-toma__label">Siguiente toma</span>
                   <span className="pauta-toma__status pauta-toma__status--proxima">
