@@ -82,6 +82,7 @@ async def _create_event(
     title: str = "Control pediatra",
     time: str | None = None,
     child_id: str | None = None,
+    member_id: str | None = None,
 ) -> dict:
     payload: dict = {
         "title": title,
@@ -92,9 +93,24 @@ async def _create_event(
         payload["time"] = time
     if child_id is not None:
         payload["child_id"] = child_id
+    if member_id is not None:
+        payload["member_id"] = member_id
     resp = await client.post("/events", json=payload)
     assert resp.status_code == 201
     return resp.json()
+
+
+async def _materialize_member(
+    client: AsyncClient,
+    identity: dict,
+    org_id: str,
+    user_id: str,
+    name: str,
+) -> str:
+    """Crea (upsert) un Miembro con display_name via cualquier llamada autenticada."""
+    _as(identity, org_id, user_id, name=name)
+    await client.get("/members")
+    return user_id
 
 
 async def test_today_calm_state(auth_client: AsyncClient, identity: dict) -> None:
@@ -312,14 +328,17 @@ async def test_today_timeline_shows_given_and_upcoming_doses(
     """El timeline incluye las tomas dadas hoy y la próxima (dose_upcoming)."""
     _as(identity, "org_today_ptl", "user_today_ptl", name="Ana")
     child_id = await _create_child(auth_client, "Mateo")
-    pauta = await _create_pauta(auth_client, child_id)  # intervalo 8h
+    # Intervalo 1h: así next_dose_at cae hoy y en el futuro sin depender de la
+    # hora del reloj (con 8h, next_dose_at = base+8h pasaba a 'due' al mediodía).
+    pauta = await _create_pauta(auth_client, child_id, interval_hours=1)
     pauta_id = pauta["id"]
 
-    # Una Administración a primera hora de hoy (00:05 UTC) → queda como dose_given;
-    # next_dose_at = +8h el mismo día (determinista: no depende de la hora de CI).
-    base = datetime.now(UTC).replace(hour=0, minute=5, second=0, microsecond=0)
+    # Administración hace 30 min → dose_given de hoy; next_dose_at = ahora+30 min
+    # → 'upcoming' y en la agenda de hoy (determinista salvo la última ½h del día).
+    base = datetime.now(UTC) - timedelta(minutes=30)
     r = await auth_client.post(
-        f"/pautas/{pauta_id}/administrations", json={"administered_at": base.isoformat()}
+        f"/pautas/{pauta_id}/administrations",
+        json={"administered_at": base.isoformat()},
     )
     admin_id = r.json()["id"]
 
@@ -363,7 +382,8 @@ async def test_today_timeline_excludes_tomorrow_dose(
     # Administración a primera hora de hoy → next_dose_at = mañana a la misma hora.
     base = datetime.now(UTC).replace(hour=0, minute=5, second=0, microsecond=0)
     await auth_client.post(
-        f"/pautas/{pauta_id}/administrations", json={"administered_at": base.isoformat()}
+        f"/pautas/{pauta_id}/administrations",
+        json={"administered_at": base.isoformat()},
     )
 
     timeline = (await auth_client.get("/api/today")).json()["timeline"]
@@ -541,6 +561,64 @@ async def test_today_event_hero_when_no_dose(
     assert hero["action_label"] == "Marcar hecho"
     assert hero["event_id"] == created["id"]
     assert "Lucía" in hero["subtitle"]
+
+
+async def test_today_hero_shows_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Evento de hoy atribuido a un Miembro (sin Hijo) → héroe muestra al Miembro."""
+    _as(identity, "org_today_evmb", "user_today_evmb")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    today = datetime.now(UTC).date().isoformat()
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_today_evmb", "user_ana_hero", "Ana"
+    )
+    _as(identity, "org_today_evmb", "user_today_evmb")
+
+    await _create_event(
+        auth_client,
+        type_id=cole_id,
+        date_iso=today,
+        title="Reunión",
+        time="09:00:00",
+        member_id=ana_id,
+    )
+
+    hero = (await auth_client.get("/api/today")).json()["hero"]
+    assert hero is not None
+    assert hero["type"] == "event"
+    assert "Ana" in hero["subtitle"]
+
+
+async def test_today_hero_shows_child_and_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Evento de hoy con Hijo Y Miembro → héroe concatena ambos sujetos."""
+    _as(identity, "org_today_evcm", "user_today_evcm")
+    child_id = await _create_child(auth_client, "Mateo")
+    cole_id = await _get_event_type_id(auth_client, "Cole")
+    today = datetime.now(UTC).date().isoformat()
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_today_evcm", "user_ana_cm", "Ana"
+    )
+    _as(identity, "org_today_evcm", "user_today_evcm")
+
+    await _create_event(
+        auth_client,
+        type_id=cole_id,
+        date_iso=today,
+        title="Cole",
+        time="09:00:00",
+        child_id=child_id,
+        member_id=ana_id,
+    )
+
+    hero = (await auth_client.get("/api/today")).json()["hero"]
+    assert hero is not None
+    assert hero["type"] == "event"
+    assert "Mateo · Ana" in hero["subtitle"]
 
 
 async def test_today_dose_hero_takes_priority_over_event(

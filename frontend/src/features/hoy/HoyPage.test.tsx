@@ -381,6 +381,8 @@ describe('HoyPage — tarjeta Próxima cita', () => {
           },
           child_id: null,
           child: null,
+          member_id: null,
+          member: null,
           status: 'pending',
           is_overdue: false,
           series_id: null,

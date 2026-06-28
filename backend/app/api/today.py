@@ -27,7 +27,7 @@ from ..models import (
 )
 from ..pautas_service import expire_due_pautas, load_pauta_views
 from ..tenancy import FamilyScope, family_session
-from .events import _enrich
+from .events import load_event_views
 
 router = APIRouter(prefix="/api", tags=["today"])
 
@@ -195,9 +195,7 @@ def _dose_timeline_pairs(
                     state.next_dose_at,
                     TimelineEntry(
                         type="dose_upcoming",
-                        time=state.next_dose_at.astimezone(device_tz).strftime(
-                            "%H:%M"
-                        ),
+                        time=state.next_dose_at.astimezone(device_tz).strftime("%H:%M"),
                         title=title,
                         subtitle=state.subject_name,
                         status=upcoming_status,
@@ -212,9 +210,13 @@ def _dose_timeline_pairs(
 
 
 def _event_context(ev: EventOut) -> str | None:
-    """Subtítulo de un Evento: Hijo si lo tiene, si no el Tipo."""
+    """Subtítulo de un Evento: sujetos (Hijo y/o Miembro); si no, el Tipo."""
+    if ev.child and ev.member:
+        return f"{ev.child.name} · {ev.member.display_name}"
     if ev.child:
         return ev.child.name
+    if ev.member:
+        return ev.member.display_name
     if ev.event_type:
         return ev.event_type.name
     return None
@@ -286,7 +288,7 @@ async def _next_medical_event(session: AsyncSession, today: date) -> EventOut | 
         .limit(1)
     )
     ev = result.scalars().first()
-    return await _enrich(session, ev) if ev else None
+    return (await load_event_views(session, [ev]))[0] if ev else None
 
 
 async def _children_status(session: AsyncSession, today: date) -> str:
@@ -367,7 +369,7 @@ async def get_today(
         .scalars()
         .all()
     )
-    events_today = [await _enrich(session, ev) for ev in today_event_rows]
+    events_today = await load_event_views(session, today_event_rows)
 
     # Timeline: tomas + eventos de hoy, orden cronológico por instante absoluto.
     timeline_pairs = _dose_timeline_pairs(dose_states, now, device_tz, today)

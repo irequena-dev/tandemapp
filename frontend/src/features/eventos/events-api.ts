@@ -30,7 +30,9 @@ function settle(qc: QueryClient): void {
 }
 
 /** Lista los Eventos de la Familia (próximos, con filtros opcionales). */
-export function useEvents(filters?: { type_id?: string; child_id?: string }) {
+export function useEvents(
+  filters?: { type_id?: string; child_id?: string; member_id?: string },
+) {
   const { getToken } = useAuth()
   return useQuery({
     queryKey: [...eventsKeys.all, filters],
@@ -38,6 +40,7 @@ export function useEvents(filters?: { type_id?: string; child_id?: string }) {
       const params = new URLSearchParams()
       if (filters?.type_id) params.set('type_id', filters.type_id)
       if (filters?.child_id) params.set('child_id', filters.child_id)
+      if (filters?.member_id) params.set('member_id', filters.member_id)
       const qs = params.toString()
       return apiFetch<EventOut[]>(`/events${qs ? `?${qs}` : ''}`, {
         token: await getToken(),
@@ -69,6 +72,8 @@ export function useCreateEvent() {
         event_type: { id: input.event_type_id, family_id: null, name: '', icon: 'circle', is_system: false },
         child_id: input.child_id ?? null,
         child: null,
+        member_id: input.member_id ?? null,
+        member: null,
         status: 'pending',
         is_overdue: false,
         series_id: null,

@@ -50,6 +50,8 @@ function makeEvent(overrides: Partial<EventOut> = {}): EventOut {
     event_type: baseType,
     child_id: null,
     child: null,
+    member_id: null,
+    member: null,
     status: 'pending',
     is_overdue: false,
     series_id: null,
@@ -70,6 +72,24 @@ describe('useEvents', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data).toEqual([ev])
+  })
+
+  it('envía member_id en la query string cuando se filtra por Miembro', async () => {
+    const capturedUrls: string[] = []
+    server.use(
+      http.get(URL, ({ request }) => {
+        capturedUrls.push(request.url)
+        return HttpResponse.json([])
+      }),
+    )
+
+    const { result } = renderHook(() => useEvents({ member_id: 'm1' }), {
+      wrapper: makeWrapper(),
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(capturedUrls.length).toBeGreaterThan(0)
+    expect(capturedUrls[0]).toContain('member_id=m1')
   })
 })
 
@@ -145,6 +165,38 @@ describe('useCreateEvent (optimistic)', () => {
     expect(result.current.list.data?.map((e) => e.title)).toEqual([
       'Pediatra',
     ])
+  })
+
+  it('envía member_id en el cuerpo del POST cuando el input lo lleva', async () => {
+    const captured: { member_id?: string | null } = {}
+    server.use(
+      http.get(URL, () => HttpResponse.json([])),
+      http.post(URL, async ({ request }) => {
+        const input = (await request.json()) as EventCreate
+        captured.member_id = input.member_id ?? null
+        return HttpResponse.json(
+          makeEvent({ id: 'srv-mem', member_id: input.member_id ?? null, member: null }),
+          { status: 201 },
+        )
+      }),
+    )
+
+    const { result } = renderHook(
+      () => ({ list: useEvents(), create: useCreateEvent() }),
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    act(() => {
+      result.current.create.mutate({
+        title: 'Cita Ana',
+        date: '2030-07-01',
+        event_type_id: 'type-medico',
+        member_id: 'm-ana',
+      })
+    })
+
+    await waitFor(() => expect(captured.member_id).toBe('m-ana'))
   })
 })
 

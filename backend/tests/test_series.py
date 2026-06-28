@@ -442,3 +442,115 @@ async def test_create_series_requires_family(
         },
     )
     assert resp.status_code == 403
+
+
+# ---------- Sujeto Miembro en Series ---------- #
+
+
+async def _materialize_member(
+    client: AsyncClient,
+    identity: dict,
+    org_id: str,
+    user_id: str,
+    name: str,
+) -> str:
+    """Crea (upsert) un Miembro con display_name via cualquier llamada autenticada."""
+    _as(identity, org_id, user_id)
+    identity["name"] = name
+    await client.get("/members")
+    return user_id
+
+
+async def test_create_series_with_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST /api/series con member_id materializa Eventos atribuidos a ese Miembro."""
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ser_mem1", "user_ana_ser", "Ana"
+    )
+    type_id = await _get_event_type_id(auth_client)
+
+    resp = await auth_client.post(
+        "/api/series",
+        json={
+            "title": "Fisio Ana",
+            "event_type_id": type_id,
+            "cadence": "weekly",
+            "day_of_week": 0,
+            "starts_at": "2030-01-07",
+            "max_count": 2,
+            "member_id": ana_id,
+        },
+    )
+    assert resp.status_code == 201
+    series_id = resp.json()["id"]
+
+    events = [
+        e
+        for e in (await auth_client.get("/events")).json()
+        if e["series_id"] == series_id
+    ]
+    assert len(events) == 2
+    for e in events:
+        assert e["member_id"] == ana_id
+        assert e["member"] is not None
+        assert e["member"]["display_name"] == "Ana"
+
+
+async def test_create_series_without_subject(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST /api/series sin member_id ni child_id → Eventos Familia (ambos null)."""
+    _as(identity, "org_ser_mem2", "user_ser_mem2")
+    type_id = await _get_event_type_id(auth_client)
+
+    resp = await auth_client.post(
+        "/api/series",
+        json={
+            "title": "Familiar",
+            "event_type_id": type_id,
+            "cadence": "weekly",
+            "day_of_week": 0,
+            "starts_at": "2030-01-07",
+            "max_count": 2,
+        },
+    )
+    assert resp.status_code == 201
+    series_id = resp.json()["id"]
+
+    events = [
+        e
+        for e in (await auth_client.get("/events")).json()
+        if e["series_id"] == series_id
+    ]
+    assert len(events) == 2
+    for e in events:
+        assert e["member_id"] is None
+        assert e["child_id"] is None
+
+
+async def test_create_series_member_not_in_family(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST /api/series con member_id de otra Familia → 403."""
+    # Miembro de OTRA familia.
+    other_id = await _materialize_member(
+        auth_client, identity, "org_ser_other", "user_other_ser", "Otro"
+    )
+    # Ahora actuamos como una Familia distinta.
+    _as(identity, "org_ser_mem3", "user_ser_mem3")
+    type_id = await _get_event_type_id(auth_client)
+
+    resp = await auth_client.post(
+        "/api/series",
+        json={
+            "title": "X",
+            "event_type_id": type_id,
+            "cadence": "weekly",
+            "day_of_week": 0,
+            "starts_at": "2030-01-07",
+            "max_count": 1,
+            "member_id": other_id,
+        },
+    )
+    assert resp.status_code == 403

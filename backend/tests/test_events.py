@@ -26,6 +26,20 @@ async def _get_event_type_id(client: AsyncClient) -> str:
     return system[0]["id"]
 
 
+async def _materialize_member(
+    client: AsyncClient,
+    identity: dict,
+    org_id: str,
+    user_id: str,
+    name: str,
+) -> str:
+    """Crea (upsert) un Miembro con display_name via cualquier llamada autenticada."""
+    _as(identity, org_id, user_id)
+    identity["name"] = name
+    await client.get("/members")
+    return user_id
+
+
 # ---------- Crear ----------
 
 
@@ -179,6 +193,133 @@ async def test_update_event(auth_client: AsyncClient, identity: dict) -> None:
     assert resp.json()["date"] == "2030-09-01"
 
 
+# ---------- Editar sujeto Miembro ----------
+
+
+async def test_update_event_set_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH con member_id de la Familia → 200, member_id set y member expandido."""
+    _as(identity, "org_ev_set_mem", "user_ev_set_mem")
+    type_id = await _get_event_type_id(auth_client)
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_set_mem", "user_ana_set", "Ana"
+    )
+    _as(identity, "org_ev_set_mem", "user_ev_set_mem")
+
+    created = (
+        await auth_client.post(
+            "/events",
+            json={
+                "title": "Sin sujeto",
+                "date": "2030-08-02",
+                "event_type_id": type_id,
+            },
+        )
+    ).json()
+
+    resp = await auth_client.patch(
+        f"/events/{created['id']}", json={"member_id": ana_id}
+    )
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["member_id"] == ana_id
+    assert body["member"] == {"id": ana_id, "display_name": "Ana"}
+
+
+async def test_update_event_member_not_in_family(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH con member_id de OTRA Familia → 403."""
+    _as(identity, "org_ev_own", "user_ev_own")
+    type_id = await _get_event_type_id(auth_client)
+
+    created = (
+        await auth_client.post(
+            "/events",
+            json={"title": "Mío", "date": "2030-08-03", "event_type_id": type_id},
+        )
+    ).json()
+
+    other_id = await _materialize_member(
+        auth_client, identity, "org_ev_foreign", "user_foreign", "Otro"
+    )
+    _as(identity, "org_ev_own", "user_ev_own")
+
+    resp = await auth_client.patch(
+        f"/events/{created['id']}", json={"member_id": other_id}
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "El Miembro no pertenece a esta Familia"
+
+
+async def test_update_event_clear_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH con member_id: null → 200, desasigna al Miembro."""
+    _as(identity, "org_ev_clr", "user_ev_clr")
+    type_id = await _get_event_type_id(auth_client)
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_clr", "user_ana_clr", "Ana"
+    )
+    _as(identity, "org_ev_clr", "user_ev_clr")
+
+    created = (
+        await auth_client.post(
+            "/events",
+            json={
+                "title": "De Ana",
+                "date": "2030-08-04",
+                "event_type_id": type_id,
+                "member_id": ana_id,
+            },
+        )
+    ).json()
+    assert created["member_id"] == ana_id
+
+    resp = await auth_client.patch(f"/events/{created['id']}", json={"member_id": None})
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["member_id"] is None
+    assert body["member"] is None
+
+
+async def test_update_event_omit_member_keeps_it(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """PATCH sin member_id en el body deja el Miembro asignado intacto."""
+    _as(identity, "org_ev_keep", "user_ev_keep")
+    type_id = await _get_event_type_id(auth_client)
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_keep", "user_ana_keep", "Ana"
+    )
+    _as(identity, "org_ev_keep", "user_ev_keep")
+
+    created = (
+        await auth_client.post(
+            "/events",
+            json={
+                "title": "De Ana",
+                "date": "2030-08-05",
+                "event_type_id": type_id,
+                "member_id": ana_id,
+            },
+        )
+    ).json()
+
+    resp = await auth_client.patch(
+        f"/events/{created['id']}", json={"title": "Nuevo título"}
+    )
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["title"] == "Nuevo título"
+    assert body["member_id"] == ana_id
+    assert body["member"] == {"id": ana_id, "display_name": "Ana"}
+
+
 # ---------- Borrar ----------
 
 
@@ -326,3 +467,232 @@ async def test_create_event_requires_family(
         },
     )
     assert resp.status_code == 403
+
+
+# ---------- Sujeto Miembro ----------
+
+
+async def test_create_event_with_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST /events con member_id de un Miembro de la Familia → 201 con Miembro."""
+    _as(identity, "org_ev_member", "user_ev_member")
+    type_id = await _get_event_type_id(auth_client)
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_member", "user_ana", "Ana"
+    )
+    # Volver al Miembro creador para crear el Evento.
+    _as(identity, "org_ev_member", "user_ev_member")
+
+    resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "Reunión Ana",
+            "date": "2030-05-10",
+            "event_type_id": type_id,
+            "member_id": ana_id,
+        },
+    )
+    assert resp.status_code == 201, resp.json()
+    body = resp.json()
+    assert body["member_id"] == ana_id
+    assert body["member"] == {"id": ana_id, "display_name": "Ana"}
+    assert body["child_id"] is None
+    assert body["child"] is None
+
+
+async def test_create_event_member_not_in_family(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST con member_id de un Miembro de OTRA Familia → 403."""
+    _as(identity, "org_ev_mine", "user_ev_mine")
+    type_id = await _get_event_type_id(auth_client)
+
+    # Miembro materializado en otra Familia.
+    other_id = await _materialize_member(
+        auth_client, identity, "org_ev_other", "user_other", "Otro"
+    )
+    # Volver a la Familia propia.
+    _as(identity, "org_ev_mine", "user_ev_mine")
+
+    resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "Conexión ilegal",
+            "date": "2030-05-11",
+            "event_type_id": type_id,
+            "member_id": other_id,
+        },
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "El Miembro no pertenece a esta Familia"
+
+
+async def test_create_event_with_child_and_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """POST con child_id y member_id a la vez → 201 (ambos sujetos permitidos)."""
+    _as(identity, "org_ev_both", "user_ev_both")
+    type_id = await _get_event_type_id(auth_client)
+    child_id = await _create_child(auth_client, "Lucía")
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_both", "user_ana2", "Ana"
+    )
+    _as(identity, "org_ev_both", "user_ev_both")
+
+    resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "Evento mixto",
+            "date": "2030-05-12",
+            "event_type_id": type_id,
+            "child_id": child_id,
+            "member_id": ana_id,
+        },
+    )
+    assert resp.status_code == 201, resp.json()
+    body = resp.json()
+    assert body["child_id"] == child_id
+    assert body["child"] is not None
+    assert body["child"]["name"] == "Lucía"
+    assert body["member_id"] == ana_id
+    assert body["member"] == {"id": ana_id, "display_name": "Ana"}
+
+
+async def test_list_events_filter_by_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """GET /events?member_id=<id> devuelve SOLO los Eventos de ese Miembro."""
+    _as(identity, "org_ev_fmem", "user_ev_fmem")
+    types = (await auth_client.get("/event-types")).json()
+    medico = next(t for t in types if t["name"] == "Médico")
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_fmem", "user_ana_f", "Ana"
+    )
+    beto_id = await _materialize_member(
+        auth_client, identity, "org_ev_fmem", "user_beto_f", "Beto"
+    )
+    _as(identity, "org_ev_fmem", "user_ev_fmem")
+
+    # Evento familiar sin sujeto.
+    family_resp = await auth_client.post(
+        "/events",
+        json={"title": "Familiar", "date": "2030-05-20", "event_type_id": medico["id"]},
+    )
+    assert family_resp.status_code == 201
+    ana_resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "De Ana",
+            "date": "2030-05-21",
+            "event_type_id": medico["id"],
+            "member_id": ana_id,
+        },
+    )
+    assert ana_resp.status_code == 201
+    beto_resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "De Beto",
+            "date": "2030-05-22",
+            "event_type_id": medico["id"],
+            "member_id": beto_id,
+        },
+    )
+    assert beto_resp.status_code == 201
+
+    listed = (await auth_client.get(f"/events?member_id={ana_id}")).json()
+    ids = {e["id"] for e in listed}
+    assert ana_resp.json()["id"] in ids
+    assert beto_resp.json()["id"] not in ids
+    assert family_resp.json()["id"] not in ids
+    assert all(e["member_id"] == ana_id for e in listed)
+
+
+async def test_list_events_filter_member_and_type(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """GET /events?member_id=<id>&type_id=<id> devuelve la intersección."""
+    _as(identity, "org_ev_fmt", "user_ev_fmt")
+    types = (await auth_client.get("/event-types")).json()
+    medico = next(t for t in types if t["name"] == "Médico")
+    cole = next(t for t in types if t["name"] == "Cole")
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_fmt", "user_ana_ft", "Ana"
+    )
+    _as(identity, "org_ev_fmt", "user_ev_fmt")
+
+    # Ana tiene un evento Médico y uno Cole.
+    ana_med = await auth_client.post(
+        "/events",
+        json={
+            "title": "Ana Médico",
+            "date": "2030-06-01",
+            "event_type_id": medico["id"],
+            "member_id": ana_id,
+        },
+    )
+    assert ana_med.status_code == 201
+    ana_cole = await auth_client.post(
+        "/events",
+        json={
+            "title": "Ana Cole",
+            "date": "2030-06-02",
+            "event_type_id": cole["id"],
+            "member_id": ana_id,
+        },
+    )
+    assert ana_cole.status_code == 201
+
+    listed = (
+        await auth_client.get(f"/events?member_id={ana_id}&type_id={medico['id']}")
+    ).json()
+    ids = {e["id"] for e in listed}
+    assert ana_med.json()["id"] in ids
+    assert ana_cole.json()["id"] not in ids
+    assert all(e["member_id"] == ana_id for e in listed)
+    assert all(e["event_type"]["name"] == "Médico" for e in listed)
+
+
+async def test_list_events_includes_member(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """GET /events incluye Miembro expandido; los sin sujeto siguen con member null."""
+    _as(identity, "org_ev_list", "user_ev_list")
+    type_id = await _get_event_type_id(auth_client)
+
+    # Evento familiar sin sujeto.
+    family_resp = await auth_client.post(
+        "/events",
+        json={"title": "Familiar", "date": "2030-05-13", "event_type_id": type_id},
+    )
+    assert family_resp.status_code == 201
+
+    ana_id = await _materialize_member(
+        auth_client, identity, "org_ev_list", "user_ana3", "Ana"
+    )
+    _as(identity, "org_ev_list", "user_ev_list")
+
+    member_resp = await auth_client.post(
+        "/events",
+        json={
+            "title": "De Ana",
+            "date": "2030-05-14",
+            "event_type_id": type_id,
+            "member_id": ana_id,
+        },
+    )
+    assert member_resp.status_code == 201
+
+    listed = (await auth_client.get("/events")).json()
+    member_event = next(e for e in listed if e["id"] == member_resp.json()["id"])
+    assert member_event["member_id"] == ana_id
+    assert member_event["member"] == {"id": ana_id, "display_name": "Ana"}
+
+    family_event = next(e for e in listed if e["id"] == family_resp.json()["id"])
+    assert family_event["member_id"] is None
+    assert family_event["member"] is None

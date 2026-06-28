@@ -54,6 +54,7 @@ from ..tenancy import open_family_scope
 from .auth import extract_bearer, resolve_token
 from .child_matching import ChildMatchError, resolve_child_by_name
 from .dates import DateParseError, parse_flexible_date, parse_flexible_time
+from .subject_matching import SubjectMatchError, resolve_subject_by_name
 
 # Clave bajo la que el wrapper deposita (member_id, family_id) en el scope ASGI.
 MCP_IDENTITY_KEY = "tandem_mcp_identity"
@@ -460,7 +461,7 @@ async def do_create_event(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
             time_val = parse_flexible_time(arguments["time"])
         except DateParseError as e:
             raise ToolError({"error": "invalid_date", "message": str(e)}) from e
-    child_name: str | None = arguments.get("child_name")
+    subject_name: str | None = arguments.get("subject_name")
 
     # Resolver tipo: buscar por nombre case-insensitive; fallback a "Otros".
     matched_type = (
@@ -487,27 +488,41 @@ async def do_create_event(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
     if matched_type is None:
         return {"error": "No se encontró el tipo 'Otros' en el sistema."}
 
-    # Resolver child_name si se proporcionó. Se mantiene el contrato histórico de
-    # create_event: un dict con `error` (texto humano con los nombres válidos)
-    # para que el cliente pueda corregir. No se unifica a ToolError aquí porque
-    # el test `test_create_event_child_not_found` codifica exactamente esa forma.
+    # Resolver subject_name si se proporcionó. Resolución polimórfica: un Hijo o
+    # un Miembro. Se mantiene el contrato histórico de create_event: un dict con
+    # `error` (texto humano con los nombres válidos) para que el cliente pueda
+    # corregir. No se unifica a ToolError aquí porque el test
+    # `test_create_event_child_not_found` codifica exactamente esa forma.
     child_id = None
-    if child_name is not None:
-        result = await resolve_child_by_name(ctx.session, child_name)
-        if isinstance(result, ChildMatchError):
-            valid_names = [c.name for c in result.valid_children]
+    member_id = None
+    subject_type = None
+    resolved_name = None
+    if subject_name is not None:
+        result = await resolve_subject_by_name(ctx.session, subject_name)
+        if isinstance(result, SubjectMatchError):
+            valid_names = result.valid_names
             return {
-                "error": f"Hijo no encontrado: '{child_name}'. "
-                f"Hijos válidos: {', '.join(valid_names)}"
-                if result.reason == "not_found"
-                else f"Nombre ambiguo: '{child_name}'. "
-                f"Hijos válidos: {', '.join(valid_names)}"
+                "error": (
+                    f"Sujeto no encontrado: '{subject_name}'. "
+                    f"Sujetos válidos: {', '.join(valid_names)}"
+                    if result.reason == "not_found"
+                    else f"Nombre ambiguo: '{subject_name}'. "
+                    f"Sujetos válidos: {', '.join(valid_names)}"
+                )
             }
-        child_id = result.id
+        if isinstance(result, Child):
+            child_id = result.id
+            subject_type = "child"
+            resolved_name = result.name
+        else:  # Member
+            member_id = result.id
+            subject_type = "member"
+            resolved_name = result.display_name
 
     event = Event(
         family_id=ctx.family_id,
         child_id=child_id,
+        member_id=member_id,
         title=title,
         event_type_id=matched_type.id,
         date=date_val,
@@ -525,7 +540,8 @@ async def do_create_event(ctx: ToolContext, arguments: dict) -> dict[str, Any]:
         "date": str(event.date),
         "time": str(event.time) if event.time else None,
         "type": matched_type.name,
-        "child_id": str(event.child_id) if event.child_id else None,
+        "subject_name": resolved_name,
+        "subject_type": subject_type,
         "status": event.status,
     }
 
@@ -797,9 +813,12 @@ async def handle_list_tools() -> list[Tool]:
                             "'16:00', 'por la mañana'). Opcional."
                         ),
                     },
-                    "child_name": {
+                    "subject_name": {
                         "type": "string",
-                        "description": "Asociar el evento a un hijo (opcional).",
+                        "description": (
+                            "Sujeto del evento: nombre de un Hijo o de un Miembro "
+                            "(opcional). Si no se indica, el evento es de la Familia."
+                        ),
                     },
                 },
                 "required": ["title", "date", "type"],

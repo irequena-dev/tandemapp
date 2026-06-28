@@ -182,6 +182,7 @@ class Event(SQLModel, table=True):
     time: dt_time | None = None
     event_type_id: uuid.UUID = Field(foreign_key="event_types.id")
     child_id: uuid.UUID | None = Field(default=None, foreign_key="children.id")
+    member_id: str | None = Field(default=None, foreign_key="members.id", index=True)
     status: str = Field(default="pending")
     series_id: uuid.UUID | None = Field(default=None)
     created_by: str = Field(foreign_key="members.id")
@@ -202,16 +203,23 @@ class EventCreate(SQLModel):
     time: dt_time | None = None
     event_type_id: uuid.UUID
     child_id: uuid.UUID | None = None
+    member_id: str | None = None
 
 
 class EventUpdate(SQLModel):
-    """Edición parcial de un Evento."""
+    """Edición parcial de un Evento.
+
+    `member_id` acepta tres estados: string (asignar a ese Miembro), None
+    explícito (desasignar) u omitido (dejarlo como esté). La validación de
+    pertenencia se hace en el endpoint PATCH, no aquí (necesita la sesión).
+    """
 
     title: str | None = None
     date: dt_date | None = None
     time: dt_time | None = None
     event_type_id: uuid.UUID | None = None
     child_id: uuid.UUID | None = None
+    member_id: str | None = None
 
 
 class ChildOut(SQLModel):
@@ -224,8 +232,15 @@ class ChildOut(SQLModel):
     avatar_color: str | None = None
 
 
+class MemberOut(SQLModel):
+    """Miembro expandido inline en la respuesta de Evento."""
+
+    id: str
+    display_name: str | None = None
+
+
 class EventOut(SQLModel):
-    """Evento tal como lo devuelve la API, con tipo y Hijo expandidos."""
+    """Evento tal como lo devuelve la API, con tipo, Hijo y Miembro expandidos."""
 
     id: uuid.UUID
     family_id: str
@@ -236,6 +251,8 @@ class EventOut(SQLModel):
     event_type: EventTypeOut
     child_id: uuid.UUID | None
     child: ChildOut | None
+    member_id: str | None
+    member: MemberOut | None
     status: str
     is_overdue: bool
     series_id: uuid.UUID | None
@@ -285,6 +302,7 @@ class SeriesCreate(SQLModel):
     title: str
     event_type_id: uuid.UUID
     child_id: uuid.UUID | None = None
+    member_id: str | None = None
     time: dt_time | None = None
     cadence: SeriesCadence
     day_of_week: int | None = None

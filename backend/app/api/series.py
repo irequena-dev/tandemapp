@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Event, Series, SeriesCreate, SeriesCreatedOut
+from ..models import Event, Member, Series, SeriesCreate, SeriesCreatedOut
 from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(prefix="/api", tags=["series"])
@@ -83,6 +83,13 @@ async def create_series(
 ) -> SeriesCreatedOut:
     """Crea una Serie acotada y materializa todas sus ocurrencias como Eventos."""
     session = scope.session
+    if data.member_id is not None:
+        member = await session.get(Member, data.member_id)
+        if member is None or member.family_id != scope.family_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El Miembro no pertenece a esta Familia",
+            )
     occurrences = compute_occurrences(
         data.cadence,
         data.day_of_week,
@@ -111,6 +118,7 @@ async def create_series(
                 time=data.time,
                 event_type_id=data.event_type_id,
                 child_id=data.child_id,
+                member_id=data.member_id,
                 series_id=series.id,
                 created_by=scope.member_id,
             )

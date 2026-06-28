@@ -93,3 +93,46 @@ describe('SeriesForm — preview de ocurrencias', () => {
     expect(container.querySelector('[data-date="2030-03-31"]')).not.toBeNull()
   })
 })
+
+describe('SeriesForm — sujeto Miembro', () => {
+  it('renderiza optgroups Hijos/Miembros y opción Familia; al elegir Miembro envía member_id', () => {
+    const onSubmit = vi.fn()
+    render(
+      <SeriesForm
+        types={[type1]}
+        children={[{ id: 'c1', name: 'Mateo' }]}
+        members={[{ id: 'm1', display_name: 'Ana' }]}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    )
+
+    const select = screen.getByLabelText('Para quién') as HTMLSelectElement
+    // optgroups Hijos/Miembros y opción Familia presentes.
+    const groupLabels = Array.from(select.querySelectorAll('optgroup')).map(
+      (o) => o.label,
+    )
+    expect(groupLabels).toContain('Hijos')
+    expect(groupLabels).toContain('Miembros')
+    expect(
+      Array.from(select.options).some((o) => o.value === '' && o.text === 'Familia'),
+    ).toBe(true)
+
+    // Seleccionar Miembro Ana.
+    fireEvent.change(select, { target: { value: 'member:m1' } })
+    fireEvent.change(screen.getByLabelText('Título'), { target: { value: 'Fisio' } })
+    fireEvent.change(screen.getByLabelText('Comienza el'), {
+      target: { value: '2030-01-07' },
+    })
+    fireEvent.change(screen.getByLabelText('Nº de ocurrencias'), {
+      target: { value: '2' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear serie' }))
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    const sent = onSubmit.mock.calls[0][0] as SeriesCreate
+    expect(sent.member_id).toBe('m1')
+    expect(sent.child_id).toBeNull()
+  })
+})

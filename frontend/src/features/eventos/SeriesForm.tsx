@@ -26,15 +26,16 @@ function formatPreview(iso: string): string {
 type Props = {
   types: EventTypeOut[]
   children: { id: string; name: string }[]
+  members?: { id: string; display_name: string | null }[]
   onSubmit: (data: SeriesCreate) => void
   onCancel: () => void
 }
 
 /** Alta de una Serie recurrente acotada con previsualización de ocurrencias. */
-export function SeriesForm({ types, children, onSubmit, onCancel }: Props) {
+export function SeriesForm({ types, children, members = [], onSubmit, onCancel }: Props) {
   const [title, setTitle] = useState('')
   const [typeId, setTypeId] = useState(types[0]?.id ?? '')
-  const [childId, setChildId] = useState('')
+  const [subject, setSubject] = useState('')
   const [time, setTime] = useState('')
   const [cadence, setCadence] = useState<SeriesCreate['cadence']>('weekly')
   const [dayOfWeek, setDayOfWeek] = useState(0)
@@ -64,10 +65,13 @@ export function SeriesForm({ types, children, onSubmit, onCancel }: Props) {
     if (!title.trim() || !startsAt || !typeId) return
     if (boundKind === 'max_count' && (!maxCount || maxCount < 1)) return
     if (boundKind === 'ends_at' && !endsAt) return
+    const isChild = subject.startsWith('child:')
+    const isMember = subject.startsWith('member:')
     onSubmit({
       title: title.trim(),
       event_type_id: typeId,
-      child_id: childId || null,
+      child_id: isChild ? subject.slice(6) : null,
+      member_id: isMember ? subject.slice(7) : null,
       time: time || null,
       cadence,
       day_of_week: needsDay ? dayOfWeek : null,
@@ -105,16 +109,25 @@ export function SeriesForm({ types, children, onSubmit, onCancel }: Props) {
         </select>
         <select
           className="evento-form__input"
-          aria-label="Hijo"
-          value={childId}
-          onChange={(e) => setChildId(e.target.value)}
+          aria-label="Para quién"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
         >
-          <option value="">Sin Hijo</option>
-          {children.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          <option value="">Familia</option>
+          <optgroup label="Hijos">
+            {children.map((c) => (
+              <option key={c.id} value={`child:${c.id}`}>
+                {c.name}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Miembros">
+            {members.map((m) => (
+              <option key={m.id} value={`member:${m.id}`}>
+                {m.display_name ?? m.id}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
       <div className="evento-form__row">

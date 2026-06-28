@@ -13,6 +13,7 @@ vi.mock('@clerk/react', () => ({
 
 const TYPES_URL = 'http://localhost:8000/event-types'
 const CHILDREN_URL = 'http://localhost:8000/children'
+const MEMBERS_URL = 'http://localhost:8000/members'
 const EVENTS_URL = 'http://localhost:8000/events'
 const SERIES_URL = 'http://localhost:8000/api/series'
 const FUTURE_URL = 'http://localhost:8000/api/series/:id/future'
@@ -43,6 +44,7 @@ function seed(handlers: ReturnType<typeof http.get>[] = []) {
   server.use(
     http.get(TYPES_URL, () => HttpResponse.json([type1])),
     http.get(CHILDREN_URL, () => HttpResponse.json([])),
+    http.get(MEMBERS_URL, () => HttpResponse.json([])),
     ...handlers,
   )
 }
@@ -69,6 +71,8 @@ describe('EventosPage — Series recurrentes', () => {
             event_type: type1,
             child_id: null,
             child: null,
+            member_id: null,
+            member: null,
             status: 'pending',
             is_overdue: false,
             series_id: 'ser-1',
@@ -138,21 +142,21 @@ describe('EventosPage — agrupación temporal', () => {
           {
             id: 'ev-past',
             family_id: 'f', title: 'Cita pasada', date: isoOffset(-3), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: true, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev-today',
             family_id: 'f', title: 'Cole hoy', date: isoOffset(0), time: '09:00',
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev-future',
             family_id: 'f', title: 'Vacaciones', date: isoOffset(10), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -180,7 +184,7 @@ describe('EventosPage — agrupación temporal', () => {
           {
             id: 'ev-done',
             family_id: 'f', title: 'Ya hecho', date: isoOffset(0), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'done', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -214,7 +218,7 @@ describe('EventosPage — borrado con deshacer', () => {
           {
             id: 'ev-del',
             family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -228,7 +232,7 @@ describe('EventosPage — borrado con deshacer', () => {
       http.post(EVENTS_URL, async ({ request }) => {
         created.push((await request.json()) as { title?: string })
         return HttpResponse.json(
-          { id: 'ev-restored', family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null, event_type_id: 't1', event_type: type1, child_id: null, child: null, status: 'pending', is_overdue: false, series_id: null, created_by: 'm1', created_at: '2026-06-17T10:00:00Z' },
+          { id: 'ev-restored', family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null, event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null, status: 'pending', is_overdue: false, series_id: null, created_by: 'm1', created_at: '2026-06-17T10:00:00Z' },
           { status: 201 },
         )
       }),
@@ -261,7 +265,7 @@ describe('EventosPage — borrado persistente (reciente borrado)', () => {
           {
             id: 'ev-del',
             family_id: 'f', title: 'Trámite', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -309,14 +313,14 @@ describe('EventosPage — atajos de teclado', () => {
           {
             id: 'ev1',
             family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev2',
             family_id: 'f', title: 'Evento 2', date: isoOffset(2), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -360,7 +364,7 @@ describe('EventosPage — atajos de teclado', () => {
           {
             id: 'ev1',
             family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -411,7 +415,7 @@ describe('EventosPage — estado pendiente visible', () => {
           {
             id: 'ev1',
             family_id: 'f', title: 'Evento 1', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -464,14 +468,14 @@ describe('EventosPage — filtros', () => {
           {
             id: 'ev-cole',
             family_id: 'f', title: 'Cole', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev-med',
             family_id: 'f', title: 'Cita médica', date: isoOffset(2), time: null,
-            event_type_id: 't2', event_type: type2, child_id: null, child: null,
+            event_type_id: 't2', event_type: type2, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -480,6 +484,7 @@ describe('EventosPage — filtros', () => {
     ])
     server.use(http.get(TYPES_URL, () => HttpResponse.json([type1, type2])))
     server.use(http.get(CHILDREN_URL, () => HttpResponse.json([])))
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([])))
 
     render(<EventosPage />, { wrapper: makeWrapper() })
     await waitFor(() =>
@@ -521,21 +526,21 @@ describe('EventosPage — filtros', () => {
           {
             id: 'ev-cole-lia',
             family_id: 'f', title: 'Cole Lía', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: 'c1', child: child1,
+            event_type_id: 't1', event_type: type1, child_id: 'c1', child: child1, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev-cole-solo',
             family_id: 'f', title: 'Cole solo', date: isoOffset(1), time: null,
-            event_type_id: 't1', event_type: type1, child_id: null, child: null,
+            event_type_id: 't1', event_type: type1, child_id: null, child: null, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
           {
             id: 'ev-med-lia',
             family_id: 'f', title: 'Médico Lía', date: isoOffset(2), time: null,
-            event_type_id: 't2', event_type: type2, child_id: 'c1', child: child1,
+            event_type_id: 't2', event_type: type2, child_id: 'c1', child: child1, member_id: null, member: null,
             status: 'pending', is_overdue: false, series_id: null,
             created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
           },
@@ -544,6 +549,7 @@ describe('EventosPage — filtros', () => {
     ])
     server.use(http.get(TYPES_URL, () => HttpResponse.json([type1, type2])))
     server.use(http.get(CHILDREN_URL, () => HttpResponse.json([child1])))
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([])))
 
     render(<EventosPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByText('Cole Lía')).toBeTruthy())
@@ -564,5 +570,178 @@ describe('EventosPage — filtros', () => {
 
     const badge = screen.getByRole('button', { name: /Filtros/ }).querySelector('.eventos__filter-badge')
     expect(badge?.textContent).toBe('2')
+  })
+})
+
+describe('EventosPage — selector de sujeto (Hijo o Miembro)', () => {
+  const ana = { id: 'm-ana', family_id: 'f', display_name: 'Ana' }
+
+  it('renderiza optgroups Hijos/Miembros y una opción Familia; lista a Ana', async () => {
+    seed([
+      http.get(EVENTS_URL, () => HttpResponse.json([])),
+    ])
+    // MEMBERS se registra aparte y después para tomar precedencia sobre el
+    // handler por defecto del seed (MSW evalúa primero los handlers añadidos
+    // más tarde; dentro de la misma llamada gana el primer match).
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([ana])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Eventos' })).toBeTruthy())
+
+    // Abrir el formulario de creación para tener el selector disponible.
+    fireEvent.click(screen.getByRole('button', { name: 'Crear evento' }))
+
+    const subjectSelect = await screen.findByLabelText('Para quién')
+    expect(subjectSelect).toBeTruthy()
+
+    // Grupo Familia + optgroups Hijos y Miembros.
+    expect(screen.getByRole('option', { name: 'Familia' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Hijos' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Miembros' })).toBeTruthy()
+
+    // La Miembro "Ana" aparece dentro del grupo Miembros.
+    expect(screen.getByRole('option', { name: 'Ana' })).toBeTruthy()
+  })
+
+  it('crea un Evento para la Miembro Ana: el POST lleva member_id y aparece el chip "Ana"', async () => {
+    const createdBody: { member_id?: string | null; child_id?: string | null; title?: string } = {}
+    const store: { id: string; family_id: string; title: string; date: string; time: string | null; event_type_id: string; event_type: typeof type1; child_id: null; child: null; member_id: string; member: { id: string; display_name: string }; status: 'pending'; is_overdue: boolean; series_id: null; created_by: string; created_at: string }[] = []
+    seed([
+      http.get(EVENTS_URL, () => HttpResponse.json(store)),
+      http.post(EVENTS_URL, async ({ request }) => {
+        const input = (await request.json()) as { member_id?: string | null; child_id?: string | null; title?: string }
+        createdBody.member_id = input.member_id
+        createdBody.child_id = input.child_id
+        createdBody.title = input.title
+        const created = {
+          id: 'ev-ana',
+          family_id: 'f',
+          title: input.title ?? 'Cita Ana',
+          date: '2030-07-01',
+          time: null,
+          event_type_id: 't1',
+          event_type: type1,
+          child_id: null,
+          child: null,
+          member_id: 'm-ana',
+          member: { id: 'm-ana', display_name: 'Ana' },
+          status: 'pending' as const,
+          is_overdue: false,
+          series_id: null,
+          created_by: 'm1',
+          created_at: '2026-06-17T10:00:00Z',
+        }
+        store.push(created)
+        return HttpResponse.json(created, { status: 201 })
+      }),
+    ])
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([ana])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Eventos' })).toBeTruthy())
+
+    // Abrir crear y rellenar mínimos.
+    fireEvent.click(screen.getByRole('button', { name: 'Crear evento' }))
+    fireEvent.change(screen.getByPlaceholderText('Título del evento…'), { target: { value: 'Cita Ana' } })
+    fireEvent.change(screen.getByLabelText('Para quién'), { target: { value: 'member:m-ana' } })
+    // Fecha obligatoria: valor futuro.
+    const dateEl = document.querySelector('input[type="date"]') as HTMLInputElement
+    fireEvent.change(dateEl, { target: { value: '2030-07-01' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Crear' }))
+
+    // El cuerpo del POST incluye member_id = id de Ana y child_id null.
+    await waitFor(() => expect(createdBody.member_id).toBe('m-ana'))
+    expect(createdBody.child_id).toBeNull()
+
+    // El evento creado (con member expandido por el handler) pinta el chip "Ana".
+    await waitFor(() =>
+      expect(screen.getByText('Ana', { selector: '.evento-chip' })).toBeTruthy(),
+    )
+  })
+
+  it('edita un Evento y cambia el sujeto a Ana: el PATCH lleva member_id y aparece el chip "Ana"', async () => {
+    const patchedBody: { member_id?: string | null; child_id?: string | null; title?: string } = {}
+    // Estado servidor mutable: el GET refleja lo que el PATCH haya persistido.
+    const store: Array<Record<string, unknown>> = [
+      {
+        id: 'ev-edit',
+        family_id: 'f', title: 'Trámite familiar', date: isoOffset(2), time: null,
+        event_type_id: 't1', event_type: type1, child_id: null, child: null,
+        member_id: null, member: null,
+        status: 'pending', is_overdue: false, series_id: null,
+        created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+      },
+    ]
+    seed([
+      http.get(EVENTS_URL, () => HttpResponse.json(store)),
+      http.patch('http://localhost:8000/events/ev-edit', async ({ request }) => {
+        const input = (await request.json()) as { member_id?: string | null; child_id?: string | null; title?: string }
+        patchedBody.member_id = input.member_id
+        patchedBody.child_id = input.child_id
+        patchedBody.title = input.title
+        // El servidor persiste y devuelve el Evento con Miembro expandido.
+        const updated = {
+          ...store[0],
+          title: input.title ?? store[0]['title'],
+          member_id: 'm-ana',
+          member: { id: 'm-ana', display_name: 'Ana' },
+        }
+        store[0] = updated
+        return HttpResponse.json(updated)
+      }),
+    ])
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([ana])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() =>
+      expect(screen.getByText('Trámite familiar', { selector: '.evento-item__title' })).toBeTruthy(),
+    )
+
+    // Abrir edición del Evento existente.
+    fireEvent.click(screen.getByRole('button', { name: /Editar Trámite familiar/ }))
+
+    // Cambiar el sujeto a la Miembro Ana.
+    const subjectSelect = await screen.findByLabelText('Para quién')
+    fireEvent.change(subjectSelect, { target: { value: 'member:m-ana' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    // El cuerpo del PATCH incluye member_id = id de Ana.
+    await waitFor(() => expect(patchedBody.member_id).toBe('m-ana'))
+
+    // La respuesta PATCH + refresco del GET (con member expandido) muestra "Ana".
+    await waitFor(() =>
+      expect(screen.getByText('Ana', { selector: '.evento-chip' })).toBeTruthy(),
+    )
+  })
+
+  it('un Evento con Hijo y Miembro pinta ambos chips', async () => {
+    const lia = { id: 'c1', family_id: 'f', name: 'Lía', birth_date: '2020-01-01', created_at: '2026-06-17T10:00:00Z' }
+    seed([
+      http.get(EVENTS_URL, () =>
+        HttpResponse.json([
+          {
+            id: 'ev-both',
+            family_id: 'f', title: 'Cita Lía con Ana', date: isoOffset(2), time: null,
+            event_type_id: 't1', event_type: type1, child_id: 'c1', child: lia,
+            member_id: 'm-ana', member: { id: 'm-ana', display_name: 'Ana' },
+            status: 'pending', is_overdue: false, series_id: null,
+            created_by: 'm1', created_at: '2026-06-17T10:00:00Z',
+          },
+        ]),
+      ),
+    ])
+    server.use(http.get(CHILDREN_URL, () => HttpResponse.json([lia])))
+    server.use(http.get(MEMBERS_URL, () => HttpResponse.json([ana])))
+
+    render(<EventosPage />, { wrapper: makeWrapper() })
+    await waitFor(() =>
+      expect(screen.getByText('Cita Lía con Ana', { selector: '.evento-item__title' })).toBeTruthy(),
+    )
+
+    // Ambos chips coexisten en la fila de metadatos.
+    expect(screen.getByText('Lía', { selector: '.evento-chip' })).toBeTruthy()
+    expect(screen.getByText('Ana', { selector: '.evento-chip' })).toBeTruthy()
   })
 })

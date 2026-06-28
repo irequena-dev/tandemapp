@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useChildren } from '../children/api'
+import { useMembers } from '../members/api'
 import { useEventTypes } from './event-types-api'
 import { useEvents, useCreateEvent, useUpdateEvent, useDeleteEvent, useDoneEvent, useUndoEvent } from './events-api'
 import { useCreateSeries, useDeleteSeriesFuture } from './series-api'
@@ -158,6 +159,7 @@ type EventDraft = {
   time: string | null
   event_type_id: string
   child_id: string | null
+  member_id: string | null
 }
 
 function toDraft(ev: EventOut): EventDraft {
@@ -167,6 +169,7 @@ function toDraft(ev: EventOut): EventDraft {
     time: ev.time,
     event_type_id: ev.event_type_id,
     child_id: ev.child_id,
+    member_id: ev.member_id,
   }
 }
 
@@ -185,28 +188,37 @@ function statusVisual(ev: EventOut) {
 type EventFormProps = {
   types: EventTypeOut[]
   children: { id: string; name: string }[]
-  initial?: { title: string; date: string; time: string; event_type_id: string; child_id: string }
+  members: { id: string; display_name: string | null }[]
+  initial?: { title: string; date: string; time: string; event_type_id: string; child_id?: string; member_id?: string }
   onSubmit: (data: EventDraft) => void
   onCancel: () => void
   submitLabel: string
 }
 
-function EventForm({ types, children, initial, onSubmit, onCancel, submitLabel }: EventFormProps) {
+function EventForm({ types, children, members, initial, onSubmit, onCancel, submitLabel }: EventFormProps) {
   const [title, setTitle] = useState(initial?.title ?? '')
   const [date, setDate] = useState(initial?.date ?? '')
   const [time, setTime] = useState(initial?.time ?? '')
   const [typeId, setTypeId] = useState(initial?.event_type_id ?? (types[0]?.id ?? ''))
-  const [childId, setChildId] = useState(initial?.child_id ?? '')
+  const defaultSubject = initial?.child_id
+    ? `child:${initial.child_id}`
+    : initial?.member_id
+      ? `member:${initial.member_id}`
+      : ''
+  const [subject, setSubject] = useState(defaultSubject)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim() || !date || !typeId) return
+    const isChild = subject.startsWith('child:')
+    const isMember = subject.startsWith('member:')
     onSubmit({
       title: title.trim(),
       date,
       time: time || null,
       event_type_id: typeId,
-      child_id: childId || null,
+      child_id: isChild ? subject.slice(6) : null,
+      member_id: isMember ? subject.slice(7) : null,
     })
   }
 
@@ -229,9 +241,14 @@ function EventForm({ types, children, initial, onSubmit, onCancel, submitLabel }
         <select className="evento-form__input" value={typeId} onChange={(e) => setTypeId(e.target.value)} required>
           {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
-        <select className="evento-form__input" value={childId} onChange={(e) => setChildId(e.target.value)}>
-          <option value="">Sin Hijo</option>
-          {children.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+        <select className="evento-form__input" value={subject} onChange={(e) => setSubject(e.target.value)} aria-label="Para quién">
+          <option value="">Familia</option>
+          <optgroup label="Hijos">
+            {children.map((c) => <option key={c.id} value={`child:${c.id}`}>{c.name}</option>)}
+          </optgroup>
+          <optgroup label="Miembros">
+            {members.map((m) => <option key={m.id} value={`member:${m.id}`}>{m.display_name ?? m.id}</option>)}
+          </optgroup>
         </select>
       </div>
       <div className="evento-form__actions">
@@ -414,6 +431,7 @@ export function EventosPage() {
 
   const { data: eventTypes } = useEventTypes()
   const { data: childrenData } = useChildren()
+  const { data: membersData } = useMembers()
   const { data: events, isLoading: eventsLoading, error: eventsError, refetch } = useEvents()
   const createMut = useCreateEvent()
   const updateMut = useUpdateEvent()
@@ -426,6 +444,7 @@ export function EventosPage() {
 
   const types = eventTypes ?? []
   const kids = childrenData ?? []
+  const members = membersData ?? []
   const allEvents = useMemo(() => events ?? [], [events])
   const today = todayISO()
 
@@ -627,6 +646,7 @@ export function EventosPage() {
             )}
             {ev.event_type && <span className="evento-chip">{ev.event_type.name}</span>}
             {ev.child && <span className="evento-chip">{ev.child.name}</span>}
+            {ev.member && <span className="evento-chip">{ev.member.display_name}</span>}
           </div>
         </div>
         {ev.series_id && (
@@ -748,6 +768,7 @@ export function EventosPage() {
         <SeriesForm
           types={types}
           children={kids}
+          members={members}
           onSubmit={(data) => {
             createSeriesMut.mutate(data, {
               onSuccess: (out) => toast.success(`${out.events_created} eventos creados`),
@@ -763,6 +784,7 @@ export function EventosPage() {
         <EventForm
           types={types}
           children={kids}
+          members={members}
           onSubmit={handleCreate}
           onCancel={() => setShowCreate(false)}
           submitLabel="Crear"
@@ -773,12 +795,14 @@ export function EventosPage() {
         <EventForm
           types={types}
           children={kids}
+          members={members}
           initial={{
             title: editingEvent.title,
             date: editingEvent.date,
             time: editingEvent.time ? formatTime(editingEvent.time) : '',
             event_type_id: editingEvent.event_type_id,
-            child_id: editingEvent.child_id ?? '',
+            child_id: editingEvent.child_id ?? undefined,
+            member_id: editingEvent.member_id ?? undefined,
           }}
           onSubmit={(data) => handleUpdate(editingEvent.id, data)}
           onCancel={() => setEditingId(null)}
@@ -896,6 +920,7 @@ export function EventosPage() {
                     )}
                     {ev.event_type && <span className="evento-chip">{ev.event_type.name}</span>}
                     {ev.child && <span className="evento-chip">{ev.child.name}</span>}
+                    {ev.member && <span className="evento-chip">{ev.member.display_name}</span>}
                   </div>
                 </div>
                 <div className="evento-item__footer">

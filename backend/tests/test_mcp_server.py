@@ -657,7 +657,8 @@ async def test_create_event_happy_path(
     assert result["date"] == "2026-07-01"
     assert result["type"] == "Médico"
     assert result["status"] == "pending"
-    assert result["child_id"] is None
+    assert result["subject_name"] is None
+    assert result["subject_type"] is None
     assert result["time"] is None
     assert "id" in result
 
@@ -711,13 +712,14 @@ async def test_create_event_with_child(
                         "title": "Vacuna Lucas",
                         "date": "2026-07-03",
                         "type": "Médico",
-                        "child_name": "Lucas",
+                        "subject_name": "Lucas",
                     },
                 )
             )
 
     assert result["title"] == "Vacuna Lucas"
-    assert result["child_id"] is not None
+    assert result["subject_type"] == "child"
+    assert result["subject_name"] == "Lucas"
 
 
 async def test_create_event_fallback_to_otros(
@@ -768,7 +770,7 @@ async def test_create_event_child_not_found(
                         "title": "Evento hijo fantasma",
                         "date": "2026-07-05",
                         "type": "Médico",
-                        "child_name": "Inexistente",
+                        "subject_name": "Inexistente",
                     },
                 )
             )
@@ -813,3 +815,194 @@ async def test_create_event_isolation(
     # bajo aislamiento (no hubo errores de RLS).
     names_b = [t["name"] for t in types_b]
     assert "Trámite" in names_b
+
+
+# ---------------------------------------------------------------------------
+# create_event — sujeto polimórfico (Hijo o Miembro)
+# ---------------------------------------------------------------------------
+
+
+async def _materialize_member(
+    auth_client: AsyncClient,
+    identity: dict,
+    org_id: str,
+    user_id: str,
+    name: str | None,
+) -> None:
+    """Materializa un Miembro `user_id` en la Familia `org_id`.
+
+    Requiere que el Miembro creador de la Familia ya esté materializado (patrón
+    de test_events). Si `name` es None, lo materializa SIN display_name.
+    """
+    if name is None:
+        _as(identity, org_id, user_id)
+    else:
+        _as(identity, org_id, user_id)
+        identity["name"] = name
+    # GET /members materializa el Miembro via upsert de Clerk (tenancy).
+    await auth_client.get("/members")
+
+
+async def test_create_event_subject_is_member(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
+    """subject_name resuelve a un Miembro O a un Hijo indistintamente."""
+
+    # Familia con titular + Hijo "Mateo".
+    token = await _seed_token_and_children(
+        auth_client,
+        identity,
+        "org_mcp_ev_subj",
+        "user_mcp_ev_subj",
+        [("Mateo", "2021-02-02")],
+    )
+    # Materializar un segundo Miembro "Ana"; volver al titular.
+    # sub único: el id de Miembro es PK global (un Miembro → una Familia);
+    # reusar "user_ana" entre familias rompería el ON CONFLICT del upsert (RLS).
+    await _materialize_member(
+        auth_client, identity, "org_mcp_ev_subj", "user_ana_subj", "Ana"
+    )
+    _as(identity, "org_mcp_ev_subj", "user_mcp_ev_subj")
+
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            res_member = _tool_result(
+                await c.call_tool(
+                    "create_event",
+                    {
+                        "title": "Cita Ana",
+                        "date": "2026-07-10",
+                        "type": "Médico",
+                        "subject_name": "Ana",
+                    },
+                )
+            )
+            res_child = _tool_result(
+                await c.call_tool(
+                    "create_event",
+                    {
+                        "title": "Vacuna Mateo",
+                        "date": "2026-07-11",
+                        "type": "Médico",
+                        "subject_name": "Mateo",
+                    },
+                )
+            )
+
+    assert res_member["subject_type"] == "member"
+    assert res_member["subject_name"] == "Ana"
+    assert res_child["subject_type"] == "child"
+    assert res_child["subject_name"] == "Mateo"
+
+
+async def test_create_event_subject_not_found_lists_valid(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
+    """subject_name inexistente → error lista Hijos Y Miembros válidos."""
+
+    token = await _seed_token_and_children(
+        auth_client,
+        identity,
+        "org_mcp_ev_nf2",
+        "user_mcp_ev_nf2",
+        [("Sofía", "2020-01-01")],
+    )
+    await _materialize_member(
+        auth_client, identity, "org_mcp_ev_nf2", "user_ana_nf", "Ana"
+    )
+    _as(identity, "org_mcp_ev_nf2", "user_mcp_ev_nf2")
+
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            result = _tool_result(
+                await c.call_tool(
+                    "create_event",
+                    {
+                        "title": "Nadie",
+                        "date": "2026-07-12",
+                        "type": "Médico",
+                        "subject_name": "Nadie",
+                    },
+                )
+            )
+
+    assert "error" in result
+    assert "Sofía" in result["error"]
+    assert "Ana" in result["error"]
+
+
+async def test_create_event_subject_ambiguous(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
+    """Un Hijo y un Miembro con el mismo nombre → ambiguo."""
+
+    token = await _seed_token_and_children(
+        auth_client,
+        identity,
+        "org_mcp_ev_amb2",
+        "user_mcp_ev_amb2",
+        [("Alex", "2021-01-01")],
+    )
+    await _materialize_member(
+        auth_client, identity, "org_mcp_ev_amb2", "user_alex", "Alex"
+    )
+    _as(identity, "org_mcp_ev_amb2", "user_mcp_ev_amb2")
+
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            result = _tool_result(
+                await c.call_tool(
+                    "create_event",
+                    {
+                        "title": "Doble Alex",
+                        "date": "2026-07-13",
+                        "type": "Médico",
+                        "subject_name": "Alex",
+                    },
+                )
+            )
+
+    assert "error" in result
+    lowered = result["error"].lower()
+    assert "ambiguo" in lowered or "ambigua" in lowered
+
+
+async def test_create_event_excludes_null_display_name_member(
+    auth_client: AsyncClient, identity: dict, mcp_client_factory
+) -> None:
+    """Un Miembro con display_name=NULL NO aparece en los sujetos válidos."""
+
+    token = await _seed_token_and_children(
+        auth_client,
+        identity,
+        "org_mcp_ev_null",
+        "user_mcp_ev_null",
+        [("Sofía", "2020-01-01")],
+    )
+    # Materializar un Miembro SIN display_name.
+    await _materialize_member(
+        auth_client, identity, "org_mcp_ev_null", "user_null", None
+    )
+    _as(identity, "org_mcp_ev_null", "user_mcp_ev_null")
+
+    async with _lifespan(None):
+        async with mcp_client_factory(token) as c:
+            result = _tool_result(
+                await c.call_tool(
+                    "create_event",
+                    {
+                        "title": "Nadie",
+                        "date": "2026-07-14",
+                        "type": "Médico",
+                        "subject_name": "Nadie",
+                    },
+                )
+            )
+
+    assert "error" in result
+    # El Miembro sin display_name NO debe listarse; "Sofía" sí.
+    assert "Sofía" in result["error"]
+    # La lista de válidos está entre "Sujetos válidos: " y el final del string.
+    after = result["error"].split("Sujetos válidos:", 1)[-1].strip()
+    valid_names = [n.strip() for n in after.split(",")]
+    assert valid_names == ["Sofía"]

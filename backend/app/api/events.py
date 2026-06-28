@@ -14,38 +14,90 @@ from ..models import (
     EventType,
     EventTypeOut,
     EventUpdate,
+    Member,
+    MemberOut,
 )
 from ..tenancy import FamilyScope, family_session
 
 router = APIRouter(tags=["events"])
 
 
-async def _enrich(session: AsyncSession, ev: Event) -> EventOut:
-    """Enriquece un Evento con su Tipo y Hijo expandidos + is_overdue calculado."""
-    et = await session.get(EventType, ev.event_type_id)
-    child: Child | None = None
-    if ev.child_id:
-        child = await session.get(Child, ev.child_id)
+async def load_event_views(
+    session: AsyncSession, events: list[Event]
+) -> list[EventOut]:
+    """Enriquece N Eventos con batch-loading: 1 SELECT por entidad (EventType,
+    Child, Member), no N+1. Calcula is_overdue por Evento."""
+    if not events:
+        return []
+
+    event_type_ids = {ev.event_type_id for ev in events}
+    types: dict = {}
+    if event_type_ids:
+        ets = (
+            (
+                await session.execute(
+                    select(EventType).where(EventType.id.in_(event_type_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        types = {et.id: et for et in ets}
+
+    child_ids = {ev.child_id for ev in events if ev.child_id}
+    children: dict = {}
+    if child_ids:
+        chs = (
+            (await session.execute(select(Child).where(Child.id.in_(child_ids))))
+            .scalars()
+            .all()
+        )
+        children = {c.id: c for c in chs}
+
+    member_ids = {ev.member_id for ev in events if ev.member_id}
+    members: dict = {}
+    if member_ids:
+        mems = (
+            (await session.execute(select(Member).where(Member.id.in_(member_ids))))
+            .scalars()
+            .all()
+        )
+        members = {m.id: m for m in mems}
 
     today = datetime.now(UTC).date()
-    is_overdue = ev.status == "pending" and ev.date < today
+    views: list[EventOut] = []
+    for ev in events:
+        is_overdue = ev.status == "pending" and ev.date < today
+        # `.get` (no subíndice): si una FK huérfana desaparece, degrada a None
+        # igual que el `session.get` original, en vez de KeyError.
+        child = children.get(ev.child_id) if ev.child_id else None
+        member = members.get(ev.member_id) if ev.member_id else None
+        views.append(
+            EventOut(
+                id=ev.id,
+                family_id=ev.family_id,
+                title=ev.title,
+                date=ev.date,
+                time=ev.time,
+                event_type_id=ev.event_type_id,
+                event_type=EventTypeOut.model_validate(types[ev.event_type_id]),
+                child_id=ev.child_id,
+                child=ChildOut.model_validate(child) if child else None,
+                member_id=ev.member_id,
+                member=MemberOut.model_validate(member) if member else None,
+                status=ev.status,
+                is_overdue=is_overdue,
+                series_id=ev.series_id,
+                created_by=ev.created_by,
+                created_at=ev.created_at,
+            )
+        )
+    return views
 
-    return EventOut(
-        id=ev.id,
-        family_id=ev.family_id,
-        title=ev.title,
-        date=ev.date,
-        time=ev.time,
-        event_type_id=ev.event_type_id,
-        event_type=EventTypeOut.model_validate(et),
-        child_id=ev.child_id,
-        child=ChildOut.model_validate(child) if child else None,
-        status=ev.status,
-        is_overdue=is_overdue,
-        series_id=ev.series_id,
-        created_by=ev.created_by,
-        created_at=ev.created_at,
-    )
+
+async def _enrich(session: AsyncSession, ev: Event) -> EventOut:
+    """Wrapper de un solo Evento sobre `load_event_views` (batch-loading)."""
+    return (await load_event_views(session, [ev]))[0]
 
 
 async def _get_owned_event(session: AsyncSession, event_id: uuid.UUID) -> Event:
@@ -62,6 +114,7 @@ async def _get_owned_event(session: AsyncSession, event_id: uuid.UUID) -> Event:
 async def list_events(
     type_id: uuid.UUID | None = Query(default=None),
     child_id: uuid.UUID | None = Query(default=None),
+    member_id: str | None = Query(default=None),
     scope: FamilyScope = Depends(family_session),
 ) -> list[EventOut]:
     """Lista Eventos de la Familia con filtros opcionales, ordenados por fecha ASC."""
@@ -71,11 +124,13 @@ async def list_events(
         stmt = stmt.where(Event.event_type_id == type_id)
     if child_id is not None:
         stmt = stmt.where(Event.child_id == child_id)
+    if member_id is not None:
+        stmt = stmt.where(Event.member_id == member_id)
     stmt = stmt.order_by(Event.date, Event.time)
 
     result = await session.execute(stmt)
     events = list(result.scalars().all())
-    return [await _enrich(session, ev) for ev in events]
+    return await load_event_views(session, events)
 
 
 @router.post("/events", status_code=status.HTTP_201_CREATED)
@@ -85,6 +140,16 @@ async def create_event(
 ) -> EventOut:
     """Crea un Evento en la Familia autenticada."""
     session = scope.session
+
+    # Validar que member_id pertenece a la Familia
+    if data.member_id is not None:
+        member = await session.get(Member, data.member_id)
+        if member is None or member.family_id != scope.family_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El Miembro no pertenece a esta Familia",
+            )
+
     ev = Event(
         family_id=scope.family_id,
         title=data.title,
@@ -92,6 +157,7 @@ async def create_event(
         time=data.time,
         event_type_id=data.event_type_id,
         child_id=data.child_id,
+        member_id=data.member_id,
         created_by=scope.member_id,
     )
     session.add(ev)
@@ -119,6 +185,18 @@ async def update_event(
     """Edita parcialmente un Evento."""
     session = scope.session
     ev = await _get_owned_event(session, event_id)
+    # Validar pertenencia del Miembro ANTES del loop: model_dump(exclude_unset=True)
+    # distingue "member_id": "x" (set), "member_id": null (clear) y omitido (no-op).
+    if (
+        "member_id" in data.model_dump(exclude_unset=True)
+        and data.member_id is not None
+    ):
+        member = await session.get(Member, data.member_id)
+        if member is None or member.family_id != scope.family_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El Miembro no pertenece a esta Familia",
+            )
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(ev, field, value)
     session.add(ev)

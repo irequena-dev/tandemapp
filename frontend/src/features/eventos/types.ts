@@ -28,6 +28,12 @@ export type ChildSummary = {
   avatar_color: string | null
 }
 
+/** Miembro expandido inline en un Evento. */
+export type MemberSummary = {
+  id: string
+  display_name: string | null
+}
+
 /** Evento tal como lo devuelve el backend. */
 export type EventOut = {
   id: string
@@ -39,6 +45,8 @@ export type EventOut = {
   event_type: EventTypeOut
   child_id: string | null
   child: ChildSummary | null
+  member_id: string | null
+  member: MemberSummary | null
   status: 'pending' | 'done'
   is_overdue: boolean
   series_id: string | null
@@ -53,6 +61,7 @@ export type EventCreate = {
   time?: string | null
   event_type_id: string
   child_id?: string | null
+  member_id?: string | null
 }
 
 /** Edición parcial de un Evento. */
@@ -62,6 +71,7 @@ export type EventUpdate = {
   time?: string | null
   event_type_id?: string
   child_id?: string | null
+  member_id?: string | null
 }
 
 /* ---------- Series recurrentes ---------- */
@@ -74,6 +84,7 @@ export type SeriesCreate = {
   title: string
   event_type_id: string
   child_id?: string | null
+  member_id?: string | null
   time?: string | null
   cadence: SeriesCadence
   day_of_week?: number | null // 0=lun…6=dom; requerido si weekly/biweekly
