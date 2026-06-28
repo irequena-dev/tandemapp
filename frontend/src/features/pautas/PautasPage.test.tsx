@@ -637,6 +637,52 @@ describe('PautasPage (costura de ruta/página)', () => {
     })
   })
 
+  // --- Eliminar Pauta activa ---
+
+  it('PautaCard activa expandida muestra "Eliminar" con confirmación inline; "Sí" dispara DELETE + toast', async () => {
+    let deleteCalls = 0
+    server.use(
+      http.delete('http://localhost:8000/pautas/:id', () => {
+        deleteCalls += 1
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
+
+    renderPage([samplePauta])
+    await waitFor(() => expect(screen.queryByText(/Amoxicilina · 5 ml/)).not.toBeNull())
+
+    const user = userEvent.setup()
+    // Expandir la tarjeta
+    await user.click(screen.getByRole('button', { expanded: false }))
+
+    // Botón "Eliminar" visible
+    const delBtn = await screen.findByRole('button', { name: /Eliminar$/i })
+    expect(delBtn).not.toBeNull()
+
+    // Pulsar "Eliminar" NO borra: abre confirmación inline
+    await user.click(delBtn)
+    expect(deleteCalls).toBe(0)
+    expect(await screen.findByRole('group', { name: /Confirmar eliminación/i })).not.toBeNull()
+    expect(screen.queryByText(/¿Eliminar la Pauta\?/)).not.toBeNull()
+
+    // "No" cancela
+    await user.click(screen.getByRole('button', { name: 'Cancelar eliminación' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('group', { name: /Confirmar eliminación/i })).toBeNull()
+    })
+    expect(deleteCalls).toBe(0)
+
+    // Reabrir y confirmar con "Sí" → DELETE + toast
+    await user.click(screen.getByRole('button', { name: /Eliminar$/i }))
+    await user.click(screen.getByRole('button', { name: 'Confirmar eliminación' }))
+    await waitFor(() => expect(deleteCalls).toBe(1))
+
+    // Toast de confirmación
+    await waitFor(() => {
+      expect(screen.queryByText(/Pauta de Amoxicilina eliminada/)).not.toBeNull()
+    })
+  })
+
   it('NO muestra botón "Editar" en Pautas finalizadas', async () => {
     // PautasPage solo muestra activas; verificamos que la activa sí tiene el botón
     renderPage([samplePauta])

@@ -670,3 +670,126 @@ async def test_patch_pauta_other_family_returns_404(
         json={"medication": "Hackeado"},
     )
     assert patch_resp.status_code == 404
+
+
+# ---------- Eliminar Pauta activa (DELETE) ----------
+
+
+async def test_delete_pauta_active_returns_204_and_cascades_admins(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """DELETE /pautas/{id} borra la Pauta activa y sus Administraciones; 204."""
+    _as(identity, "org_del_ok", "user_del_ok")
+    child_id = await _create_child(auth_client)
+
+    # Crear Pauta
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Amoxicilina",
+            "dose": "5 ml",
+            "interval_hours": 8,
+            "duration_days": 7,
+        },
+    )
+    assert resp.status_code == 201
+    pauta_id = resp.json()["id"]
+
+    # Registrar una Administración
+    admin_resp = await auth_client.post(f"/pautas/{pauta_id}/administrations", json={})
+    assert admin_resp.status_code == 201
+
+    # Eliminar la Pauta
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 204
+
+    # La Pauta ya no existe
+    assert (await auth_client.get(f"/pautas/{pauta_id}")).status_code == 404
+
+    # Las Administraciones también se borraron (CASCADE)
+    admins = await auth_client.get(f"/pautas/{pauta_id}/administrations")
+    assert admins.status_code == 404
+
+
+async def test_delete_pauta_finished_returns_409(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """Intentar eliminar una Pauta finalizada devuelve 409."""
+    _as(identity, "org_del_409", "user_del_409")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Vitamina D",
+            "dose": "1 gota",
+            "interval_hours": 24,
+            "duration_days": 30,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Finalizar
+    await auth_client.post(f"/pautas/{pauta_id}/finish")
+
+    # Intentar eliminar → 409
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 409
+
+
+async def test_delete_pauta_other_family_returns_404(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """RLS: una Familia no puede eliminar la Pauta de otra (404)."""
+    _as(identity, "org_del_rls_a", "user_del_rls_a")
+    child_id = await _create_child(auth_client, "Hijo RLS A")
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Secreto",
+            "dose": "1 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Familia B intenta eliminar
+    _as(identity, "org_del_rls_b", "user_del_rls_b")
+    del_resp = await auth_client.delete(f"/pautas/{pauta_id}")
+    assert del_resp.status_code == 404
+
+
+async def test_delete_pauta_disappears_from_listing(
+    auth_client: AsyncClient, identity: dict
+) -> None:
+    """La Pauta desaparece del listado GET /pautas tras el borrado."""
+    _as(identity, "org_del_list", "user_del_list")
+    child_id = await _create_child(auth_client)
+
+    resp = await auth_client.post(
+        "/pautas",
+        json={
+            "child_id": child_id,
+            "medication": "Ibuprofeno",
+            "dose": "3 ml",
+            "interval_hours": 8,
+            "duration_days": 5,
+        },
+    )
+    pauta_id = resp.json()["id"]
+
+    # Verificar que está en el listado
+    listed = (await auth_client.get("/pautas")).json()
+    assert any(p["id"] == pauta_id for p in listed)
+
+    # Eliminar
+    assert (await auth_client.delete(f"/pautas/{pauta_id}")).status_code == 204
+
+    # Ya no aparece
+    listed = (await auth_client.get("/pautas")).json()
+    assert all(p["id"] != pauta_id for p in listed)
