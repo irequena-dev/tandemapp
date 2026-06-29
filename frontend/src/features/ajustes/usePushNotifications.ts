@@ -11,6 +11,23 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output
 }
 
+function keysMatch(
+  existingKey: ArrayBuffer | null,
+  currentKey: Uint8Array
+): boolean {
+  if (!existingKey) return false
+
+  const existingArray = new Uint8Array(existingKey)
+
+  if (existingArray.length !== currentKey.length) return false
+
+  for (let i = 0; i < existingArray.length; i++) {
+    if (existingArray[i] !== currentKey[i]) return false
+  }
+
+  return true
+}
+
 export function usePushNotifications() {
   const { getToken } = useAuth()
   const [enabled, setEnabled] = useState(false)
@@ -18,6 +35,7 @@ export function usePushNotifications() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // 1. Check inicial: ¿hay suscripción?
   useEffect(() => {
     let cancelled = false
 
@@ -54,6 +72,101 @@ export function usePushNotifications() {
       cancelled = true
     }
   }, [])
+
+  // 2. Self-healing: reparar automáticamente si es necesario
+  // Solo se ejecuta si el usuario tiene el check activado (enabled = true)
+  useEffect(() => {
+    async function selfHeal() {
+      // Solo si el usuario TIENE el check activado
+      if (!enabled) return
+
+      // Verificar permiso
+      if (Notification.permission !== 'granted') return
+
+      if (!('serviceWorker' in navigator)) return
+
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+
+        if (!sub) {
+          // No hay suscripción local → intenta suscribir automáticamente
+          try {
+            const token = await getToken()
+            const { vapid_public_key } = await apiFetch<{ vapid_public_key: string }>(
+              '/api/push/vapid-public-key',
+              { token, method: 'GET' },
+            )
+
+            const newSub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapid_public_key),
+            })
+
+            const subJson = newSub.toJSON()
+            await apiFetch('/api/push/subscribe', {
+              token,
+              method: 'POST',
+              body: {
+                endpoint: subJson.endpoint,
+                p256dh: subJson.keys?.p256dh ?? '',
+                auth: subJson.keys?.auth ?? '',
+              },
+            })
+
+            // ✅ Recuperado exitosamente
+            console.log('Self-healing: suscripción creada')
+          } catch (e) {
+            // Falló → desactivar el check para que el usuario sepa
+            console.error('Self-healing falló:', e)
+            setEnabled(false)
+            setError('Las notificaciones se desactivaron automáticamente. Inténtalo de nuevo.')
+          }
+          return
+        }
+
+        // Hay suscripción local → verificar si VAPID coincide
+        try {
+          const token = await getToken()
+          const { vapid_public_key } = await apiFetch<{ vapid_public_key: string }>(
+            '/api/push/vapid-public-key',
+            { token, method: 'GET' },
+          )
+          const currentKey = urlBase64ToUint8Array(vapid_public_key)
+          const existingKey = sub.getKey('p256dh')
+
+          if (!keysMatch(existingKey, currentKey)) {
+            // VAPID cambió → re-registrar en silencio
+            await sub.unsubscribe()
+
+            const newSub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: currentKey,
+            })
+
+            const subJson = newSub.toJSON()
+            await apiFetch('/api/push/subscribe', {
+              token,
+              method: 'POST',
+              body: {
+                endpoint: subJson.endpoint,
+                p256dh: subJson.keys?.p256dh ?? '',
+                auth: subJson.keys?.auth ?? '',
+              },
+            })
+
+            console.log('Self-healing: VAPID actualizado')
+          }
+        } catch (e) {
+          console.error('Verificación de VAPID falló:', e)
+        }
+      } catch (e) {
+        console.error('Self-healing falló:', e)
+      }
+    }
+
+    selfHeal()
+  }, [enabled, getToken])
 
   const toggle = useCallback(async () => {
     if (busy) return
@@ -97,20 +210,9 @@ export function usePushNotifications() {
 
         const reg = await navigator.serviceWorker.ready
 
-        // Limpiar suscripción local previa antes de crear una nueva
-        const existing = await reg.pushManager.getSubscription()
-        if (existing) {
-          await existing.unsubscribe()
-          await apiFetch('/api/push/unsubscribe', {
-            token,
-            method: 'POST',
-            body: { endpoint: existing.endpoint },
-          })
-        }
-
         const sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapid_public_key) as BufferSource,
+          applicationServerKey: urlBase64ToUint8Array(vapid_public_key),
         })
 
         const subJson = sub.toJSON()
